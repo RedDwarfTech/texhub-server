@@ -11,3 +11,8 @@ serde = { version = "1.0.64", features = ["derive"] }
 serde_json = "1.0.64"
 rust_wheel = { git = "https://github.com/jiangxiaoqiang/rust_wheel.git", branch = "diesel2.0", features = ["model","common","rwconfig"]}
 tokio-tungstenite = "0.20.0"
+tokio = { version = "1.17.0", features = ["full"] }
+futures-util = { version = "0.3.28", default-features = false, features = ["sink", "std"] }
+futures-channel = "0.3.28"
+log4rs = "1.2.0"
+log = "0.4.0"

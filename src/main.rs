@@ -7,6 +7,9 @@ pub mod monitor;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+
+    
+
     HttpServer::new(|| {
         App::new()
             .configure(collar_controller::config)

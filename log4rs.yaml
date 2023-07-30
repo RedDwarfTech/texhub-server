@@ -1,0 +1,27 @@
+refresh_rate: 30 seconds
+appenders:
+  stdout:
+    kind: console
+  requests:
+    kind: file
+    path: "log/requests.log"
+    encoder:
+      pattern: "{d} - {m}{n}"
+  render_file_logger:
+    kind: file
+    path: "log/my.log"
+    encoder:
+      pattern: "{d(%+)(utc)} [{f}:{L}] {h({l})} {M}:{m}{n}"
+root:
+  level: warn
+  appenders:
+    - stdout
+    - render_file_logger
+loggers:
+  app::backend::db:
+    level: info
+  app::requests:
+    level: info
+    appenders:
+      - requests
+    additive: false
