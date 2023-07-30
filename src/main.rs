@@ -1,5 +1,5 @@
 use actix_web::{HttpServer, App};
-use controller::collar::collar_controller;
+use controller::{collar::collar_controller, ws::ws_handler::start_ws};
 use monitor::health_controller;
 
 pub mod controller;
@@ -7,8 +7,8 @@ pub mod monitor;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
-    
+    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
+    start_ws().await;
 
     HttpServer::new(|| {
         App::new()
