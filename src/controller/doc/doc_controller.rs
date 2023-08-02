@@ -1,14 +1,22 @@
-use actix_web::{HttpResponse, Responder, web};
-use rust_wheel::model::response::api_response::ApiResponse;
+use actix_web::{web, HttpResponse, Responder};
+use rust_wheel::model::{
+    response::api_response::ApiResponse, user::login_user_info::LoginUserInfo,
+};
+
+use crate::service::doc::doc_service::get_doc_list;
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
     tag: String,
 }
 
-pub async fn get_demo(params: web::Query<AppParams>) -> impl Responder {
+pub async fn get_demo(
+    params: web::Query<AppParams>
+    // login_user: LoginUserInfo
+) -> impl Responder {
+    let docs = get_doc_list(&params.tag);
     let res = ApiResponse {
-        result: "ok",
+        result: docs,
         ..Default::default()
     };
     HttpResponse::Ok().json(res)

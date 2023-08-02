@@ -3,7 +3,8 @@ extern crate openssl;
 extern crate diesel;
 
 use actix_web::{HttpServer, App};
-use controller::{collar::collar_controller, ws::ws_handler::start_ws, doc::doc_controller};
+use controller::{collar::collar_controller, doc::doc_controller};
+use log::warn;
 use monitor::health_controller;
 
 pub mod controller;
@@ -15,8 +16,6 @@ pub mod common;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
-    start_ws().await;
-
     HttpServer::new(|| {
         App::new()
             .configure(collar_controller::config)
