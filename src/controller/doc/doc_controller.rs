@@ -18,7 +18,7 @@ pub async fn get_demo(
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_doc(form: web::Form<TexDocReq>) -> impl Responder{
+pub async fn add_doc(form: web::Json<TexDocReq>) -> impl Responder{
     let d_name = form.doc_name.clone();
     let docs = create_doc(&d_name);
     let res = ApiResponse {
