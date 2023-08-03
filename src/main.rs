@@ -4,7 +4,6 @@ extern crate diesel;
 
 use actix_web::{HttpServer, App};
 use controller::{collar::collar_controller, doc::doc_controller};
-use log::warn;
 use monitor::health_controller;
 
 pub mod controller;

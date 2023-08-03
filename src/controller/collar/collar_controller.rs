@@ -3,10 +3,10 @@ use rust_wheel::model::response::api_response::ApiResponse;
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
-    tag: String,
+    _tag: String,
 }
 
-pub async fn get_demo(params: web::Query<AppParams>) -> impl Responder {
+pub async fn get_demo(_params: web::Query<AppParams>) -> impl Responder {
     let res = ApiResponse {
         result: "ok",
         ..Default::default()

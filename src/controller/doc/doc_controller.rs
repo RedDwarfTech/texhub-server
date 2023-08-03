@@ -7,8 +7,8 @@ pub struct AppParams {
     tag: String,
 }
 
-pub async fn get_demo(
-    params: web::Query<AppParams>, // login_user: LoginUserInfo
+pub async fn get_docs(
+    params: web::Query<AppParams>,
 ) -> impl Responder {
     let docs = get_doc_list(&params.tag);
     let res = ApiResponse {
@@ -31,7 +31,7 @@ pub async fn add_doc(form: web::Json<TexDocReq>) -> impl Responder{
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/doc")
-            .route("/list", web::get().to(get_demo))
+            .route("/list", web::get().to(get_docs))
             .route("/add", web::post().to(add_doc)),
     );
 }

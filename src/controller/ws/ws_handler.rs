@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     env,
-    io::Error as IoError,
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
