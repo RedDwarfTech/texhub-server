@@ -1,7 +1,9 @@
 use diesel::QueryDsl;
 use log::error;
+use rust_wheel::common::util::time_util::get_current_millisecond;
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
+use crate::model::diesel::custom::doc::tex_doc_add::TexDocAdd;
 use crate::model::diesel::tex::custom_tex_models::TexDoc;
 
 pub fn get_doc_list(_tag: &String) -> Vec<TexDoc>{
@@ -21,7 +23,23 @@ pub fn get_doc_list(_tag: &String) -> Vec<TexDoc>{
 }
 
 
+pub fn create_doc(input_doc: &String) -> TexDoc{
+    let new_doc = TexDocAdd{ 
+        doc_name: input_doc.to_string(), 
+        created_time: get_current_millisecond(), 
+        updated_time: get_current_millisecond(), 
+        user_id: 1, 
+        doc_status: 1, 
+        template_id: 1 
+    };
+    use crate::model::diesel::tex::tex_schema::tex_doc::dsl::*;
 
+    let result = diesel::insert_into(tex_doc)
+            .values(&new_doc)
+            .get_result::<TexDoc>(&mut get_connection())
+            .expect("get insert doc failed");
+    return result;
+}
 
 
 
