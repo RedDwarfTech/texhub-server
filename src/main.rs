@@ -3,7 +3,7 @@ extern crate openssl;
 extern crate diesel;
 
 use actix_web::{HttpServer, App};
-use controller::{collar::collar_controller, doc::doc_controller};
+use controller::{collar::collar_controller, doc::doc_controller, template::template_controller};
 use monitor::health_controller;
 
 pub mod controller;
@@ -20,6 +20,7 @@ async fn main() -> std::io::Result<()> {
             .configure(collar_controller::config)
             .configure(health_controller::config)
             .configure(doc_controller::config)
+            .configure(template_controller::config)
     })
     .bind(("0.0.0.0", 8000))?
     .run()
