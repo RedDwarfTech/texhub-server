@@ -37,4 +37,5 @@ pub struct TexTemplate {
     pub main_color: Option<String>,
     pub theme: Option<String>,
     pub language: String,
+    pub intro: String,
 }

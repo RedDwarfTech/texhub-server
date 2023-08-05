@@ -27,6 +27,7 @@ table! {
         main_color -> Nullable<Varchar>,
         theme -> Nullable<Varchar>,
         language -> Varchar,
+        intro -> Varchar,
     }
 }
 
