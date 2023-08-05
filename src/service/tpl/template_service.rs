@@ -1,4 +1,4 @@
-use diesel::QueryDsl;
+use diesel::{QueryDsl, ExpressionMethods};
 use log::error;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use crate::common::database::get_connection;
@@ -7,8 +7,9 @@ use crate::model::diesel::custom::doc::tex_doc_add::TexDocAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexDoc, TexTemplate};
 
 pub fn get_tpl_list(_tag: &String) -> Vec<TexTemplate>{
-    use crate::model::diesel::tex::tex_schema::tex_template as cv_work_table;
-    let query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    use crate::model::diesel::tex::tex_schema::tex_template as cv_tpl_table;
+    let mut query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_tpl_table::online_status.eq(1));
     let cvs = query
         .load::<TexTemplate>(&mut get_connection());
     match cvs {
