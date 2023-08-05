@@ -23,7 +23,6 @@ pub fn get_tpl_list(_tag: &String) -> Vec<TexTemplate>{
     }
 }
 
-
 pub fn create_tpl(input_doc: &String) -> TexDoc{
     let new_doc = TexDocAdd{ 
         doc_name: input_doc.to_string(), 
@@ -42,5 +41,12 @@ pub fn create_tpl(input_doc: &String) -> TexDoc{
     return result;
 }
 
-
-
+pub fn get_tempalte_by_id(tpl_id: &i64) -> TexTemplate {
+    use crate::model::diesel::tex::tex_schema::tex_template as cv_tpl_table;
+    let mut query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_tpl_table::template_id.eq(tpl_id));
+    let tpl = query
+        .load::<TexTemplate>(&mut get_connection())
+        .expect("error get template by id");
+    return tpl.get(0).unwrap().to_owned();
+}
