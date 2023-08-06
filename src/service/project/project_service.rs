@@ -78,18 +78,18 @@ pub fn del_project_impl(
 pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) {
     let del_command = format!(
         "WITH RECURSIVE x AS (
-        SELECT id
-        FROM   tex_file
-        WHERE parent = {}
-     
-        UNION  ALL
-        SELECT id
-        FROM   x
-        JOIN   tex_file a ON a.parent = x.id
-        )
-     DELETE FROM tex_file a
-     USING  x
-     WHERE a.id = x.id",
+            SELECT file_id
+            FROM   tex_file
+            WHERE parent = '{}'
+        
+            UNION  ALL
+            SELECT a.file_id
+            FROM   x
+            JOIN   tex_file a ON a.parent = x.file_id
+            )
+         DELETE FROM tex_file a
+         USING  x
+         WHERE a.file_id = x.file_id",
         del_project_id
     );
     let cte_menus = sql_query(&del_command).load::<TexFile>(connection);
