@@ -1,4 +1,19 @@
 table! {
+    tex_file (id) {
+        id -> Int8,
+        doc_name -> Varchar,
+        created_time -> Int8,
+        updated_time -> Int8,
+        user_id -> Int8,
+        doc_status -> Int4,
+        project_id -> Varchar,
+        file_type -> Int4,
+        file_id -> Varchar,
+        parent -> Varchar,
+    }
+}
+
+table! {
     tex_project (id) {
         id -> Int8,
         doc_name -> Varchar,
@@ -33,6 +48,7 @@ table! {
 }
 
 allow_tables_to_appear_in_same_query!(
+    tex_file,
     tex_project,
     tex_template,
 );

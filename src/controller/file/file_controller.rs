@@ -1,17 +1,17 @@
 use crate::{
     model::request::doc::tex_doc_req::TexDocReq,
-    service::project::project_service::{get_prj_list, create_project},
+    service::{project::project_service::create_project, file::file_service::get_file_list},
 };
 use actix_web::{web, HttpResponse, Responder};
 use rust_wheel::model::response::api_response::ApiResponse;
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
-    tag: String,
+    parent: String,
 }
 
-pub async fn get_docs(params: web::Query<AppParams>) -> impl Responder {
-    let docs = get_prj_list(&params.tag);
+pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
+    let docs = get_file_list(&params.parent);
     let res = ApiResponse {
         result: docs,
         ..Default::default()
@@ -32,7 +32,7 @@ pub async fn add_project(form: web::Json<TexDocReq>) -> impl Responder {
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
-            .route("/list", web::get().to(get_docs))
+            .route("/list", web::get().to(get_files))
             .route("/add", web::post().to(add_project)),
     );
 }
