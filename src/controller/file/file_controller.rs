@@ -31,7 +31,7 @@ pub async fn add_project(form: web::Json<TexDocReq>) -> impl Responder {
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/tex/project")
+        web::scope("/tex/file")
             .route("/list", web::get().to(get_files))
             .route("/add", web::post().to(add_project)),
     );
