@@ -5,7 +5,7 @@ file = "../../src/model/diesel/tex/tex_schema.rs"
 with_docs = false
 
 filter = { only_tables = [
-    "tex_doc",
+    "tex_project",
     "tex_template"
 ] }
 
