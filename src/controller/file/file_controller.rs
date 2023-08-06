@@ -1,7 +1,4 @@
-use crate::{
-    model::request::doc::tex_doc_req::TexDocReq,
-    service::{project::project_service::create_project, file::file_service::get_file_list},
-};
+use crate::{service::{project::project_service::create_project, file::file_service::get_file_list}, model::request::project::tex_project_req::TexProjectReq};
 use actix_web::{web, HttpResponse, Responder};
 use rust_wheel::model::response::api_response::ApiResponse;
 
@@ -19,7 +16,7 @@ pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_project(form: web::Json<TexDocReq>) -> impl Responder {
+pub async fn add_project(form: web::Json<TexProjectReq>) -> impl Responder {
     let d_name = form.doc_name.clone();
     let docs = create_project(&d_name);
     let res = ApiResponse {

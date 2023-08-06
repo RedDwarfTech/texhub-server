@@ -1,1 +1,1 @@
-pub mod doc;
+pub mod project;

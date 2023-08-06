@@ -1,4 +1,4 @@
 #[derive(serde::Deserialize)]
-pub struct TexDocReq {
+pub struct TexProjectReq {
     pub doc_name: String,
 }

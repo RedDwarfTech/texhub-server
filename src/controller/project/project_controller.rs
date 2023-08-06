@@ -1,8 +1,8 @@
 use crate::{
-    model::request::doc::tex_doc_req::TexDocReq,
-    service::project::project_service::{get_prj_list, create_project},
+    model::request::project::{tex_project_req::TexProjectReq, tex_del_project_req::TexDelProjectReq},
+    service::project::project_service::{get_prj_list, create_project, del_project},
 };
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web::{self}, HttpResponse, Responder};
 use rust_wheel::model::response::api_response::ApiResponse;
 
 #[derive(serde::Deserialize)]
@@ -19,7 +19,7 @@ pub async fn get_docs(params: web::Query<AppParams>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_project(form: web::Json<TexDocReq>) -> impl Responder {
+pub async fn add_project(form: web::Json<TexProjectReq>) -> impl Responder {
     let d_name = form.doc_name.clone();
     let docs = create_project(&d_name);
     let res = ApiResponse {
@@ -29,10 +29,21 @@ pub async fn add_project(form: web::Json<TexDocReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
+pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
+    let d_name = form.project_id.clone();
+    del_project(&d_name);
+    let res = ApiResponse {
+        result: "ok",
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_docs))
-            .route("/add", web::post().to(add_project)),
+            .route("/add", web::post().to(add_project))
+            .route("/del",web::delete().to(del_proj)),
     );
 }
