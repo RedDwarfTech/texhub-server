@@ -7,6 +7,7 @@ table! {
         user_id -> Int8,
         doc_status -> Int4,
         template_id -> Int8,
+        project_id -> Varchar,
     }
 }
 
