@@ -95,10 +95,10 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
     let cte_menus = sql_query(&del_command).load::<TexFile>(connection);
     match cte_menus {
         Ok(_) => {}
-        Err(_) => {
+        Err(e) => {
             error!(
-                "delete project file failed, project id: {}, command:{}",
-                del_project_id, del_command
+                "delete project file failed, project id: {}, command:{},error info:{}",
+                del_project_id, del_command,e
             );
         }
     }
