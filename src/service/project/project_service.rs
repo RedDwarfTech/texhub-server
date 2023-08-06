@@ -3,7 +3,7 @@ use crate::model::diesel::custom::doc::tex_doc_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::TexProject;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
-use log::error;
+use log::{error, warn};
 use rust_wheel::common::util::time_util::get_current_millisecond;
 
 pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
@@ -43,7 +43,10 @@ pub fn del_project(del_project_id: &String) {
     let result = connection.transaction(|connection| {
         let delete_result = del_project_impl(del_project_id, connection);
         match delete_result {
-            Ok(_v) => {
+            Ok(rows) => {
+                if rows == 0 {
+                    warn!("the delete project effect {} rows, project id: {}", rows, del_project_id);
+                }
                 del_project_file(del_project_id, connection);
                 Ok("")
             }
@@ -51,12 +54,13 @@ pub fn del_project(del_project_id: &String) {
         }
     });
     match result {
-        Ok(_) => {
-
-        },
-        Err(_) => {
-            error!("transaction failed, project id: {}", del_project_id);
-        },
+        Ok(_) => {}
+        Err(e) => {
+            error!(
+                "transaction failed, project id: {},error:{}",
+                del_project_id, e
+            );
+        }
     }
 }
 
@@ -88,12 +92,14 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
      WHERE a.id = x.id",
         del_project_id
     );
-    let cte_menus = sql_query(&del_command)
-        .load::<TexFile>(connection);
+    let cte_menus = sql_query(&del_command).load::<TexFile>(connection);
     match cte_menus {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(_) => {
-            error!("delete project file failed, project id: {}, command:{}", del_project_id, del_command);
-        },
+            error!(
+                "delete project file failed, project id: {}, command:{}",
+                del_project_id, del_command
+            );
+        }
     }
 }
