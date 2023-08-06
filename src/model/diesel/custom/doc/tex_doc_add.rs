@@ -6,8 +6,8 @@ use serde::Deserialize;
 use crate::model::diesel::tex::tex_schema::*;
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[diesel(table_name = tex_doc)]
-pub struct TexDocAdd {
+#[diesel(table_name = tex_project)]
+pub struct TexProjectAdd {
     pub doc_name: String,
     pub created_time: i64,
     pub updated_time: i64,

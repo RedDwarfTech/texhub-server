@@ -8,8 +8,8 @@ use serde::Deserialize;
 use crate::model::diesel::tex::tex_schema::*;
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[diesel(table_name = "tex_doc")]
-pub struct TexDoc {
+#[diesel(table_name = "tex_project")]
+pub struct TexProject {
     pub id: i64,
     pub doc_name: String,
     pub created_time: i64,
@@ -37,5 +37,6 @@ pub struct TexTemplate {
     pub main_color: Option<String>,
     pub theme: Option<String>,
     pub language: String,
+    pub intro: String,
 }
 

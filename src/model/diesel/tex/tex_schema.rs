@@ -1,5 +1,5 @@
 table! {
-    tex_doc (id) {
+    tex_project (id) {
         id -> Int8,
         doc_name -> Varchar,
         created_time -> Int8,
@@ -32,6 +32,6 @@ table! {
 }
 
 allow_tables_to_appear_in_same_query!(
-    tex_doc,
+    tex_project,
     tex_template,
 );

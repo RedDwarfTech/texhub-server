@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
 use rust_wheel::model::response::api_response::ApiResponse;
-use crate::{service::{doc::doc_service::create_doc, tpl::template_service::{get_tpl_list, get_tempalte_by_id}}, model::request::doc::tex_doc_req::TexDocReq};
+use crate::{service::{project::project_service::create_doc, tpl::template_service::{get_tpl_list, get_tempalte_by_id}}, model::request::doc::tex_doc_req::TexDocReq};
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {

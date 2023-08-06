@@ -3,8 +3,8 @@ use log::error;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
-use crate::model::diesel::custom::doc::tex_doc_add::TexDocAdd;
-use crate::model::diesel::tex::custom_tex_models::{TexDoc, TexTemplate};
+use crate::model::diesel::custom::doc::tex_doc_add::TexProjectAdd;
+use crate::model::diesel::tex::custom_tex_models::{TexTemplate, TexProject};
 
 pub fn get_tpl_list(_tag: &String) -> Vec<TexTemplate>{
     use crate::model::diesel::tex::tex_schema::tex_template as cv_tpl_table;
@@ -23,8 +23,8 @@ pub fn get_tpl_list(_tag: &String) -> Vec<TexTemplate>{
     }
 }
 
-pub fn create_tpl(input_doc: &String) -> TexDoc{
-    let new_doc = TexDocAdd{ 
+pub fn create_tpl(input_doc: &String) -> TexProject{
+    let new_doc = TexProjectAdd{ 
         doc_name: input_doc.to_string(), 
         created_time: get_current_millisecond(), 
         updated_time: get_current_millisecond(), 
@@ -32,11 +32,11 @@ pub fn create_tpl(input_doc: &String) -> TexDoc{
         doc_status: 1, 
         template_id: 1 
     };
-    use crate::model::diesel::tex::tex_schema::tex_doc::dsl::*;
+    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
 
-    let result = diesel::insert_into(tex_doc)
+    let result = diesel::insert_into(tex_project)
             .values(&new_doc)
-            .get_result::<TexDoc>(&mut get_connection())
+            .get_result::<TexProject>(&mut get_connection())
             .expect("get insert doc failed");
     return result;
 }
