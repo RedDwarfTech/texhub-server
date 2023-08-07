@@ -12,7 +12,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: ⚡ Cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: |
           ~/.cargo/registry
@@ -37,6 +37,8 @@ jobs:
       uses: docker/build-push-action@v3
       with:
         context: .
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
         file: Dockerfile
         push: true
         tags: ${{ secrets.ALI_DOCKER_HUB_REGISTRY }}/reddwarf-pro/texhub-server:${{ github.sha }} 
