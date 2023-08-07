@@ -46,7 +46,15 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
           id, 
           name, 
           file_id, 
-          sort 
+          sort,
+          created_time,
+          updated_time,
+          user_id,
+          doc_status,
+          project_id,
+          file_type,
+          parent,
+          main_flag 
         from 
           tex_file mr 
         where 
@@ -56,7 +64,15 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
           origin.id, 
           origin.name, 
           origin.file_id, 
-          origin.sort 
+          origin.sort,
+          origin.created_time,
+          origin.updated_time,
+          origin.user_id,
+          origin.doc_status,
+          origin.project_id,
+          origin.file_type,
+          origin.parent,
+          origin.main_flag 
         from 
           sub_files 
           join tex_file origin on origin.parent = sub_files.file_id
@@ -65,7 +81,15 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
         id, 
         name, 
         file_id, 
-        sort 
+        sort,
+        created_time,
+        updated_time,
+        user_id,
+        doc_status,
+        project_id,
+        file_type,
+        parent,
+        main_flag 
       from 
         sub_files 
       order by 
