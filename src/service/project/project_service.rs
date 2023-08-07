@@ -1,11 +1,11 @@
 use crate::diesel::RunQueryDsl;
-use crate::model::diesel::custom::doc::tex_doc_add::TexProjectAdd;
+use crate::model::diesel::custom::file::file_add::TexFileAdd;
+use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::TexProject;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
+use diesel::result::Error;
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::{error, warn};
-use rust_wheel::common::util::time_util::get_current_millisecond;
-use uuid::Uuid;
 
 pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -22,23 +22,50 @@ pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
     }
 }
 
-pub fn create_project(input_doc: &String) -> TexProject {
-    let uuid = Uuid::new_v4();
-    let uuid_string = uuid.to_string().replace("-", "");
-    let new_doc = TexProjectAdd {
-        doc_name: input_doc.to_string(),
-        created_time: get_current_millisecond(),
-        updated_time: get_current_millisecond(),
-        user_id: 1,
-        doc_status: 1,
-        template_id: 1,
-        project_id: uuid_string
-    };
+pub fn create_project(proj_name: &String) -> Result<TexProject, Error> {
+    let mut connection = get_connection();
+    let trans_result = connection.transaction(|connection| {
+        let create_result = create_proj(proj_name, connection);
+        match create_result {
+            Ok(proj) => {
+                let result = create_main_file(&proj.project_id, connection);
+                match result {
+                    Ok(_) => {
+                        
+                    },
+                    Err(e) => {
+                        error!("create file failed,{}",e)
+                    },
+                }
+                return Ok(proj);
+            }
+            Err(e) => diesel::result::QueryResult::Err(e),
+        }
+    });
+    return trans_result;
+}
+
+fn create_main_file(
+    proj_id: &String,
+    connection: &mut PgConnection,
+) -> Result<TexFile, diesel::result::Error> {
+    let new_proj = TexFileAdd::gen_tex_main(proj_id);
+    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let result = diesel::insert_into(tex_file)
+        .values(&new_proj)
+        .get_result::<TexFile>(connection);
+    return result;
+}
+
+fn create_proj(
+    proj_name: &String,
+    connection: &mut PgConnection,
+) -> Result<TexProject, diesel::result::Error> {
+    let new_proj = TexProjectAdd::from(proj_name);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
-        .values(&new_doc)
-        .get_result::<TexProject>(&mut get_connection())
-        .expect("get insert doc failed");
+        .values(&new_proj)
+        .get_result::<TexProject>(connection);
     return result;
 }
 
@@ -49,7 +76,10 @@ pub fn del_project(del_project_id: &String) {
         match delete_result {
             Ok(rows) => {
                 if rows == 0 {
-                    warn!("the delete project effect {} rows, project id: {}", rows, del_project_id);
+                    warn!(
+                        "the delete project effect {} rows, project id: {}",
+                        rows, del_project_id
+                    );
                 }
                 del_project_file(del_project_id, connection);
                 Ok("")
@@ -102,7 +132,7 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
         Err(e) => {
             error!(
                 "delete project file failed, project id: {}, command:{},error info:{}",
-                del_project_id, del_command,e
+                del_project_id, del_command, e
             );
         }
     }

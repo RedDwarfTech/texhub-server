@@ -54,4 +54,5 @@ pub struct TexFile {
     pub file_type: i32,
     pub file_id: String,
     pub parent: String,
+    pub main_flag: i16,
 }

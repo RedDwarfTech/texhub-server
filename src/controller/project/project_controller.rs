@@ -1,8 +1,13 @@
 use crate::{
-    model::request::project::{tex_project_req::TexProjectReq, tex_del_project_req::TexDelProjectReq},
-    service::project::project_service::{get_prj_list, create_project, del_project},
+    model::request::project::{
+        tex_del_project_req::TexDelProjectReq, tex_project_req::TexProjectReq,
+    },
+    service::project::project_service::{create_project, del_project, get_prj_list},
 };
-use actix_web::{web::{self}, HttpResponse, Responder};
+use actix_web::{
+    web::{self},
+    HttpResponse, Responder,
+};
 use rust_wheel::model::response::api_response::ApiResponse;
 
 #[derive(serde::Deserialize)]
@@ -21,12 +26,24 @@ pub async fn get_docs(params: web::Query<AppParams>) -> impl Responder {
 
 pub async fn add_project(form: web::Json<TexProjectReq>) -> impl Responder {
     let d_name = form.doc_name.clone();
-    let docs = create_project(&d_name);
-    let res = ApiResponse {
-        result: docs,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    let projects = create_project(&d_name);
+    match projects {
+        Ok(project) => {
+            let res = ApiResponse {
+                result: project,
+                ..Default::default()
+            };
+            HttpResponse::Ok().json(res)
+        }
+        Err(e) => {
+            let err = format!("create project failed,{}", e);
+            let res = ApiResponse {
+                result: err,
+                ..Default::default()
+            };
+            HttpResponse::Ok().json(res)
+        }
+    }
 }
 
 pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
@@ -44,6 +61,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/tex/project")
             .route("/list", web::get().to(get_docs))
             .route("/add", web::post().to(add_project))
-            .route("/del",web::delete().to(del_proj)),
+            .route("/del", web::delete().to(del_proj)),
     );
 }

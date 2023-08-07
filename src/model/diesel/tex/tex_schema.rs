@@ -10,6 +10,7 @@ table! {
         file_type -> Int4,
         file_id -> Varchar,
         parent -> Varchar,
+        main_flag -> Int2
     }
 }
 

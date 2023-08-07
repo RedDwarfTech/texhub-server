@@ -4,7 +4,7 @@ use rust_wheel::common::util::time_util::get_current_millisecond;
 use uuid::Uuid;
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
-use crate::model::diesel::custom::doc::tex_doc_add::TexProjectAdd;
+use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexTemplate, TexProject};
 
 pub fn get_tpl_list(_tag: &String) -> Vec<TexTemplate>{
