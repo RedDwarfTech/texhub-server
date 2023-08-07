@@ -19,3 +19,8 @@ log = "0.4.0"
 diesel = { version = "2.0.4", features = ["postgres","64-column-tables","chrono","serde_json"] }
 openssl = "*"
 openssl-probe = "0.1.2"
+uuid = {version = "1.4.1",features = [
+    "v4",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+]}

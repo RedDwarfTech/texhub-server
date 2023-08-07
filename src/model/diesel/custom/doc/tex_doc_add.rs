@@ -14,4 +14,5 @@ pub struct TexProjectAdd {
     pub user_id: i64,
     pub doc_status: i32,
     pub template_id: i64,
+    pub project_id: String,
 }

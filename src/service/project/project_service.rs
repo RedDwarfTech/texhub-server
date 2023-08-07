@@ -5,6 +5,7 @@ use crate::{common::database::get_connection, model::diesel::tex::custom_tex_mod
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::{error, warn};
 use rust_wheel::common::util::time_util::get_current_millisecond;
+use uuid::Uuid;
 
 pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -22,6 +23,8 @@ pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
 }
 
 pub fn create_project(input_doc: &String) -> TexProject {
+    let uuid = Uuid::new_v4();
+    let uuid_string = uuid.to_string().replace("-", "");
     let new_doc = TexProjectAdd {
         doc_name: input_doc.to_string(),
         created_time: get_current_millisecond(),
@@ -29,6 +32,7 @@ pub fn create_project(input_doc: &String) -> TexProject {
         user_id: 1,
         doc_status: 1,
         template_id: 1,
+        project_id: uuid_string
     };
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
