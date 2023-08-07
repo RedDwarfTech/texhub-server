@@ -35,7 +35,7 @@ impl TexFileAdd {
             project_id: prj_id.to_string(),
             file_type: 1,
             file_id: uuid_string,
-            parent: "0".to_owned(),
+            parent: prj_id.to_string(),
             main_flag: 1,
         }
     }
