@@ -2,15 +2,18 @@ extern crate openssl;
 #[macro_use]
 extern crate diesel;
 
-use actix_web::{HttpServer, App};
-use controller::{collar::collar_controller, project::project_controller, template::template_controller};
+use actix_web::{App, HttpServer};
+use controller::{
+    collar::collar_controller, file::file_controller, project::project_controller,
+    template::template_controller,
+};
 use monitor::health_controller;
 
-pub mod controller;
-pub mod monitor;
-pub mod model;
-pub mod service;
 pub mod common;
+pub mod controller;
+pub mod model;
+pub mod monitor;
+pub mod service;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -21,6 +24,7 @@ async fn main() -> std::io::Result<()> {
             .configure(health_controller::config)
             .configure(project_controller::config)
             .configure(template_controller::config)
+            .configure(file_controller::config)
     })
     .bind(("0.0.0.0", 8000))?
     .run()
