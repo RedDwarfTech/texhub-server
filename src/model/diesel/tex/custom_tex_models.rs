@@ -45,7 +45,7 @@ pub struct TexTemplate {
 #[diesel(table_name = tex_file)]
 pub struct TexFile {
     pub id: i64,
-    pub doc_name: String,
+    pub name: String,
     pub created_time: i64,
     pub updated_time: i64,
     pub user_id: i64,

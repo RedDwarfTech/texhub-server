@@ -1,7 +1,7 @@
 table! {
     tex_file (id) {
         id -> Int8,
-        doc_name -> Varchar,
+        name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
         user_id -> Int8,

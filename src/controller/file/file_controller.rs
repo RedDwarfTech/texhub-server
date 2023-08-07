@@ -1,4 +1,4 @@
-use crate::{service::file::file_service::get_file_list, model::request::project::tex_project_req::TexProjectReq};
+use crate::{service::file::file_service::{get_file_list, get_file_tree}, model::request::project::tex_project_req::TexProjectReq};
 use actix_web::{web, HttpResponse, Responder};
 use rust_wheel::model::response::api_response::ApiResponse;
 
@@ -9,6 +9,15 @@ pub struct AppParams {
 
 pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
     let docs = get_file_list(&params.parent);
+    let res = ApiResponse {
+        result: docs,
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
+pub async fn get_files_tree(params: web::Query<AppParams>) -> impl Responder {
+    let docs = get_file_tree(&params.parent);
     let res = ApiResponse {
         result: docs,
         ..Default::default()
@@ -29,6 +38,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/file")
             .route("/list", web::get().to(get_files))
-            .route("/add", web::post().to(add_file)),
+            .route("/add", web::post().to(add_file))
+            .route("/tree",web::get().to(get_files_tree))
     );
 }
