@@ -4,7 +4,9 @@ use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
+use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
+use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 
 pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
@@ -21,6 +23,16 @@ pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
             return Vec::new();
         }
     }
+}
+
+pub fn create_file(add_req: &TexFileAddReq) -> TexFile {
+    let new_file = TexFileAdd::gen_tex_file(add_req);
+    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let result = diesel::insert_into(tex_file)
+        .values(&new_file)
+        .get_result::<TexFile>(&mut get_connection())
+        .expect("failed to add new tex file or folder");
+    return result;
 }
 
 pub fn get_file_tree(parent_id: &String) -> Vec<FileTreeResp> {

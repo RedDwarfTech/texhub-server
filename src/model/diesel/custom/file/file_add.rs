@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::model::diesel::tex::tex_schema::*;
+use crate::model::request::file::file_add_req::TexFileAddReq;
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
 #[diesel(table_name = tex_file)]
@@ -36,6 +37,23 @@ impl TexFileAdd {
             file_type: 1,
             file_id: uuid_string,
             parent: prj_id.to_string(),
+            main_flag: 1,
+        }
+    }
+
+    pub(crate) fn gen_tex_file(add_file: &TexFileAddReq) ->Self {
+        let uuid = Uuid::new_v4();
+        let uuid_string = uuid.to_string().replace("-", "");
+        Self {
+            name: add_file.name.clone(),
+            created_time: get_current_millisecond(),
+            updated_time: get_current_millisecond(),
+            user_id: 1,
+            doc_status:1,
+            project_id: add_file.project_id.clone(),
+            file_type: 1,
+            file_id: uuid_string,
+            parent: add_file.parent.clone(),
             main_flag: 1,
         }
     }
