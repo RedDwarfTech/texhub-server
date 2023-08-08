@@ -54,7 +54,15 @@ pub async fn add_file(form: web::Json<TexFileAddReq>) -> impl Responder {
 }
 
 pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
-
+    let db_file = get_file_by_fid(&form.file_id);
+    if db_file.main_flag == 1{
+        let res = ApiResponse {
+            result: "main file could not be delete",
+            resultCode: "delete_main_forbidden".to_owned(),
+            ..Default::default()
+        };
+        return HttpResponse::Ok().json(res)
+    }
     let new_file = delete_file_recursive(&form.0).unwrap();
     let res = ApiResponse {
         result: new_file,
