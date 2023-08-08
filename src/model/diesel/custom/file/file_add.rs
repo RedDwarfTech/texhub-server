@@ -51,7 +51,7 @@ impl TexFileAdd {
             user_id: 1,
             doc_status:1,
             project_id: add_file.project_id.clone(),
-            file_type: 1,
+            file_type: add_file.file_type,
             file_id: uuid_string,
             parent: add_file.parent.clone(),
             main_flag: 1,
