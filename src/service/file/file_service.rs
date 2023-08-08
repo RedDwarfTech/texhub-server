@@ -12,6 +12,15 @@ use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
 
+pub fn get_file_by_fid(filter_id: &String) -> TexFile {
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::file_id.eq(filter_id));
+    let files = query.load::<TexFile>(&mut get_connection()).unwrap();
+    let file = &files[0];
+    return file.to_owned();
+}
+
 pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();

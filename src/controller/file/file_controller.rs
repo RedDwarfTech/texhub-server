@@ -1,7 +1,7 @@
 use crate::{
     model::request::file::{file_add_req::TexFileAddReq, file_del::TexFileDelReq},
     service::file::file_service::{
-        create_file, delete_file_recursive, get_file_list, get_file_tree,
+        create_file, delete_file_recursive, get_file_list, get_file_tree, get_file_by_fid,
     },
 };
 use actix_web::{web, HttpResponse, Responder};
@@ -10,6 +10,20 @@ use rust_wheel::model::response::api_response::ApiResponse;
 #[derive(serde::Deserialize)]
 pub struct AppParams {
     parent: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct FileQueryParams {
+    file_id: String,
+}
+
+pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
+    let docs = get_file_by_fid(&params.file_id);
+    let res = ApiResponse {
+        result: docs,
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
 }
 
 pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
@@ -40,6 +54,7 @@ pub async fn add_file(form: web::Json<TexFileAddReq>) -> impl Responder {
 }
 
 pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
+
     let new_file = delete_file_recursive(&form.0).unwrap();
     let res = ApiResponse {
         result: new_file,
