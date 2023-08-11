@@ -1,8 +1,8 @@
 use crate::{
     model::request::project::{
-        tex_del_project_req::TexDelProjectReq, tex_project_req::TexProjectReq,
+        tex_del_project_req::TexDelProjectReq, tex_project_req::TexProjectReq, tex_compile_project_req::TexCompileProjectReq,
     },
-    service::project::project_service::{create_project, del_project, get_prj_list},
+    service::project::project_service::{create_project, del_project, get_prj_list, compile_project},
 };
 use actix_web::{
     web::{self},
@@ -56,11 +56,21 @@ pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
+pub async fn compile_proj(_form: web::Json<TexCompileProjectReq>) -> impl Responder {
+    compile_project();
+    let res = ApiResponse {
+        result: "ok",
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_docs))
             .route("/add", web::post().to(add_project))
-            .route("/del", web::delete().to(del_proj)),
+            .route("/del", web::delete().to(del_proj))
+            .route("/compile", web::put().to(compile_proj)),
     );
 }

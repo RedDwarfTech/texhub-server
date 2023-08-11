@@ -137,3 +137,8 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
         }
     }
 }
+
+pub fn compile_project(){
+    
+}
+
