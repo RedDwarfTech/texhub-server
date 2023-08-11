@@ -1,5 +1,5 @@
-use std::fs::File;
-use std::io::Write;
+use std::fs::{File, self};
+use std::io::{Write, self};
 
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -49,14 +49,25 @@ pub fn create_empty_project(proj_name: &String) -> Result<TexProject, Error> {
 }
 
 fn create_main_file_on_disk(project_id: &String) {
-    let file_path = format!("/opt/data/project/{}/{}", project_id, "main.tex");
-    if let Ok(mut file) = File::create(&file_path) {
+    let file_folder = format!("/opt/data/project/{}", project_id);
+    match create_directory_if_not_exists(&file_folder) {
+        Ok(()) => {},
+        Err(e) => error!("create directory failed,{}", e),
+    }
+    if let Ok(mut file) = File::create(format!("{}/{}",&file_folder,"main.tex")) {
         if let Err(we) = file.write_all(b"Hello, World!") {
             error!("write content failed, {}", we);
         }
     } else {
         error!("create file failed");
     }
+}
+
+fn create_directory_if_not_exists(path: &str) -> io::Result<()> {
+    if !fs::metadata(path).is_ok() {
+        fs::create_dir_all(path)?;
+    }
+    Ok(())
 }
 
 fn create_main_file(
