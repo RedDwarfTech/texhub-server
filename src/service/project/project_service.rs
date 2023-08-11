@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::Write;
+
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
@@ -22,7 +25,7 @@ pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
     }
 }
 
-pub fn create_project(proj_name: &String) -> Result<TexProject, Error> {
+pub fn create_empty_project(proj_name: &String) -> Result<TexProject, Error> {
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
         let create_result = create_proj(proj_name, connection);
@@ -31,11 +34,11 @@ pub fn create_project(proj_name: &String) -> Result<TexProject, Error> {
                 let result = create_main_file(&proj.project_id, connection);
                 match result {
                     Ok(_) => {
-                        
-                    },
+                        create_main_file_on_disk(&proj.project_id);
+                    }
                     Err(e) => {
-                        error!("create file failed,{}",e)
-                    },
+                        error!("create file failed,{}", e)
+                    }
                 }
                 return Ok(proj);
             }
@@ -43,6 +46,17 @@ pub fn create_project(proj_name: &String) -> Result<TexProject, Error> {
         }
     });
     return trans_result;
+}
+
+fn create_main_file_on_disk(project_id: &String) {
+    let file_path = format!("/opt/data/project/{}/{}", project_id, "main.tex");
+    if let Ok(mut file) = File::create(&file_path) {
+        if let Err(we) = file.write_all(b"Hello, World!") {
+            error!("write content failed, {}", we);
+        }
+    } else {
+        error!("create file failed");
+    }
 }
 
 fn create_main_file(
@@ -138,7 +152,4 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
     }
 }
 
-pub fn compile_project(){
-    
-}
-
+pub fn compile_project() {}

@@ -2,7 +2,7 @@ use crate::{
     model::request::project::{
         tex_del_project_req::TexDelProjectReq, tex_project_req::TexProjectReq, tex_compile_project_req::TexCompileProjectReq,
     },
-    service::project::project_service::{create_project, del_project, get_prj_list, compile_project},
+    service::project::project_service::{del_project, get_prj_list, compile_project, create_empty_project},
 };
 use actix_web::{
     web::{self},
@@ -26,7 +26,7 @@ pub async fn get_docs(params: web::Query<AppParams>) -> impl Responder {
 
 pub async fn add_project(form: web::Json<TexProjectReq>) -> impl Responder {
     let d_name = form.doc_name.clone();
-    let projects = create_project(&d_name);
+    let projects = create_empty_project(&d_name);
     match projects {
         Ok(project) => {
             let res = ApiResponse {
