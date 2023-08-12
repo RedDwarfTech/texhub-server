@@ -1,3 +1,4 @@
+use chrono::Duration;
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -11,13 +12,23 @@ use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
+use rust_wheel::config::cache::redis_util::{sync_get_str, set_value};
 
 pub fn get_file_by_fid(filter_id: &String) -> TexFile {
+    let cached_file = sync_get_str(&filter_id).unwrap();
+    if cached_file.is_some() {
+        let tf:TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
+        return tf;
+    }
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::file_id.eq(filter_id));
     let files = query.load::<TexFile>(&mut get_connection()).unwrap();
     let file = &files[0];
+    let file_json = serde_json::to_string(file).unwrap();
+    let one_day = Duration::days(1);
+    let seconds_in_one_day = one_day.num_seconds();
+    set_value(&filter_id, &file_json, seconds_in_one_day as usize).unwrap();
     return file.to_owned();
 }
 
