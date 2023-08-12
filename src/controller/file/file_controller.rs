@@ -77,6 +77,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/list", web::get().to(get_files))
             .route("/add", web::post().to(add_file))
             .route("/tree", web::get().to(get_files_tree))
-            .route("/del", web::delete().to(del_file)),
+            .route("/del", web::delete().to(del_file))
+            .route("/detail",web::get().to(get_file))
     );
 }
