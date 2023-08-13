@@ -13,9 +13,20 @@ pub async fn render_request(file_path: &String, out_path: &String) {
     let response = client.post(url).json(&json_data).send().await;
     match response {
         Ok(r) => {
-            let r: serde_json::Value = r.json().await.unwrap();
-            let result = r.get("result").unwrap();
-            info!("compile request result,{}", result)
+            let resp:Result<serde_json::Value, reqwest::Error> = r.json().await;
+            match resp {
+                Ok(content) => {
+                    let result = content.get("result").unwrap();
+                    info!("compile request result,{}", result);
+                },
+                Err(e) => {
+                    error!("get response failed: {}",e);
+                },
+            }
+            
+            //let r: serde_json::Value = r.json().await.unwrap();
+            //let result = r.get("result").unwrap();
+            //info!("compile request result,{}", result)
         }
         Err(e) => error!("request compile error: {}", e),
     }
