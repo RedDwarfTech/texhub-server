@@ -1,8 +1,11 @@
 use crate::{
     model::request::project::{
-        tex_del_project_req::TexDelProjectReq, tex_project_req::TexProjectReq, tex_compile_project_req::TexCompileProjectReq,
+        tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
+        tex_project_req::TexProjectReq,
     },
-    service::project::project_service::{del_project, get_prj_list, compile_project, create_empty_project},
+    service::project::project_service::{
+        compile_project, create_empty_project, del_project, get_prj_by_id, get_prj_list,
+    },
 };
 use actix_web::{
     web::{self},
@@ -15,10 +18,24 @@ pub struct AppParams {
     tag: String,
 }
 
-pub async fn get_docs(params: web::Query<AppParams>) -> impl Responder {
-    let docs = get_prj_list(&params.tag);
+#[derive(serde::Deserialize)]
+pub struct GetPrjParams {
+    project_id: String,
+}
+
+pub async fn get_projects(params: web::Query<AppParams>) -> impl Responder {
+    let projects = get_prj_list(&params.tag);
     let res = ApiResponse {
-        result: docs,
+        result: projects,
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
+pub async fn get_project(params: web::Query<GetPrjParams>) -> impl Responder {
+    let prj = get_prj_by_id(&params.project_id);
+    let res = ApiResponse {
+        result: prj,
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
@@ -56,8 +73,8 @@ pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn compile_proj(_form: web::Json<TexCompileProjectReq>) -> impl Responder {
-    compile_project();
+pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Responder {
+    compile_project(&form.project_id).await;
     let res = ApiResponse {
         result: "ok",
         ..Default::default()
@@ -68,7 +85,7 @@ pub async fn compile_proj(_form: web::Json<TexCompileProjectReq>) -> impl Respon
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
-            .route("/list", web::get().to(get_docs))
+            .route("/list", web::get().to(get_projects))
             .route("/add", web::post().to(add_project))
             .route("/del", web::delete().to(del_proj))
             .route("/compile", web::put().to(compile_proj)),

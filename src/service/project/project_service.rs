@@ -1,14 +1,14 @@
-use std::fs::{File, self};
-use std::io::{Write, self};
-
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::TexProject;
+use crate::net::render_client::render_request;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use diesel::result::Error;
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::{error, warn};
+use std::fs::{self, File};
+use std::io::{self, Write};
 
 pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -23,6 +23,14 @@ pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
             return Vec::new();
         }
     }
+}
+
+pub fn get_prj_by_id(proj_id: &String) -> TexProject {
+    use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::project_id.eq(proj_id));
+    let cvs = query.load::<TexProject>(&mut get_connection()).unwrap();
+    return cvs[0].clone();
 }
 
 pub fn create_empty_project(proj_name: &String) -> Result<TexProject, Error> {
@@ -51,10 +59,10 @@ pub fn create_empty_project(proj_name: &String) -> Result<TexProject, Error> {
 fn create_main_file_on_disk(project_id: &String) {
     let file_folder = format!("/opt/data/project/{}", project_id);
     match create_directory_if_not_exists(&file_folder) {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
     }
-    if let Ok(mut file) = File::create(format!("{}/{}",&file_folder,"main.tex")) {
+    if let Ok(mut file) = File::create(format!("{}/{}", &file_folder, "main.tex")) {
         if let Err(we) = file.write_all(b"Hello, World!") {
             error!("write content failed, {}", we);
         }
@@ -163,4 +171,9 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
     }
 }
 
-pub fn compile_project() {}
+pub async fn compile_project(proj_id: &String) {
+    let prj = get_prj_by_id(proj_id);
+    let file_path = format!("/opt/data/project/{}/{}", proj_id, prj.doc_name);
+    let out_path = format!("/opt/data/project/{}", proj_id);
+    render_request(&file_path, &out_path).await;
+}

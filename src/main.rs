@@ -14,6 +14,7 @@ pub mod controller;
 pub mod model;
 pub mod monitor;
 pub mod service;
+pub mod net;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

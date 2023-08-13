@@ -1,0 +1,5 @@
+[render]
+cv_compile_base_dir = "output"
+# cv_api_url = "http://10.98.93.22:11015"
+x_access_token = ""
+render_api_url = "http://127.0.0.1:8000"
