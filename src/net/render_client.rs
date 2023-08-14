@@ -1,5 +1,5 @@
 use log::{error, info};
-use reqwest::Client;
+use reqwest::{Client, header::{CONTENT_TYPE, HeaderValue, HeaderMap}};
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
 pub async fn render_request(file_path: &String, out_path: &String) {
@@ -10,7 +10,7 @@ pub async fn render_request(file_path: &String, out_path: &String) {
         "file_path": file_path,
         "out_path": out_path,
     });
-    let response = client.post(url).json(&json_data).send().await;
+    let response = client.post(url).headers(construct_headers()).json(&json_data).send().await;
     match response {
         Ok(r) => {
             let resp:Result<serde_json::Value, reqwest::Error> = r.json().await;
@@ -30,4 +30,10 @@ pub async fn render_request(file_path: &String, out_path: &String) {
         }
         Err(e) => error!("request compile error: {}", e),
     }
+}
+
+fn construct_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers
 }
