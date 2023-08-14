@@ -17,7 +17,7 @@ pub async fn render_request(
     let client = Client::new();
     let url_path = format!("{}", "/render/compile/v1/project");
     let url = format!("{}{}", get_app_config("render.render_api_url"), url_path);
-    let file_path = format!("/opt/data/project/{}/{}", &params.project_id, proj.doc_name);
+    let file_path = format!("/opt/data/project/{}/{}", &params.project_id, params.file_name);
     let out_path = format!("/opt/data/project/{}", &params.project_id);
     let json_data = serde_json::json!({
         "file_path": file_path,
