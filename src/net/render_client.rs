@@ -30,22 +30,16 @@ pub async fn render_request(params: &TexCompileProjectReq, proj: &TexProject) ->
         .await;
     match response {
         Ok(r) => {
-            let resp: Result<serde_json::Value, reqwest::Error> = r.json().await;
-            match resp {
-                Ok(content) => {
-                    let result = content.get("result").unwrap();
-                    info!("compile request result,{}", result);
-                    return Some(result.clone());
-                }
+            let txt = r.text().await;
+            match txt {
+                Ok(info) => {
+                    info!("success:{}",info);
+                },
                 Err(e) => {
-                    error!("get response failed: {}", e);
-                    return None;
-                }
+                    error!("parse body error:{}",e);
+                },
             }
-
-            //let r: serde_json::Value = r.json().await.unwrap();
-            //let result = r.get("result").unwrap();
-            //info!("compile request result,{}", result)
+            return None;
         }
         Err(e) => { 
             error!("request compile error: {}", e); 
