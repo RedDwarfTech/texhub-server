@@ -2,6 +2,7 @@ use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::TexProject;
+use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
 use crate::net::render_client::render_request;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use diesel::result::Error;
@@ -171,9 +172,7 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
     }
 }
 
-pub async fn compile_project(proj_id: &String) {
-    let prj = get_prj_by_id(proj_id);
-    let file_path = format!("/opt/data/project/{}/{}", proj_id, prj.doc_name);
-    let out_path = format!("/opt/data/project/{}", proj_id);
-    render_request(&file_path, &out_path).await;
+pub async fn compile_project(params: &TexCompileProjectReq) {
+    let prj = get_prj_by_id(&params.project_id);
+    render_request(params,&prj).await;
 }
