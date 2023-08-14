@@ -10,7 +10,7 @@ use crate::model::{
     request::project::tex_compile_project_req::TexCompileProjectReq,
 };
 
-pub async fn render_request(params: &TexCompileProjectReq, proj: &TexProject) {
+pub async fn render_request(params: &TexCompileProjectReq, proj: &TexProject) -> Option<serde_json::Value> {
     let client = Client::new();
     let url_path = format!("{}", "/render/compile/v1/project/");
     let url = format!("{}{}", get_app_config("render.render_api_url"), url_path);
@@ -35,9 +35,11 @@ pub async fn render_request(params: &TexCompileProjectReq, proj: &TexProject) {
                 Ok(content) => {
                     let result = content.get("result").unwrap();
                     info!("compile request result,{}", result);
+                    return Some(result.clone());
                 }
                 Err(e) => {
                     error!("get response failed: {}", e);
+                    return None;
                 }
             }
 
@@ -45,7 +47,10 @@ pub async fn render_request(params: &TexCompileProjectReq, proj: &TexProject) {
             //let result = r.get("result").unwrap();
             //info!("compile request result,{}", result)
         }
-        Err(e) => error!("request compile error: {}", e),
+        Err(e) => { 
+            error!("request compile error: {}", e); 
+            return None;
+        },
     }
 }
 

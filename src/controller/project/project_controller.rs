@@ -74,9 +74,9 @@ pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
 }
 
 pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Responder {
-    compile_project(&form.0).await;
+    let compile_result = compile_project(&form.0).await;
     let res = ApiResponse {
-        result: "ok",
+        result: compile_result,
         ..Default::default()
     };
     HttpResponse::Ok().json(res)

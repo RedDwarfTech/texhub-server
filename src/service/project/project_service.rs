@@ -172,7 +172,7 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
     }
 }
 
-pub async fn compile_project(params: &TexCompileProjectReq) {
+pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json::Value>{
     let prj = get_prj_by_id(&params.project_id);
-    render_request(params,&prj).await;
+    return render_request(params,&prj).await;
 }
