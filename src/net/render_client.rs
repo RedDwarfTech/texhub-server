@@ -15,7 +15,7 @@ pub async fn render_request(
     proj: &TexProject,
 ) -> Option<serde_json::Value> {
     let client = Client::new();
-    let url_path = format!("{}", "/render/compil0e/v1/project");
+    let url_path = format!("{}", "/render/compile/v1/project");
     let url = format!("{}{}", get_app_config("render.render_api_url"), url_path);
     let file_path = format!("/opt/data/project/{}/{}", &params.project_id, proj.doc_name);
     let out_path = format!("/opt/data/project/{}", &params.project_id);
