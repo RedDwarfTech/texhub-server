@@ -9,7 +9,7 @@ use crate::{
 };
 use actix_web::{
     web::{self},
-    HttpResponse, Responder,
+    HttpResponse, Responder, HttpRequest,
 };
 use rust_wheel::model::response::api_response::ApiResponse;
 
@@ -41,9 +41,11 @@ pub async fn get_project(params: web::Query<GetPrjParams>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_project(form: web::Json<TexProjectReq>) -> impl Responder {
+pub async fn add_project(form: web::Json<TexProjectReq>,req: HttpRequest) -> impl Responder {
+    let user_id = req.headers().get("user-id").unwrap().to_str().unwrap_or_default();
+    let uid: i64 = user_id.parse().unwrap();
     let d_name = form.doc_name.clone();
-    let projects = create_empty_project(&d_name);
+    let projects = create_empty_project(&d_name, &uid);
     match projects {
         Ok(project) => {
             let res = ApiResponse {

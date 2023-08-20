@@ -20,14 +20,14 @@ pub struct TexProjectAdd {
 }
 
 impl TexProjectAdd {
-    pub(crate) fn from(prj_name: &String) ->Self {
+    pub(crate) fn from_req(prj_name: &String, user_id: &i64) ->Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
         Self {
             doc_name: prj_name.to_string(),
             created_time: get_current_millisecond(),
             updated_time: get_current_millisecond(),
-            user_id: 1,
+            user_id: user_id.to_owned(),
             doc_status: 1,
             template_id: 1,
             project_id: uuid_string

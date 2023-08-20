@@ -34,10 +34,10 @@ pub fn get_prj_by_id(proj_id: &String) -> TexProject {
     return cvs[0].clone();
 }
 
-pub fn create_empty_project(proj_name: &String) -> Result<TexProject, Error> {
+pub fn create_empty_project(proj_name: &String, user_id: &i64) -> Result<TexProject, Error> {
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
-        let create_result = create_proj(proj_name, connection);
+        let create_result = create_proj(proj_name, connection, user_id);
         match create_result {
             Ok(proj) => {
                 let result = create_main_file(&proj.project_id, connection);
@@ -94,8 +94,9 @@ fn create_main_file(
 fn create_proj(
     proj_name: &String,
     connection: &mut PgConnection,
+    uid: &i64
 ) -> Result<TexProject, diesel::result::Error> {
-    let new_proj = TexProjectAdd::from(proj_name);
+    let new_proj = TexProjectAdd::from_req(proj_name, &uid);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
@@ -172,7 +173,7 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
     }
 }
 
-pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json::Value>{
+pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json::Value> {
     let prj = get_prj_by_id(&params.project_id);
-    return render_request(params,&prj).await;
+    return render_request(params, &prj).await;
 }
