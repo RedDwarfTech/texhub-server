@@ -8,12 +8,14 @@ use crate::{common::database::get_connection, model::diesel::tex::custom_tex_mod
 use diesel::result::Error;
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::{error, warn};
+use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use std::fs::{self, File};
 use std::io::{self, Write};
 
-pub fn get_prj_list(_tag: &String) -> Vec<TexProject> {
+pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
-    let query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
     let cvs = query.load::<TexProject>(&mut get_connection());
     match cvs {
         Ok(result) => {

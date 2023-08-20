@@ -9,9 +9,11 @@ use crate::{
 };
 use actix_web::{
     web::{self},
-    HttpResponse, Responder
+    HttpResponse, Responder,
 };
-use rust_wheel::model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo};
+use rust_wheel::model::{
+    response::api_response::ApiResponse, user::login_user_info::LoginUserInfo,
+};
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
@@ -23,8 +25,11 @@ pub struct GetPrjParams {
     project_id: String,
 }
 
-pub async fn get_projects(params: web::Query<AppParams>) -> impl Responder {
-    let projects = get_prj_list(&params.tag);
+pub async fn get_projects(
+    params: web::Query<AppParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let projects = get_prj_list(&params.tag, &login_user_info);
     let res = ApiResponse {
         result: projects,
         ..Default::default()
@@ -41,7 +46,10 @@ pub async fn get_project(params: web::Query<GetPrjParams>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_project(form: web::Json<TexProjectReq>, login_user_info: LoginUserInfo) -> impl Responder {
+pub async fn add_project(
+    form: web::Json<TexProjectReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
     let d_name = form.doc_name.clone();
     let projects = create_empty_project(&d_name, &login_user_info.userId);
     match projects {
