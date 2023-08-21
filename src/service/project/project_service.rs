@@ -196,9 +196,10 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
         .filter(|entry| entry.file_type().unwrap().is_dir())
         .map(|entry| entry.path())
         .collect::<Vec<_>>();
+    // https://stackoverflow.com/questions/76946130/creation-time-is-not-available-on-this-platform-currently
     let latest_directory = subdirectories
         .iter()
-        .max_by_key(|&dir| dir.metadata().unwrap().created().unwrap());
+        .max_by_key(|&dir| dir.metadata().unwrap().modified().unwrap());
 
     match latest_directory {
         Some(directory) => {
