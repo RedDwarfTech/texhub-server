@@ -42,7 +42,7 @@ pub fn create_empty_project(proj_name: &String, user_id: &i64) -> Result<TexProj
         let create_result = create_proj(proj_name, connection, user_id);
         match create_result {
             Ok(proj) => {
-                let result = create_main_file(&proj.project_id, connection);
+                let result = create_main_file(&proj.project_id, connection, user_id);
                 match result {
                     Ok(_) => {
                         create_main_file_on_disk(&proj.project_id);
@@ -84,8 +84,9 @@ fn create_directory_if_not_exists(path: &str) -> io::Result<()> {
 fn create_main_file(
     proj_id: &String,
     connection: &mut PgConnection,
+    uid: &i64
 ) -> Result<TexFile, diesel::result::Error> {
-    let new_proj = TexFileAdd::gen_tex_main(proj_id);
+    let new_proj = TexFileAdd::gen_tex_main(proj_id, uid);
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let result = diesel::insert_into(tex_file)
         .values(&new_proj)

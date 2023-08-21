@@ -24,7 +24,7 @@ pub struct TexFileAdd {
 }
 
 impl TexFileAdd {
-    pub(crate) fn gen_tex_main(prj_id: &String) ->Self {
+    pub(crate) fn gen_tex_main(prj_id: &String, uid: &i64) ->Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
         Self {
