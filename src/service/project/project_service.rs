@@ -186,6 +186,10 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
 pub async fn get_project_pdf(params: &GetPrjParams) -> String {
     let base_compile_dir = get_app_config("texhub.compile_base_dir");
     let prj_dir = format!("{}/{}", base_compile_dir, params.project_id);
+    if !fs::metadata(&prj_dir).is_ok() {
+        error!("folder did not exists, dir: {}", prj_dir);
+        return "".to_owned();
+    }
     let subdirectories = fs::read_dir(prj_dir)
         .unwrap()
         .filter_map(Result::ok)
