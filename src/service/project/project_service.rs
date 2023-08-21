@@ -1,3 +1,4 @@
+use crate::controller::project::project_controller::GetPrjParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
@@ -8,6 +9,7 @@ use crate::{common::database::get_connection, model::diesel::tex::custom_tex_mod
 use diesel::result::Error;
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::{error, warn};
+use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -84,7 +86,7 @@ fn create_directory_if_not_exists(path: &str) -> io::Result<()> {
 fn create_main_file(
     proj_id: &String,
     connection: &mut PgConnection,
-    uid: &i64
+    uid: &i64,
 ) -> Result<TexFile, diesel::result::Error> {
     let new_proj = TexFileAdd::gen_tex_main(proj_id, uid);
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
@@ -97,7 +99,7 @@ fn create_main_file(
 fn create_proj(
     proj_name: &String,
     connection: &mut PgConnection,
-    uid: &i64
+    uid: &i64,
 ) -> Result<TexProject, diesel::result::Error> {
     let new_proj = TexProjectAdd::from_req(proj_name, &uid);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
@@ -179,4 +181,28 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
 pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json::Value> {
     let prj = get_prj_by_id(&params.project_id);
     return render_request(params, &prj).await;
+}
+
+pub async fn get_project_pdf(params: &GetPrjParams) -> String {
+    let base_compile_dir = get_app_config("texhub.compile_base_dir");
+    let prj_dir = format!("{}/{}", base_compile_dir, params.project_id);
+    let subdirectories = fs::read_dir(prj_dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().unwrap().is_dir())
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    let latest_directory = subdirectories
+        .iter()
+        .max_by_key(|&dir| dir.metadata().unwrap().created().unwrap());
+
+    match latest_directory {
+        Some(directory) => {
+            let name = directory.file_name().unwrap_or_default().to_str().unwrap();
+            return name.to_string();
+        }
+        None => {
+            return "".to_owned();
+        }
+    }
 }

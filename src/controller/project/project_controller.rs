@@ -5,6 +5,7 @@ use crate::{
     },
     service::project::project_service::{
         compile_project, create_empty_project, del_project, get_prj_by_id, get_prj_list,
+        get_project_pdf,
     },
 };
 use actix_web::{
@@ -22,7 +23,7 @@ pub struct AppParams {
 
 #[derive(serde::Deserialize)]
 pub struct GetPrjParams {
-    project_id: String,
+    pub project_id: String,
 }
 
 pub async fn get_projects(
@@ -85,6 +86,15 @@ pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Respond
     let compile_result = compile_project(&form.0).await;
     let res = ApiResponse {
         result: compile_result.unwrap(),
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
+pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder {
+    let version_no = get_project_pdf(&params.0).await;
+    let res = ApiResponse {
+        result: version_no,
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
