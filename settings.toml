@@ -1,5 +1,5 @@
 [texhub]
-compile_base_dir = "/opt/data/project/output"
+compile_base_dir = "/opt/data/project"
 # cv_api_url = "http://10.98.93.22:11015"
 x_access_token = "demo"
 render_api_url = "http://cv-render-service.reddwarf-pro.svc.cluster.local:8000"
