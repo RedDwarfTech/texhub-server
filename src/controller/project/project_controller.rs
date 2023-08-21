@@ -106,6 +106,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/list", web::get().to(get_projects))
             .route("/add", web::post().to(add_project))
             .route("/del", web::delete().to(del_proj))
+            .route("/pdf", web::get().to(get_latest_pdf))
             .route("/compile", web::put().to(compile_proj)),
     );
 }
