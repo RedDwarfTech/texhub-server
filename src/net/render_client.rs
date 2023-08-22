@@ -16,7 +16,7 @@ pub async fn render_request(
 ) -> Option<serde_json::Value> {
     let client = Client::new();
     let url_path = format!("{}", "/render/compile/v1/project");
-    let url = format!("{}{}", get_app_config("render.render_api_url"), url_path);
+    let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let file_path = format!("/opt/data/project/{}/{}", &params.project_id, params.file_name);
     let out_path = format!("/opt/data/project/{}", &params.project_id);
     let json_data = serde_json::json!({
