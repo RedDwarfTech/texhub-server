@@ -63,7 +63,7 @@ pub async fn render_request(
 
 fn construct_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-    let token: String = get_app_config("render.x_access_token").to_owned();
+    let token: String = get_app_config("texhub.x_access_token").to_owned();
     headers.insert("x-access-token", HeaderValue::from_str(&token).unwrap());
     headers.insert("user-id", HeaderValue::from_static("1"));
     headers.insert("app-id", HeaderValue::from_static("1"));
