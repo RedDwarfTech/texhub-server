@@ -4,9 +4,13 @@ use crate::service::tpl::template_service::{get_tpl_list, get_tempalte_by_id};
 
 #[derive(serde::Deserialize)]
 pub struct TplQueryParams {
-    pub id: i64,
     pub name: Option<String>,
     pub tpl_type: Option<i32>
+}
+
+#[derive(serde::Deserialize)]
+pub struct TplDetailQueryParams {
+    pub id: i64
 }
 
 pub async fn get_tpl(
@@ -21,7 +25,7 @@ pub async fn get_tpl(
 }
 
 pub async fn get_tpl_detail(
-    params: web::Query<TplQueryParams>,
+    params: web::Query<TplDetailQueryParams>,
 ) -> impl Responder {
     let docs = get_tempalte_by_id(&params.id);
     let res = ApiResponse {
