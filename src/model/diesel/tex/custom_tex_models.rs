@@ -3,11 +3,11 @@
 #![allow(unused)]
 #![allow(clippy::all)]
 
-use serde::Serialize;
-use serde::Deserialize;
 use crate::model::diesel::tex::tex_schema::*;
+use serde::Deserialize;
+use serde::Serialize;
 
-#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
 #[diesel(table_name = tex_project)]
 pub struct TexProject {
     pub id: i64,
@@ -20,7 +20,7 @@ pub struct TexProject {
     pub project_id: String,
 }
 
-#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
 #[diesel(table_name = tex_template)]
 pub struct TexTemplate {
     pub id: i64,
@@ -39,9 +39,10 @@ pub struct TexTemplate {
     pub theme: Option<String>,
     pub language: String,
     pub intro: String,
+    pub template_type: i32,
 }
 
-#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
 #[diesel(table_name = tex_file)]
 pub struct TexFile {
     pub id: i64,

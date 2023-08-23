@@ -3,19 +3,16 @@ use rust_wheel::model::response::api_response::ApiResponse;
 use crate::service::tpl::template_service::{get_tpl_list, get_tempalte_by_id};
 
 #[derive(serde::Deserialize)]
-pub struct AppParams {
-    tag: String,
-}
-
-#[derive(serde::Deserialize)]
 pub struct TplQueryParams {
-    id: i64,
+    pub id: i64,
+    pub name: Option<String>,
+    pub tpl_type: Option<i32>
 }
 
 pub async fn get_tpl(
-    params: web::Query<AppParams>,
+    params: web::Query<TplQueryParams>,
 ) -> impl Responder {
-    let docs = get_tpl_list(&params.tag);
+    let docs = get_tpl_list(&params.0);
     let res = ApiResponse {
         result: docs,
         ..Default::default()

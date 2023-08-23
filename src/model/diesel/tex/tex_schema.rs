@@ -45,6 +45,7 @@ table! {
         theme -> Nullable<Varchar>,
         language -> Varchar,
         intro -> Varchar,
+        template_type -> Int4,
     }
 }
 
