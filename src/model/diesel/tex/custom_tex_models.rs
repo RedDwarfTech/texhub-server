@@ -40,6 +40,7 @@ pub struct TexTemplate {
     pub language: String,
     pub intro: String,
     pub template_type: i32,
+    pub pdf_name: String,
 }
 
 #[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]

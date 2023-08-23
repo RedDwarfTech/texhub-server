@@ -46,6 +46,7 @@ table! {
         language -> Varchar,
         intro -> Varchar,
         template_type -> Int4,
+        pdf_name -> Varchar,
     }
 }
 
