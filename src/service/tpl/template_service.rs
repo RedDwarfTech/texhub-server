@@ -12,11 +12,11 @@ pub fn get_tpl_list(params: &TplQueryParams) -> Vec<TexTemplate> {
     use crate::model::diesel::tex::tex_schema::tex_template as cv_tpl_table;
     let mut query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_tpl_table::online_status.eq(1));
-    if !params.name.as_ref().is_some() {
+    if params.name.as_ref().is_some() {
         query =
             query.filter(cv_tpl_table::name.like(format!("%{}%", params.name.as_ref().unwrap())));
     }
-    if !params.tpl_type.as_ref().is_some() {
+    if params.tpl_type.as_ref().is_some() {
         query = query.filter(cv_tpl_table::template_type.eq(params.tpl_type.as_ref().unwrap()));
     }
     let cvs = query.load::<TexTemplate>(&mut get_connection());
