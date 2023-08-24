@@ -1,8 +1,11 @@
 use crate::{
-    model::{request::project::{
-        tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-        tex_project_req::TexProjectReq,
-    }, response::project::latest_compile::LatestCompile},
+    model::{
+        request::project::{
+            tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
+            tex_project_req::TexProjectReq,
+        },
+        response::project::latest_compile::LatestCompile,
+    },
     service::project::project_service::{
         compile_project, create_empty_project, del_project, get_prj_by_id, get_prj_list,
         get_project_pdf,
@@ -95,7 +98,7 @@ pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder 
     let version_no = get_project_pdf(&params.0).await;
     let pdf_result: LatestCompile = LatestCompile {
         path: version_no,
-        project_id: params.0.project_id
+        project_id: params.0.project_id,
     };
     let res = ApiResponse {
         result: pdf_result,

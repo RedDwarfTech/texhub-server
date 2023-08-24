@@ -1,4 +1,3 @@
-use chrono::Duration;
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -7,17 +6,20 @@ use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::service::project::project_service::del_project_file;
+use chrono::Duration;
 use diesel::result::Error;
-use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
+use diesel::{
+    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
+};
 use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
-use rust_wheel::config::cache::redis_util::{sync_get_str, set_value};
+use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 
 pub fn get_file_by_fid(filter_id: &String) -> TexFile {
     let cached_file = sync_get_str(&filter_id).unwrap();
     if cached_file.is_some() {
-        let tf:TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
+        let tf: TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
         return tf;
     }
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
@@ -43,6 +45,26 @@ pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
         }
         Err(err) => {
             error!("get files failed, {}", err);
+            return Vec::new();
+        }
+    }
+}
+
+pub fn get_main_file_list(project_id: &String) -> Vec<TexFile> {
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(
+        cv_work_table::project_id
+            .eq(project_id)
+            .and(cv_work_table::main_flag.eq(1)),
+    );
+    let cvs = query.load::<TexFile>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return result;
+        }
+        Err(err) => {
+            error!("get main files failed, {}", err);
             return Vec::new();
         }
     }
