@@ -4,4 +4,5 @@ use validator::Validate;
 pub struct TexProjectReq {
     #[validate(length(max = 2))]
     pub doc_name: String,
+    pub template_id: Option<i64>
 }

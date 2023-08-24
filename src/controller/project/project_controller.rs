@@ -47,8 +47,8 @@ pub async fn get_project(params: web::Query<GetPrjParams>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_project(
-    form: web::Json<TexProjectReq>,
+pub async fn create_project(
+    form: actix_web_validator::Json<TexProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let d_name = form.doc_name.clone();
@@ -108,7 +108,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_projects))
-            .route("/add", web::post().to(add_project))
+            .route("/add", web::post().to(create_project))
             .route("/del", web::delete().to(del_proj))
             .route("/pdf", web::get().to(get_latest_pdf))
             .route("/compile", web::put().to(compile_proj)),
