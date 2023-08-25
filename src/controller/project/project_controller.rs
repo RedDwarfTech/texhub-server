@@ -2,13 +2,13 @@ use crate::{
     model::{
         request::project::{
             tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-            tex_project_req::TexProjectReq,
+            tex_project_req::TexProjectReq, tex_join_project_req::TexJoinProjectReq,
         },
         response::project::latest_compile::LatestCompile,
     },
     service::project::project_service::{
         compile_project, create_empty_project, del_project, get_prj_by_id, get_prj_list,
-        get_project_pdf, edit_proj,
+        get_project_pdf, edit_proj, join_project,
     },
 };
 use actix_web::{
@@ -95,6 +95,15 @@ pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
     del_project(&d_name);
     let res = ApiResponse {
         result: "ok",
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
+pub async fn join_proj(form: web::Json<TexJoinProjectReq>, login_user_info: LoginUserInfo) -> impl Responder {
+    let result = join_project(&form.0, &login_user_info);
+    let res = ApiResponse {
+        result: result.unwrap(),
         ..Default::default()
     };
     HttpResponse::Ok().json(res)

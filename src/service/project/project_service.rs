@@ -1,9 +1,11 @@
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
+use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
-use crate::model::diesel::tex::custom_tex_models::TexProject;
+use crate::model::diesel::tex::custom_tex_models::{TexProjEditor, TexProject};
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
+use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::net::render_client::render_request;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use diesel::result::Error;
@@ -117,6 +119,18 @@ fn create_proj(
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
         .get_result::<TexProject>(connection);
+    return result;
+}
+
+pub fn join_project(
+    req: &TexJoinProjectReq,
+    login_user_info: &LoginUserInfo,
+) -> Result<TexProjEditor, Error> {
+    let new_proj_editor = TexProjEditorAdd::from_req(&req.project_id, &login_user_info.userId);
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
+    let result = diesel::insert_into(tex_proj_editor)
+        .values(&new_proj_editor)
+        .get_result::<TexProjEditor>(&mut get_connection());
     return result;
 }
 

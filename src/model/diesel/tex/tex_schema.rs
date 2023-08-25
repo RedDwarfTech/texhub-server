@@ -10,7 +10,21 @@ table! {
         file_type -> Int4,
         file_id -> Varchar,
         parent -> Varchar,
-        main_flag -> Int2
+        main_flag -> Int2,
+        sort -> Int4,
+    }
+}
+
+table! {
+    tex_proj_editor (id) {
+        id -> Int8,
+        role_id -> Int4,
+        created_time -> Int8,
+        updated_time -> Int8,
+        user_id -> Int8,
+        collar_status -> Int4,
+        sort -> Int4,
+        project_id -> Varchar,
     }
 }
 
@@ -52,6 +66,7 @@ table! {
 
 allow_tables_to_appear_in_same_query!(
     tex_file,
+    tex_proj_editor,
     tex_project,
     tex_template,
 );

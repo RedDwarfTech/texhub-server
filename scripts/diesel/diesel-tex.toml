@@ -7,6 +7,7 @@ with_docs = false
 filter = { only_tables = [
     "tex_project",
     "tex_template",
-    "tex_file"
+    "tex_file",
+    "tex_proj_editor"
 ] }
 

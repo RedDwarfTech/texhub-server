@@ -11,7 +11,7 @@ use crate::model::diesel::tex::tex_schema::*;
 #[diesel(table_name = "tex_file")]
 pub struct TexFile {
     pub id: i64,
-    pub doc_name: String,
+    pub name: String,
     pub created_time: i64,
     pub updated_time: i64,
     pub user_id: i64,
@@ -20,17 +20,32 @@ pub struct TexFile {
     pub file_type: i32,
     pub file_id: String,
     pub parent: String,
+    pub main_flag: i16,
+    pub sort: Option<i32>,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_proj_editor")]
+pub struct TexProjEditor {
+    pub id: i64,
+    pub role_id: i32,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub collar_status: i32,
+    pub sort: i32,
+    pub project_id: String,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
 #[diesel(table_name = "tex_project")]
 pub struct TexProject {
     pub id: i64,
-    pub doc_name: String,
+    pub proj_name: String,
     pub created_time: i64,
     pub updated_time: i64,
     pub user_id: i64,
-    pub doc_status: i32,
+    pub proj_status: i32,
     pub template_id: i64,
     pub project_id: String,
 }
@@ -54,5 +69,7 @@ pub struct TexTemplate {
     pub theme: Option<String>,
     pub language: String,
     pub intro: String,
+    pub template_type: i32,
+    pub pdf_name: String,
 }
 

@@ -57,4 +57,18 @@ pub struct TexFile {
     pub file_id: String,
     pub parent: String,
     pub main_flag: i16,
+    pub sort: i32
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_proj_editor)]
+pub struct TexProjEditor {
+    pub id: i64,
+    pub role_id: i32,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub collar_status: i32,
+    pub sort: i32,
+    pub project_id: String,
 }
