@@ -8,7 +8,7 @@ use crate::{
     },
     service::project::project_service::{
         compile_project, create_empty_project, del_project, get_prj_by_id, get_prj_list,
-        get_project_pdf,
+        get_project_pdf, edit_proj,
     },
 };
 use actix_web::{
@@ -29,6 +29,12 @@ pub struct GetPrjParams {
     pub project_id: String,
 }
 
+#[derive(serde::Deserialize)]
+pub struct EditPrjReq {
+    pub project_id: String,
+    pub proj_name: String
+}
+
 pub async fn get_projects(
     params: web::Query<AppParams>,
     login_user_info: LoginUserInfo,
@@ -43,6 +49,15 @@ pub async fn get_projects(
 
 pub async fn get_project(params: web::Query<GetPrjParams>) -> impl Responder {
     let prj = get_prj_by_id(&params.project_id);
+    let res = ApiResponse {
+        result: prj,
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
+pub async fn edit_project(params: web::Json<EditPrjReq>) -> impl Responder {
+    let prj = edit_proj(&params);
     let res = ApiResponse {
         result: prj,
         ..Default::default()
@@ -114,6 +129,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/add", web::post().to(create_project))
             .route("/del", web::delete().to(del_proj))
             .route("/pdf", web::get().to(get_latest_pdf))
+            .route("/edit", web::put().to(edit_project))
             .route("/compile", web::put().to(compile_proj)),
     );
 }

@@ -17,11 +17,11 @@ table! {
 table! {
     tex_project (id) {
         id -> Int8,
-        doc_name -> Varchar,
+        proj_name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
         user_id -> Int8,
-        doc_status -> Int4,
+        proj_status -> Int4,
         template_id -> Int8,
         project_id -> Varchar,
     }

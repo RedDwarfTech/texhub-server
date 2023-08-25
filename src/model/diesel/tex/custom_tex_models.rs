@@ -11,11 +11,11 @@ use serde::Serialize;
 #[diesel(table_name = tex_project)]
 pub struct TexProject {
     pub id: i64,
-    pub doc_name: String,
+    pub proj_name: String,
     pub created_time: i64,
     pub updated_time: i64,
     pub user_id: i64,
-    pub doc_status: i32,
+    pub proj_status: i32,
     pub template_id: i64,
     pub project_id: String,
 }

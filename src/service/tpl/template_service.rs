@@ -35,11 +35,11 @@ pub fn create_tpl(input_doc: &String) -> TexProject {
     let uuid = Uuid::new_v4();
     let uuid_string = uuid.to_string().replace("-", "");
     let new_doc = TexProjectAdd {
-        doc_name: input_doc.to_string(),
+        proj_name: input_doc.to_string(),
         created_time: get_current_millisecond(),
         updated_time: get_current_millisecond(),
         user_id: 1,
-        doc_status: 1,
+        proj_status: 1,
         template_id: 1,
         project_id: uuid_string,
     };

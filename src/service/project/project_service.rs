@@ -1,4 +1,4 @@
-use crate::controller::project::project_controller::GetPrjParams;
+use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
@@ -36,6 +36,17 @@ pub fn get_prj_by_id(proj_id: &String) -> TexProject {
     query = query.filter(cv_work_table::project_id.eq(proj_id));
     let cvs = query.load::<TexProject>(&mut get_connection()).unwrap();
     return cvs[0].clone();
+}
+
+pub fn edit_proj(edit_req: &EditPrjReq) -> TexProject {
+    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
+    let predicate = crate::model::diesel::tex::tex_schema::tex_project::project_id
+        .eq(edit_req.project_id.clone());
+    let update_result = diesel::update(tex_project.filter(predicate))
+        .set(proj_name.eq(&edit_req.proj_name))
+        .get_result::<TexProject>(&mut get_connection())
+        .expect("unable to update tex project");
+    return update_result;
 }
 
 pub fn create_empty_project(proj_name: &String, user_id: &i64) -> Result<TexProject, Error> {
@@ -97,11 +108,11 @@ fn create_main_file(
 }
 
 fn create_proj(
-    proj_name: &String,
+    name: &String,
     connection: &mut PgConnection,
     uid: &i64,
 ) -> Result<TexProject, diesel::result::Error> {
-    let new_proj = TexProjectAdd::from_req(proj_name, &uid);
+    let new_proj = TexProjectAdd::from_req(name, &uid);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
