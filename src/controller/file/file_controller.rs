@@ -2,7 +2,7 @@ use crate::{
     model::request::file::{file_add_req::TexFileAddReq, file_del::TexFileDelReq},
     service::file::file_service::{
         create_file, delete_file_recursive, get_file_by_fid, get_file_list, get_file_tree,
-        get_main_file_list,
+        get_main_file_list, get_text_file_code,
     },
 };
 use actix_web::{web, HttpResponse, Responder};
@@ -16,6 +16,11 @@ pub struct AppParams {
 #[derive(serde::Deserialize)]
 pub struct MainFileParams {
     pub project_id: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct FileCodeParams {
+    pub file_id: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -45,6 +50,15 @@ pub async fn get_main_file(params: web::Query<MainFileParams>) -> impl Responder
     let docs = get_main_file_list(&params.project_id);
     let res = ApiResponse {
         result: docs[0].clone(),
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
+pub async fn get_file_code(params: web::Query<FileCodeParams>) -> impl Responder {
+    let file_text = get_text_file_code(&params.file_id);
+    let res = ApiResponse {
+        result: file_text,
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
@@ -94,6 +108,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/tree", web::get().to(get_files_tree))
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
+            .route("/code", web::get().to(get_file_code))
             .route("/detail", web::get().to(get_file)),
     );
 }

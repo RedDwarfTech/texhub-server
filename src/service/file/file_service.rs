@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::Read;
+
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -14,6 +17,7 @@ use diesel::{
 use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
+use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 
 pub fn get_file_by_fid(filter_id: &String) -> TexFile {
@@ -68,6 +72,31 @@ pub fn get_main_file_list(project_id: &String) -> Vec<TexFile> {
             return Vec::new();
         }
     }
+}
+
+pub fn get_text_file_code(filter_file_id: &String) -> String {
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::file_id.eq(filter_file_id));
+    let cvs: Result<Vec<_>,Error> = query.load::<TexFile>(&mut get_connection());
+    let tex_files: Vec<TexFile> = cvs.unwrap();
+    let tex = tex_files[0].clone();
+    let file_folder = format!("{}/{}", base_compile_dir, tex.project_id);
+    let file_full_path = format!("{}/{}", file_folder, tex.name);
+    let mut file = match File::open(file_full_path) {
+        Ok(file) => file,
+        Err(error) => {
+            error!("Error opening file: {:?}", error);
+            return "".to_string();
+        }
+    };
+    let mut contents = String::new();
+    if let Err(error) = file.read_to_string(&mut contents) {
+        error!("Error reading file: {:?}", error);
+        return "".to_string();
+    }
+    return contents;
 }
 
 pub fn create_file(add_req: &TexFileAddReq) -> TexFile {

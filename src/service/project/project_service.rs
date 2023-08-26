@@ -75,7 +75,8 @@ pub fn create_empty_project(proj_name: &String, user_id: &i64) -> Result<TexProj
 }
 
 fn create_main_file_on_disk(project_id: &String) {
-    let file_folder = format!("/opt/data/project/{}", project_id);
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    let file_folder = format!("{}/{}", base_compile_dir, project_id);
     match create_directory_if_not_exists(&file_folder) {
         Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
@@ -209,7 +210,7 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
 }
 
 pub async fn get_project_pdf(params: &GetPrjParams) -> String {
-    let base_compile_dir = get_app_config("texhub.compile_base_dir");
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let prj_dir = format!("{}/{}", base_compile_dir, params.project_id);
     if !fs::metadata(&prj_dir).is_ok() {
         error!("folder did not exists, dir: {}", prj_dir);
