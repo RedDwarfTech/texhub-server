@@ -2,7 +2,7 @@ use crate::{
     model::request::file::{file_add_req::TexFileAddReq, file_del::TexFileDelReq},
     service::file::file_service::{
         create_file, delete_file_recursive, get_file_by_fid, get_file_list, get_file_tree,
-        get_main_file_list, get_text_file_code,
+        get_main_file_list, get_text_file_code, file_init_complete,
     },
 };
 use actix_web::{web, HttpResponse, Responder};
@@ -82,6 +82,15 @@ pub async fn add_file(form: web::Json<TexFileAddReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
+pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder {
+    let new_file = file_init_complete(&form.0);
+    let res = ApiResponse {
+        result: new_file,
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
 pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
     let db_file = get_file_by_fid(&form.file_id);
     if db_file.main_flag == 1 {
@@ -109,6 +118,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))
+            .route("/inited", web::put().to(update_file_init))
             .route("/detail", web::get().to(get_file)),
     );
 }

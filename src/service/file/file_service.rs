@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 
 use crate::common::database::get_connection;
+use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
@@ -107,6 +108,17 @@ pub fn create_file(add_req: &TexFileAddReq) -> TexFile {
         .get_result::<TexFile>(&mut get_connection())
         .expect("failed to add new tex file or folder");
     return result;
+}
+
+pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
+    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
+        .eq(edit_req.file_id.clone());
+    let update_result = diesel::update(tex_file.filter(predicate))
+        .set(yjs_initial.eq(1))
+        .get_result::<TexFile>(&mut get_connection())
+        .expect("unable to update tex file");
+    return update_result;
 }
 
 pub fn delete_file_recursive(del_req: &TexFileDelReq) -> Result<usize, Error> {
