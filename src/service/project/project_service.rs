@@ -82,7 +82,12 @@ fn create_main_file_on_disk(project_id: &String) {
         Err(e) => error!("create directory failed,{}", e),
     }
     if let Ok(mut file) = File::create(format!("{}/{}", &file_folder, "main.tex")) {
-        if let Err(we) = file.write_all(b"Hello, World!") {
+        if let Err(we) = file.write_all(
+            b"\\documentclass{article}\n\n
+        \\begin{document}\n
+        Hello, World!\n
+        \\end{document}\n",
+        ) {
             error!("write content failed, {}", we);
         }
     } else {
