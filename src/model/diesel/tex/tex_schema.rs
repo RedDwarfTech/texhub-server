@@ -12,6 +12,7 @@ table! {
         parent -> Varchar,
         main_flag -> Int2,
         sort -> Int4,
+        yjs_initial -> Int2
     }
 }
 
