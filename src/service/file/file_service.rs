@@ -8,9 +8,10 @@ use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
 use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
+use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::service::project::project_service::del_project_file;
-use actix_web::Responder;
+use actix_web::HttpResponse;
 use chrono::Duration;
 use diesel::result::Error;
 use diesel::{
@@ -19,7 +20,9 @@ use diesel::{
 use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
-use rust_wheel::common::wrapper::actix_http_resp::{box_error_actix_rest_response, box_actix_rest_response};
+use rust_wheel::common::wrapper::actix_http_resp::{
+    box_actix_rest_response, box_error_actix_rest_response,
+};
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
@@ -103,7 +106,7 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     return contents;
 }
 
-pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> impl Responder {
+pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
     let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info);
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
@@ -116,7 +119,11 @@ pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> 
     );
     let cvs = query.load::<TexFile>(&mut get_connection()).unwrap();
     if !cvs.is_empty() {
-        return box_error_actix_rest_response("already exists", "ALREADY_EXISTS".to_owned(), "file/folder already exists".to_owned());
+        return box_error_actix_rest_response(
+            "already exists",
+            "ALREADY_EXISTS".to_owned(),
+            "file/folder already exists".to_owned(),
+        );
     }
     let result = diesel::insert_into(tex_file)
         .values(&new_file)
@@ -134,6 +141,17 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
         .set(yjs_initial.eq(1))
         .get_result::<TexFile>(&mut get_connection())
         .expect("unable to update tex file");
+    return update_result;
+}
+
+pub fn rename_file_impl(edit_req: &TexFileRenameReq) -> TexFile {
+    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let predicate =
+        crate::model::diesel::tex::tex_schema::tex_file::file_id.eq(edit_req.file_id.clone());
+    let update_result = diesel::update(tex_file.filter(predicate))
+        .set(name.eq(edit_req.name.clone()))
+        .get_result::<TexFile>(&mut get_connection())
+        .expect("unable to update tex file name");
     return update_result;
 }
 

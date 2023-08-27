@@ -1,13 +1,16 @@
 use crate::{
-    model::request::file::{file_add_req::TexFileAddReq, file_del::TexFileDelReq},
+    model::request::file::{
+        file_add_req::TexFileAddReq, file_del::TexFileDelReq, file_rename::TexFileRenameReq,
+    },
     service::file::file_service::{
         create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
-        get_file_tree, get_main_file_list, get_text_file_code,
+        get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl,
     },
 };
 use actix_web::{web, HttpResponse, Responder};
-use rust_wheel::model::{
-    response::api_response::ApiResponse, user::login_user_info::LoginUserInfo,
+use rust_wheel::{
+    common::wrapper::actix_http_resp::box_actix_rest_response,
+    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
 
 #[derive(serde::Deserialize)]
@@ -109,6 +112,11 @@ pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
+pub async fn rename_file(form: actix_web_validator::Json<TexFileRenameReq>) -> impl Responder {
+    let db_file = rename_file_impl(&form.0);
+    box_actix_rest_response(db_file)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/file")
@@ -119,6 +127,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))
             .route("/inited", web::put().to(update_file_init))
+            .route("/rename", web::get().to(rename_file))
             .route("/detail", web::get().to(get_file)),
     );
 }
