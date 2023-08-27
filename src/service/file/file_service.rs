@@ -10,6 +10,7 @@ use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::service::project::project_service::del_project_file;
+use actix_web::Responder;
 use chrono::Duration;
 use diesel::result::Error;
 use diesel::{
@@ -18,6 +19,7 @@ use diesel::{
 use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
+use rust_wheel::common::wrapper::actix_http_resp::{box_error_actix_rest_response, box_actix_rest_response};
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
@@ -81,7 +83,7 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::file_id.eq(filter_file_id));
-    let cvs: Result<Vec<_>,Error> = query.load::<TexFile>(&mut get_connection());
+    let cvs: Result<Vec<_>, Error> = query.load::<TexFile>(&mut get_connection());
     let tex_files: Vec<TexFile> = cvs.unwrap();
     let tex = tex_files[0].clone();
     let file_folder = format!("{}/{}", base_compile_dir, tex.project_id);
@@ -101,20 +103,33 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     return contents;
 }
 
-pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> TexFile {
+pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> impl Responder {
     let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info);
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(
+        cv_work_table::parent
+            .eq(add_req.parent.clone())
+            .and(cv_work_table::name.eq(add_req.name.clone()))
+            .and(cv_work_table::file_type.eq(add_req.file_type.clone())),
+    );
+    let cvs = query.load::<TexFile>(&mut get_connection()).unwrap();
+    if !cvs.is_empty() {
+        return box_error_actix_rest_response("already exists", "ALREADY_EXISTS".to_owned(), "file/folder already exists".to_owned());
+    }
     let result = diesel::insert_into(tex_file)
         .values(&new_file)
         .get_result::<TexFile>(&mut get_connection())
         .expect("failed to add new tex file or folder");
-    return result;
+    let resp = box_actix_rest_response(result);
+    return resp;
 }
 
 pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
-    let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
-        .eq(edit_req.file_id.clone());
+    let predicate =
+        crate::model::diesel::tex::tex_schema::tex_file::file_id.eq(edit_req.file_id.clone());
     let update_result = diesel::update(tex_file.filter(predicate))
         .set(yjs_initial.eq(1))
         .get_result::<TexFile>(&mut get_connection())
