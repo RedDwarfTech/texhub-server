@@ -112,8 +112,8 @@ pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn rename_file(form: actix_web_validator::Json<TexFileRenameReq>) -> impl Responder {
-    let db_file = rename_file_impl(&form.0);
+pub async fn rename_file(form: actix_web_validator::Json<TexFileRenameReq>, login_user_info: LoginUserInfo) -> impl Responder {
+    let db_file = rename_file_impl(&form.0, &login_user_info);
     box_actix_rest_response(db_file)
 }
 

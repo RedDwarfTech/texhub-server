@@ -144,10 +144,11 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
     return update_result;
 }
 
-pub fn rename_file_impl(edit_req: &TexFileRenameReq) -> TexFile {
+pub fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &LoginUserInfo) -> TexFile {
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
-    let predicate =
-        crate::model::diesel::tex::tex_schema::tex_file::file_id.eq(edit_req.file_id.clone());
+    let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
+        .eq(edit_req.file_id.clone())
+        .and(crate::model::diesel::tex::tex_schema::tex_file::user_id.eq(login_user_info.userId));
     let update_result = diesel::update(tex_file.filter(predicate))
         .set(name.eq(edit_req.name.clone()))
         .get_result::<TexFile>(&mut get_connection())
