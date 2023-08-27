@@ -20,6 +20,7 @@ use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
+use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub fn get_file_by_fid(filter_id: &String) -> TexFile {
     let cached_file = sync_get_str(&filter_id).unwrap();
@@ -100,8 +101,8 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     return contents;
 }
 
-pub fn create_file(add_req: &TexFileAddReq) -> TexFile {
-    let new_file = TexFileAdd::gen_tex_file(add_req);
+pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> TexFile {
+    let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info);
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let result = diesel::insert_into(tex_file)
         .values(&new_file)

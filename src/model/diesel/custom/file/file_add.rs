@@ -2,6 +2,7 @@
 #![allow(clippy::all)]
 
 use rust_wheel::common::util::time_util::get_current_millisecond;
+use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use serde::Serialize;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -41,20 +42,20 @@ impl TexFileAdd {
         }
     }
 
-    pub(crate) fn gen_tex_file(add_file: &TexFileAddReq) ->Self {
+    pub(crate) fn gen_tex_file(add_file: &TexFileAddReq, login_user_info: &LoginUserInfo) ->Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
         Self {
             name: add_file.name.clone(),
             created_time: get_current_millisecond(),
             updated_time: get_current_millisecond(),
-            user_id: 1,
+            user_id: login_user_info.userId,
             doc_status:1,
             project_id: add_file.project_id.clone(),
             file_type: add_file.file_type,
             file_id: uuid_string,
             parent: add_file.parent.clone(),
-            main_flag: 1,
+            main_flag: 0,
         }
     }
 }

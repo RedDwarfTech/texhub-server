@@ -1,12 +1,14 @@
 use crate::{
     model::request::file::{file_add_req::TexFileAddReq, file_del::TexFileDelReq},
     service::file::file_service::{
-        create_file, delete_file_recursive, get_file_by_fid, get_file_list, get_file_tree,
-        get_main_file_list, get_text_file_code, file_init_complete,
+        create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
+        get_file_tree, get_main_file_list, get_text_file_code,
     },
 };
 use actix_web::{web, HttpResponse, Responder};
-use rust_wheel::model::response::api_response::ApiResponse;
+use rust_wheel::model::{
+    response::api_response::ApiResponse, user::login_user_info::LoginUserInfo,
+};
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
@@ -73,8 +75,11 @@ pub async fn get_files_tree(params: web::Query<AppParams>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_file(form: web::Json<TexFileAddReq>) -> impl Responder {
-    let new_file = create_file(&form.0);
+pub async fn add_file(
+    form: actix_web_validator::Json<TexFileAddReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let new_file = create_file(&form.0, &login_user_info);
     let res = ApiResponse {
         result: new_file,
         ..Default::default()
