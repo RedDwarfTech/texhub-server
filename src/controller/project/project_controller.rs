@@ -2,21 +2,25 @@ use crate::{
     model::{
         request::project::{
             tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-            tex_project_req::TexProjectReq, tex_join_project_req::TexJoinProjectReq,
+            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq,
         },
         response::project::latest_compile::LatestCompile,
     },
-    service::project::project_service::{
-        compile_project, create_empty_project, del_project, get_prj_by_id, get_prj_list,
-        get_project_pdf, edit_proj, join_project,
+    service::{
+        file::file_service::get_main_file_list,
+        project::project_service::{
+            compile_project, create_empty_project, del_project, edit_proj, get_compiled_log,
+            get_prj_by_id, get_prj_list, get_project_pdf, join_project,
+        },
     },
 };
 use actix_web::{
     web::{self},
     HttpResponse, Responder,
 };
-use rust_wheel::model::{
-    response::api_response::ApiResponse, user::login_user_info::LoginUserInfo,
+use rust_wheel::{
+    common::wrapper::actix_http_resp::box_actix_rest_response,
+    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
 
 #[derive(serde::Deserialize)]
@@ -32,7 +36,7 @@ pub struct GetPrjParams {
 #[derive(serde::Deserialize)]
 pub struct EditPrjReq {
     pub project_id: String,
-    pub proj_name: String
+    pub proj_name: String,
 }
 
 pub async fn get_projects(
@@ -100,7 +104,10 @@ pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn join_proj(form: web::Json<TexJoinProjectReq>, login_user_info: LoginUserInfo) -> impl Responder {
+pub async fn join_proj(
+    form: web::Json<TexJoinProjectReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
     let result = join_project(&form.0, &login_user_info);
     let res = ApiResponse {
         result: result.unwrap(),
@@ -116,6 +123,14 @@ pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Respond
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
+}
+
+pub async fn get_compile_log(
+    form: web::Query<TexCompileProjectReq>
+) -> impl Responder {
+    let main_file = get_main_file_list(&form.project_id);
+    let log_output = get_compiled_log( main_file[0].clone()).await;
+    box_actix_rest_response(log_output)
 }
 
 pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder {
@@ -140,6 +155,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/pdf", web::get().to(get_latest_pdf))
             .route("/edit", web::put().to(edit_project))
             .route("/join", web::post().to(join_proj))
+            .route("/log", web::get().to(get_compile_log))
             .route("/compile", web::put().to(compile_proj)),
     );
 }

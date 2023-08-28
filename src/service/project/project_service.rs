@@ -11,10 +11,11 @@ use crate::{common::database::get_connection, model::diesel::tex::custom_tex_mod
 use diesel::result::Error;
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::{error, warn};
+use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -209,6 +210,28 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
 pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json::Value> {
     let prj = get_prj_by_id(&params.project_id);
     return render_request(params, &prj).await;
+}
+
+pub async fn get_compiled_log(
+    main_file: TexFile,
+) -> String {
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    let file_folder = format!("{}/{}", base_compile_dir, main_file.project_id);
+    let file_name_without_ext = get_filename_without_ext(&main_file.name);
+    let log_full_path = format!("{}/{}.log", file_folder, file_name_without_ext);
+    let mut file = match File::open(log_full_path) {
+        Ok(file) => file,
+        Err(error) => {
+            error!("Error opening project log file: {:?}", error);
+            return "".to_string();
+        }
+    };
+    let mut contents = String::new();
+    if let Err(error) = file.read_to_string(&mut contents) {
+        error!("Error reading project log file: {:?}", error);
+        return "".to_string();
+    }
+    return contents;
 }
 
 pub async fn get_project_pdf(params: &GetPrjParams) -> String {
