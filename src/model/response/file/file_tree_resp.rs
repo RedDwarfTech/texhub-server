@@ -17,6 +17,7 @@ pub struct FileTreeResp {
     pub file_id: String,
     pub parent: String,
     pub main_flag: i16,
+    pub yjs_initial: i16,
     pub children: Vec<FileTreeResp>
 }
 
