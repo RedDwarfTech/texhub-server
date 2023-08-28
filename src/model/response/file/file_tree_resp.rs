@@ -36,6 +36,7 @@ impl Default for FileTreeResp {
             file_id: "".to_owned(),
             parent: "".to_owned(),
             main_flag: 0,
+            yjs_initial: 0,
         }
     }
 }
@@ -55,6 +56,7 @@ impl From<&TexFile> for FileTreeResp {
             file_id: p.file_id.clone(),
             parent: p.parent.clone(),
             main_flag: p.main_flag,
+            yjs_initial: p.yjs_initial,
         }
     }
 }
@@ -84,6 +86,7 @@ impl IntoTree<String> for &FileTreeResp {
             parent: self.parent.clone(),
             main_flag: self.main_flag,
             children,
+            yjs_initial: self.yjs_initial,
         }
     }
 }
