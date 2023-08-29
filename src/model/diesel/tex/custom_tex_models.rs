@@ -58,7 +58,8 @@ pub struct TexFile {
     pub parent: String,
     pub main_flag: i16,
     pub sort: i32,
-    pub yjs_initial: i16
+    pub yjs_initial: i16,
+    pub file_path: String
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]

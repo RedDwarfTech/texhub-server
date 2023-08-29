@@ -22,6 +22,7 @@ pub struct TexFileAdd {
     pub file_id: String,
     pub parent: String,
     pub main_flag: i16,
+    pub file_path: String
 }
 
 impl TexFileAdd {
@@ -39,10 +40,11 @@ impl TexFileAdd {
             file_id: uuid_string,
             parent: prj_id.to_string(),
             main_flag: 1,
+            file_path: "/".to_owned(),
         }
     }
 
-    pub(crate) fn gen_tex_file(add_file: &TexFileAddReq, login_user_info: &LoginUserInfo) ->Self {
+    pub(crate) fn gen_tex_file(add_file: &TexFileAddReq, login_user_info: &LoginUserInfo, f_path: &String) ->Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
         Self {
@@ -56,6 +58,7 @@ impl TexFileAdd {
             file_id: uuid_string,
             parent: add_file.parent.clone(),
             main_flag: 0,
+            file_path: f_path.to_string()
         }
     }
 }

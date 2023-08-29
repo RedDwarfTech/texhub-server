@@ -27,22 +27,25 @@ use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
-pub fn get_file_by_fid(filter_id: &String) -> TexFile {
+pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let cached_file = sync_get_str(&filter_id).unwrap();
     if cached_file.is_some() {
         let tf: TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
-        return tf;
+        return Some(tf);
     }
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::file_id.eq(filter_id));
     let files = query.load::<TexFile>(&mut get_connection()).unwrap();
+    if files.len() == 0 {
+        return None;
+    }
     let file = &files[0];
     let file_json = serde_json::to_string(file).unwrap();
     let one_day = Duration::days(1);
     let seconds_in_one_day = one_day.num_seconds();
     set_value(&filter_id, &file_json, seconds_in_one_day as usize).unwrap();
-    return file.to_owned();
+    return Some(file.to_owned());
 }
 
 pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
@@ -107,7 +110,6 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
 }
 
 pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
-    let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info);
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
@@ -125,12 +127,27 @@ pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> 
             "file/folder already exists".to_owned(),
         );
     }
+    let gen_file_path = get_file_path(add_req);
+    let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info, &gen_file_path);
     let result = diesel::insert_into(tex_file)
         .values(&new_file)
         .get_result::<TexFile>(&mut get_connection())
         .expect("failed to add new tex file or folder");
     let resp = box_actix_rest_response(result);
     return resp;
+}
+
+pub fn get_file_path(add_req: &TexFileAddReq) -> String {
+    let file_info = get_file_by_fid(&add_req.parent);
+    if file_info.is_none() {
+        return "/".to_owned();
+    }
+    let finfo = file_info.unwrap();
+    if add_req.file_type == 0 {
+        return format!("{}{}/", finfo.file_path.clone(), finfo.name.clone());
+    } else {
+        return finfo.file_path.clone();
+    }
 }
 
 pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {

@@ -34,7 +34,7 @@ pub struct FileQueryParams {
 }
 
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_file_by_fid(&params.file_id);
+    let docs = get_file_by_fid(&params.file_id).unwrap();
     let res = ApiResponse {
         result: docs,
         ..Default::default()
@@ -95,7 +95,7 @@ pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder
 }
 
 pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
-    let db_file = get_file_by_fid(&form.file_id);
+    let db_file = get_file_by_fid(&form.file_id).unwrap();
     if db_file.main_flag == 1 {
         let res = ApiResponse {
             result: "main file could not be delete",
