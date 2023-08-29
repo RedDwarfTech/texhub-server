@@ -10,7 +10,7 @@ use crate::{
         file::file_service::get_main_file_list,
         project::project_service::{
             compile_project, create_empty_project, del_project, edit_proj, get_compiled_log,
-            get_prj_by_id, get_prj_list, get_project_pdf, join_project,
+            get_prj_by_id, get_project_pdf, join_project, get_proj_by_type,
         },
     },
 };
@@ -25,8 +25,9 @@ use rust_wheel::{
 use futures::StreamExt;
 
 #[derive(serde::Deserialize)]
-pub struct AppParams {
-    tag: String,
+pub struct ProjQueryParams {
+    pub tag: String,
+    pub role_id: Option<i32>
 }
 
 #[derive(serde::Deserialize)]
@@ -41,10 +42,10 @@ pub struct EditPrjReq {
 }
 
 pub async fn get_projects(
-    params: web::Query<AppParams>,
+    params: web::Query<ProjQueryParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let projects = get_prj_list(&params.tag, &login_user_info);
+    let projects = get_proj_by_type(&params.0, &login_user_info);
     let res = ApiResponse {
         result: projects,
         ..Default::default()

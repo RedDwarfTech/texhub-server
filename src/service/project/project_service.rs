@@ -1,4 +1,4 @@
-use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams};
+use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
@@ -35,6 +35,36 @@ pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexPr
             return Vec::new();
         }
     }
+}
+
+pub fn get_proj_by_type(
+    query_params: &ProjQueryParams,
+    login_user_info: &LoginUserInfo,
+) -> Vec<TexProject> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
+    let mut query = proj_editor_table::table.into_boxed::<diesel::pg::Pg>();
+    if query_params.role_id.is_some() {
+        let rid = query_params.role_id.unwrap();
+        query = query.filter(proj_editor_table::role_id.eq(rid));
+    }
+    query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
+    let projects: Vec<TexProjEditor> = query
+        .load::<TexProjEditor>(&mut get_connection())
+        .expect("get project editor failed");
+    if projects.len() == 0 {
+        return Vec::new();
+    }
+    let proj_ids: Vec<String> = projects
+        .iter()
+        .map(|item| item.project_id.clone())
+        .collect();
+    use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
+    let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
+    proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
+    let projects: Vec<TexProject> = proj_query
+        .load::<TexProject>(&mut get_connection())
+        .expect("get project editor failed");
+    return projects;
 }
 
 pub fn get_prj_by_id(proj_id: &String) -> TexProject {
