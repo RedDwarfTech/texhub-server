@@ -231,7 +231,8 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
           file_type,
           parent,
           main_flag,
-          yjs_initial 
+          yjs_initial,
+          file_path 
         from 
           tex_file mr 
         where 
@@ -250,7 +251,8 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
           origin.file_type,
           origin.parent,
           origin.main_flag,
-          origin.yjs_initial 
+          origin.yjs_initial,
+          origin.file_path 
         from 
           sub_files 
           join tex_file origin on origin.parent = sub_files.file_id
@@ -268,7 +270,8 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
         file_type,
         parent,
         main_flag,
-        yjs_initial 
+        yjs_initial,
+        file_path 
       from 
         sub_files 
       order by 
