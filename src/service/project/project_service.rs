@@ -9,7 +9,9 @@ use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::net::render_client::render_request;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use diesel::result::Error;
-use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
+use diesel::{
+    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
+};
 use log::{error, warn};
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
@@ -140,10 +142,10 @@ pub fn join_project(
     return result;
 }
 
-pub fn del_project(del_project_id: &String) {
+pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
     let result = connection.transaction(|connection| {
-        let delete_result = del_project_impl(del_project_id, connection);
+        let delete_result = del_project_impl(del_project_id, connection, login_user_info);
         match delete_result {
             Ok(rows) => {
                 if rows == 0 {
@@ -152,8 +154,10 @@ pub fn del_project(del_project_id: &String) {
                         rows, del_project_id
                     );
                 }
-                del_project_file(del_project_id, connection);
-                del_project_disk_file(del_project_id);
+                if rows == 1 {
+                    del_project_file(del_project_id, connection);
+                    del_project_disk_file(del_project_id);
+                }
                 Ok("")
             }
             Err(e) => diesel::result::QueryResult::Err(e),
@@ -185,11 +189,14 @@ pub fn del_project_disk_file(proj_id: &String) {
 pub fn del_project_impl(
     del_project_id: &String,
     connection: &mut PgConnection,
+    login_user_info: &LoginUserInfo,
 ) -> Result<usize, diesel::result::Error> {
-    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
-    let predicate =
-        crate::model::diesel::tex::tex_schema::tex_project::project_id.eq(del_project_id);
-    let delete_result = diesel::delete(tex_project.filter(predicate)).execute(connection);
+    use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
+    let predicate = tex_project_table::project_id
+        .eq(del_project_id)
+        .and(tex_project_table::user_id.eq(login_user_info.userId));
+    let delete_result =
+        diesel::delete(tex_project_table::dsl::tex_project.filter(predicate)).execute(connection);
     return delete_result;
 }
 

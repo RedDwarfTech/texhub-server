@@ -95,9 +95,9 @@ pub async fn create_project(
     }
 }
 
-pub async fn del_proj(form: web::Json<TexDelProjectReq>) -> impl Responder {
+pub async fn del_proj(form: web::Json<TexDelProjectReq>, login_user_info: LoginUserInfo) -> impl Responder {
     let d_name = form.project_id.clone();
-    del_project(&d_name);
+    del_project(&d_name, &login_user_info);
     let res = ApiResponse {
         result: "ok",
         ..Default::default()
