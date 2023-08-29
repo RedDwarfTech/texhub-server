@@ -76,7 +76,7 @@ pub async fn create_project(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let d_name = form.name.clone();
-    let projects = create_empty_project(&d_name, &login_user_info.userId);
+    let projects = create_empty_project(&d_name, &login_user_info);
     match projects {
         Ok(project) => {
             let res = ApiResponse {

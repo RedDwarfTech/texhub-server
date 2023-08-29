@@ -20,13 +20,13 @@ pub struct TexProjEditorAdd {
 }
 
 impl TexProjEditorAdd {
-    pub(crate) fn from_req(prj_id: &String, user_id: &i64) ->Self {
+    pub(crate) fn from_req(prj_id: &String, user_id: &i64, rid: i32) ->Self {
         Self {
             created_time: get_current_millisecond(),
             updated_time: get_current_millisecond(),
             user_id: user_id.to_owned(),
             project_id: prj_id.to_string(),
-            role_id: 2,
+            role_id: rid,
             collar_status: 1,
             sort: 0,
         }

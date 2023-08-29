@@ -86,16 +86,29 @@ pub fn edit_proj(edit_req: &EditPrjReq) -> TexProject {
     return update_result;
 }
 
-pub fn create_empty_project(proj_name: &String, user_id: &i64) -> Result<TexProject, Error> {
+pub fn create_empty_project(
+    proj_name: &String,
+    login_user_info: &LoginUserInfo,
+) -> Result<TexProject, Error> {
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
-        let create_result = create_proj(proj_name, connection, user_id);
+        let create_result = create_proj(proj_name, connection, &login_user_info.userId);
         match create_result {
             Ok(proj) => {
-                let result = create_main_file(&proj.project_id, connection, user_id);
+                let result =
+                    create_main_file(&proj.project_id, connection, &login_user_info.userId);
                 match result {
                     Ok(_) => {
                         create_main_file_on_disk(&proj.project_id);
+                        let editor_result = create_proj_editor(&proj.project_id, login_user_info, 1);
+                        match editor_result {
+                            Ok(_) => {
+
+                            },
+                            Err(error) => {
+                                error!("create editor error: {}", error);
+                            },
+                        }
                     }
                     Err(e) => {
                         error!("create file failed,{}", e)
@@ -107,6 +120,19 @@ pub fn create_empty_project(proj_name: &String, user_id: &i64) -> Result<TexProj
         }
     });
     return trans_result;
+}
+
+fn create_proj_editor(
+    proj_id: &String,
+    login_user_info: &LoginUserInfo,
+    rid: i32
+) -> Result<TexProjEditor, diesel::result::Error> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
+    let proj_editor = TexProjEditorAdd::from_req(proj_id, &login_user_info.userId, rid);
+    let result = diesel::insert_into(proj_editor_table::dsl::tex_proj_editor)
+        .values(&proj_editor)
+        .get_result::<TexProjEditor>(&mut get_connection());
+    return result;
 }
 
 fn create_main_file_on_disk(project_id: &String) {
@@ -164,7 +190,7 @@ pub fn join_project(
     req: &TexJoinProjectReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProjEditor, Error> {
-    let new_proj_editor = TexProjEditorAdd::from_req(&req.project_id, &login_user_info.userId);
+    let new_proj_editor = TexProjEditorAdd::from_req(&req.project_id, &login_user_info.userId, 2);
     use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
     let result = diesel::insert_into(tex_proj_editor)
         .values(&new_proj_editor)
