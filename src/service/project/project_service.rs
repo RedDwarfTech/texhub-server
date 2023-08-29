@@ -12,10 +12,12 @@ use diesel::result::Error;
 use diesel::{sql_query, Connection, ExpressionMethods, PgConnection, QueryDsl};
 use log::{error, warn};
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
+use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
+use std::path::Path;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -151,6 +153,7 @@ pub fn del_project(del_project_id: &String) {
                     );
                 }
                 del_project_file(del_project_id, connection);
+                del_project_disk_file(del_project_id);
                 Ok("")
             }
             Err(e) => diesel::result::QueryResult::Err(e),
@@ -163,6 +166,18 @@ pub fn del_project(del_project_id: &String) {
                 "transaction failed, project id: {},error:{}",
                 del_project_id, e
             );
+        }
+    }
+}
+
+pub fn del_project_disk_file(proj_id: &String) {
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    let proj_dir = format!("{}/{}", base_compile_dir, proj_id);
+    let result = remove_dir_recursive(Path::new(&proj_dir));
+    match result {
+        Ok(_) => {}
+        Err(e) => {
+            error!("delete project from disk failed,{}", e)
         }
     }
 }
@@ -212,9 +227,7 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
     return render_request(params, &prj).await;
 }
 
-pub async fn get_compiled_log(
-    main_file: TexFile,
-) -> String {
+pub async fn get_compiled_log(main_file: TexFile) -> String {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let file_folder = format!("{}/{}", base_compile_dir, main_file.project_id);
     let file_name_without_ext = get_filename_without_ext(&main_file.name);
