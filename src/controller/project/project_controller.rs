@@ -16,12 +16,13 @@ use crate::{
 };
 use actix_web::{
     web::{self},
-    HttpResponse, Responder,
+    HttpResponse, Responder, HttpRequest,
 };
 use rust_wheel::{
     common::wrapper::actix_http_resp::box_actix_rest_response,
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
+use futures::StreamExt;
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
@@ -146,6 +147,26 @@ pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder 
     HttpResponse::Ok().json(res)
 }
 
+async fn sse_handler(req: HttpRequest, stream: web::Payload) -> HttpResponse {
+    let mut res = HttpResponse::Ok()
+        .content_type("text/event-stream")
+        .streaming(Box::pin(stream.map(|chunk| {
+            std::io::Result::Ok(actix_web::web::Bytes::from(format!(
+                "data: {}\n\n",
+                String::from_utf8(chunk.unwrap().to_vec()).unwrap()
+            )))
+        })));
+
+    if req.headers().get("cache-control").is_none() {
+        res.headers_mut().insert(
+            actix_web::http::header::CACHE_CONTROL,
+            actix_web::http::header::HeaderValue::from_static("no-cache"),
+        );
+    }
+
+    res
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -156,6 +177,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/edit", web::put().to(edit_project))
             .route("/join", web::post().to(join_proj))
             .route("/log", web::get().to(get_compile_log))
+            .route("/log/stream", web::get().to(sse_handler))
             .route("/compile", web::put().to(compile_proj)),
     );
 }

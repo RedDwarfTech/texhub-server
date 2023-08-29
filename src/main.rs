@@ -2,7 +2,7 @@ extern crate openssl;
 #[macro_use]
 extern crate diesel;
 
-use actix_web::{App, HttpServer};
+use actix_web::{App, HttpServer, HttpRequest, HttpResponse, web};
 use controller::{
     collar::collar_controller, file::file_controller, project::project_controller,
     template::template_controller,
