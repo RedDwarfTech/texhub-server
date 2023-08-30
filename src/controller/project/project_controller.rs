@@ -153,7 +153,7 @@ pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder 
     HttpResponse::Ok().json(res)
 }
 
-async fn sse_handler(form: web::Json<TexCompileProjectReq>) -> HttpResponse {
+async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
     let (tx, rx): (UnboundedSender<String>, UnboundedReceiver<String>) =
         tokio::sync::mpsc::unbounded_channel();
     task::spawn(async move {
