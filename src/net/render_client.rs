@@ -5,10 +5,10 @@ use reqwest::{
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
-use crate::model::{
+use crate::{model::{
     diesel::tex::custom_tex_models::TexProject,
     request::project::tex_compile_project_req::TexCompileProjectReq,
-};
+}, common::proj::proj_util::get_proj_compile_req};
 
 pub async fn render_request(
     params: &TexCompileProjectReq,
@@ -17,18 +17,11 @@ pub async fn render_request(
     let client = Client::new();
     let url_path = format!("{}", "/render/compile/v1/project");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
-    let file_path = format!("/opt/data/project/{}/{}", &params.project_id, params.file_name);
-    let out_path = format!("/opt/data/project/{}", &params.project_id);
-    let json_data = serde_json::json!({
-        "file_path": file_path,
-        "out_path": out_path,
-        "req_time": params.req_time,
-        "project_id": proj.project_id
-    });
+    let req_value = get_proj_compile_req(params, proj);
     let response = client
         .post(url)
         .headers(construct_headers())
-        .json(&json_data)
+        .json(&req_value)
         .send()
         .await;
     match response {

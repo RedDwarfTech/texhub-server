@@ -1,3 +1,4 @@
+use crate::common::proj::proj_util::get_proj_compile_req;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -345,10 +346,11 @@ pub async fn send_render_req(
     params: &TexCompileProjectReq,
     tx: UnboundedSender<String>,
 ) -> Result<String, reqwest::Error> {
+    let prj = get_prj_by_id(&params.project_id);
     let client = Client::new();
     let url_path = format!("{}", "/render/compile/v1/project/sse");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
-    let json_data = serde_json::to_string(&params).unwrap();
+    let json_data = get_proj_compile_req(params, &prj);
     let resp = client
         .post(url)
         .json(&json_data)
