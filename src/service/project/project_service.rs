@@ -342,12 +342,16 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
 }
 
 pub async fn send_render_req(
-    _params: &TexCompileProjectReq,
+    params: &TexCompileProjectReq,
     tx: UnboundedSender<String>,
 ) -> Result<String, reqwest::Error> {
     let client = Client::new();
+    let url_path = format!("{}", "/render/compile/v1/project/sse");
+    let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
+    let json_data = serde_json::to_string(&params).unwrap();
     let resp = client
-        .get("http://localhost:8080/sse")
+        .post(url)
+        .json(&json_data)
         .send()
         .await?
         .bytes_stream()
