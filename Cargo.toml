@@ -26,6 +26,6 @@ uuid = {version = "1.4.1",features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]}
 chrono ={ version = "0.4.26"}
-reqwest = { version = "0.11.18", features = ["json"] }
+reqwest = { version = "0.11.18", features = ["json","stream"] }
 actix-web-validator = "5.0.1"
 futures = "0.3"

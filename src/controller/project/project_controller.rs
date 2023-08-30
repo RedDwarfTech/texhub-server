@@ -10,24 +10,28 @@ use crate::{
         file::file_service::get_main_file_list,
         project::project_service::{
             compile_project, create_empty_project, del_project, edit_proj, get_compiled_log,
-            get_prj_by_id, get_project_pdf, join_project, get_proj_by_type,
+            get_prj_by_id, get_proj_by_type, get_project_pdf, join_project, send_render_req,
         },
     },
 };
 use actix_web::{
     web::{self},
-    HttpResponse, Responder, HttpRequest,
+    HttpResponse, Responder,
 };
+use log::info;
 use rust_wheel::{
-    common::wrapper::actix_http_resp::box_actix_rest_response,
+    common::{util::net::sse_stream::SseStream, wrapper::actix_http_resp::box_actix_rest_response},
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
-use futures::StreamExt;
+use tokio::{
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    task,
+};
 
 #[derive(serde::Deserialize)]
 pub struct ProjQueryParams {
     pub tag: String,
-    pub role_id: Option<i32>
+    pub role_id: Option<i32>,
 }
 
 #[derive(serde::Deserialize)]
@@ -96,7 +100,10 @@ pub async fn create_project(
     }
 }
 
-pub async fn del_proj(form: web::Json<TexDelProjectReq>, login_user_info: LoginUserInfo) -> impl Responder {
+pub async fn del_proj(
+    form: web::Json<TexDelProjectReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
     let d_name = form.project_id.clone();
     del_project(&d_name, &login_user_info);
     let res = ApiResponse {
@@ -127,11 +134,9 @@ pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Respond
     HttpResponse::Ok().json(res)
 }
 
-pub async fn get_compile_log(
-    form: web::Query<TexCompileProjectReq>
-) -> impl Responder {
+pub async fn get_compile_log(form: web::Query<TexCompileProjectReq>) -> impl Responder {
     let main_file = get_main_file_list(&form.project_id);
-    let log_output = get_compiled_log( main_file[0].clone()).await;
+    let log_output = get_compiled_log(main_file[0].clone()).await;
     box_actix_rest_response(log_output)
 }
 
@@ -148,24 +153,17 @@ pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder 
     HttpResponse::Ok().json(res)
 }
 
-async fn sse_handler(req: HttpRequest, stream: web::Payload) -> HttpResponse {
-    let mut res = HttpResponse::Ok()
+async fn sse_handler(form: web::Json<TexCompileProjectReq>) -> HttpResponse {
+    let (tx, rx): (UnboundedSender<String>, UnboundedReceiver<String>) =
+        tokio::sync::mpsc::unbounded_channel();
+    task::spawn(async move {
+        let output = send_render_req(&form.0, tx).await;
+        info!("compile result: {}", output.unwrap());
+    });
+    let response = HttpResponse::Ok()
         .content_type("text/event-stream")
-        .streaming(Box::pin(stream.map(|chunk| {
-            std::io::Result::Ok(actix_web::web::Bytes::from(format!(
-                "data: {}\n\n",
-                String::from_utf8(chunk.unwrap().to_vec()).unwrap()
-            )))
-        })));
-
-    if req.headers().get("cache-control").is_none() {
-        res.headers_mut().insert(
-            actix_web::http::header::CACHE_CONTROL,
-            actix_web::http::header::HeaderValue::from_static("no-cache"),
-        );
-    }
-
-    res
+        .streaming(SseStream { receiver: Some(rx) });
+    response
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {

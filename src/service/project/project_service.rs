@@ -12,7 +12,9 @@ use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
+use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
+use reqwest::Client;
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
@@ -20,6 +22,7 @@ use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -100,14 +103,13 @@ pub fn create_empty_project(
                 match result {
                     Ok(_) => {
                         create_main_file_on_disk(&proj.project_id);
-                        let editor_result = create_proj_editor(&proj.project_id, login_user_info, 1);
+                        let editor_result =
+                            create_proj_editor(&proj.project_id, login_user_info, 1);
                         match editor_result {
-                            Ok(_) => {
-
-                            },
+                            Ok(_) => {}
                             Err(error) => {
                                 error!("create editor error: {}", error);
-                            },
+                            }
                         }
                     }
                     Err(e) => {
@@ -125,7 +127,7 @@ pub fn create_empty_project(
 fn create_proj_editor(
     proj_id: &String,
     login_user_info: &LoginUserInfo,
-    rid: i32
+    rid: i32,
 ) -> Result<TexProjEditor, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
     let proj_editor = TexProjEditorAdd::from_req(proj_id, &login_user_info.userId, rid);
@@ -337,4 +339,30 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
             return "".to_owned();
         }
     }
+}
+
+pub async fn send_render_req(
+    _params: &TexCompileProjectReq,
+    tx: UnboundedSender<String>,
+) -> Result<String, reqwest::Error> {
+    let client = Client::new();
+    let resp = client
+        .get("http://localhost:8080/sse")
+        .send()
+        .await?
+        .bytes_stream()
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) });
+    let mut resp = Box::pin(resp);
+    while let Some(item) = resp.next().await {
+        let data = item.unwrap();
+        let string_content = std::str::from_utf8(&data).unwrap().to_owned();
+        let send_result = tx.send(string_content);
+        match send_result {
+            Ok(_) => {}
+            Err(e) => {
+                println!("send xelatex compile log error: {}", e);
+            }
+        }
+    }
+    Ok(String::new())
 }
