@@ -366,9 +366,12 @@ pub async fn send_render_req(
         match send_result {
             Ok(_) => {}
             Err(e) => {
-                println!("send xelatex compile log error: {}", e);
+                error!("send xelatex compile log error: {}", e);
             }
         }
     }
     Ok(String::new())
 }
+
+
+
