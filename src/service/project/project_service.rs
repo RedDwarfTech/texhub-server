@@ -7,7 +7,7 @@ use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexProjEditor, TexProject};
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
-use crate::net::render_client::render_request;
+use crate::net::render_client::{render_request, construct_headers};
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use diesel::result::Error;
 use diesel::{
@@ -354,6 +354,7 @@ pub async fn send_render_req(
     let json_data = get_proj_compile_req(params, &prj);
     let resp = client
         .get(url)
+        .headers(construct_headers())
         .query(&json_data)
         .send()
         .await?
