@@ -362,7 +362,8 @@ pub async fn send_render_req(
     let mut compile_params:HashMap<String,String> = HashMap::new();
     compile_params.insert("project_id".to_owned(), params.project_id.to_string());
     compile_params.insert("req_time".to_owned(), params.req_time.to_string());
-    compile_params.insert("file_name".to_owned(), params.file_name.to_string());
+    compile_params.insert("file_path".to_owned(), json_data.get("file_path").unwrap().to_string());
+    compile_params.insert("out_path".to_owned(), json_data.get("out_path").unwrap().to_string());
     let mut resp = Box::pin(resp);
     while let Some(item) = resp.next().await {
         let data = item.unwrap();
