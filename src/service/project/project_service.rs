@@ -20,6 +20,7 @@ use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
@@ -352,12 +353,16 @@ pub async fn send_render_req(
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let json_data = get_proj_compile_req(params, &prj);
     let resp = client
-        .post(url)
-        .json(&json_data)
+        .get(url)
+        .query(&json_data)
         .send()
         .await?
         .bytes_stream()
         .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) });
+    let mut compile_params:HashMap<String,String> = HashMap::new();
+    compile_params.insert("project_id".to_owned(), params.project_id.to_string());
+    compile_params.insert("req_time".to_owned(), params.req_time.to_string());
+    compile_params.insert("file_name".to_owned(), params.file_name.to_string());
     let mut resp = Box::pin(resp);
     while let Some(item) = resp.next().await {
         let data = item.unwrap();
