@@ -15,8 +15,9 @@ use crate::{
     },
 };
 use actix_web::{
+    http::header::{CacheControl, CacheDirective},
     web::{self},
-    HttpResponse, Responder, http::header::{CacheControl, CacheDirective},
+    HttpResponse, Responder,
 };
 use log::info;
 use rust_wheel::{
@@ -153,6 +154,20 @@ pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder 
     HttpResponse::Ok().json(res)
 }
 
+/**
+ * the server sent event did not support http header
+ * put the temp auth code in parameter to do a compile requst
+ * 
+ * using polyfill will facing issue:
+ *  https://stackoverflow.com/questions/75841904/why-did-not-found-the-chatgpt-event-stream-data-in-google-chrome-devtools
+ *  https://github.com/Yaffle/EventSource/issues/79
+ *  https://stackoverflow.com/questions/77015804/why-the-event-source-polyfill-did-not-fetch-the-sse-api-data
+ * 
+ */
+async fn get_temp_auth_code() -> impl Responder {
+    return box_actix_rest_response("123456");
+}
+
 async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
     let (tx, rx): (UnboundedSender<String>, UnboundedReceiver<String>) =
         tokio::sync::mpsc::unbounded_channel();
@@ -178,6 +193,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/join", web::post().to(join_proj))
             .route("/log", web::get().to(get_compile_log))
             .route("/log/stream", web::get().to(sse_handler))
+            .route("/temp/code", web::get().to(get_temp_auth_code))
             .route("/compile", web::put().to(compile_proj)),
     );
 }
