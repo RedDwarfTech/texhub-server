@@ -16,7 +16,7 @@ use crate::{
 };
 use actix_web::{
     web::{self},
-    HttpResponse, Responder,
+    HttpResponse, Responder, http::header::{CacheControl, CacheDirective},
 };
 use log::info;
 use rust_wheel::{
@@ -161,6 +161,7 @@ async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
         info!("compile result: {}", output.unwrap());
     });
     let response = HttpResponse::Ok()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
         .content_type("text/event-stream")
         .streaming(SseStream { receiver: Some(rx) });
     response
