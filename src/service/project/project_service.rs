@@ -16,6 +16,7 @@ use diesel::{
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
 use reqwest::Client;
+use rust_wheel::common::util::net::sse_message::SSEMessage;
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
@@ -345,7 +346,7 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
 
 pub async fn send_render_req(
     params: &TexCompileProjectReq,
-    tx: UnboundedSender<String>,
+    tx: UnboundedSender<SSEMessage>,
 ) -> Result<String, reqwest::Error> {
     let prj = get_prj_by_id(&params.project_id);
     let client = Client::new();
@@ -369,7 +370,8 @@ pub async fn send_render_req(
     while let Some(item) = resp.next().await {
         let data = item.unwrap();
         let string_content = std::str::from_utf8(&data).unwrap().to_owned();
-        let send_result = tx.send(string_content);
+        let sse_mesg: SSEMessage = serde_json::from_str(&string_content).unwrap();
+        let send_result = tx.send(sse_mesg);
         match send_result {
             Ok(_) => {}
             Err(e) => {

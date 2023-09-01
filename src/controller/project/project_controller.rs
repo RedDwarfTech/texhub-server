@@ -21,7 +21,7 @@ use actix_web::{
 };
 use log::info;
 use rust_wheel::{
-    common::{util::net::sse_stream::SseStream, wrapper::actix_http_resp::box_actix_rest_response},
+    common::{util::net::{sse_stream::SseStream, sse_message::SSEMessage}, wrapper::actix_http_resp::box_actix_rest_response},
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
 use tokio::{
@@ -169,7 +169,7 @@ async fn get_temp_auth_code() -> impl Responder {
 }
 
 async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
-    let (tx, rx): (UnboundedSender<String>, UnboundedReceiver<String>) =
+    let (tx, rx): (UnboundedSender<SSEMessage>, UnboundedReceiver<SSEMessage>) =
         tokio::sync::mpsc::unbounded_channel();
     task::spawn(async move {
         let output = send_render_req(&form.0, tx).await;
