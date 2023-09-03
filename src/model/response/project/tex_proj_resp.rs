@@ -13,6 +13,7 @@ pub struct TexProjResp {
     pub proj_status: i32,
     pub template_id: i64,
     pub project_id: String,
+    pub nickname: String,
     pub role_id: i32,
 }
 
@@ -27,6 +28,7 @@ impl From<&TexProject> for TexProjResp {
             proj_status: proj.proj_status,
             template_id: proj.template_id,
             project_id: proj.project_id.clone(),
+            nickname: proj.nickname.clone(),
             role_id: 0
         }
     }
