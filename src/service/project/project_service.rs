@@ -124,7 +124,8 @@ fn do_create_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    let result = create_main_file(&proj.project_id, connection, &rd_user_info.id);
+    let uid:i64 = rd_user_info.id.parse().unwrap();
+    let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
         Ok(_) => {
             create_main_file_on_disk(&proj.project_id);
@@ -149,7 +150,8 @@ fn create_proj_editor(
     rid: i32,
 ) -> Result<TexProjEditor, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
-    let proj_editor = TexProjEditorAdd::from_req(proj_id, &rd_user_info.id, rid);
+    let uid:i64 = rd_user_info.id.parse().unwrap();
+    let proj_editor = TexProjEditorAdd::from_req(proj_id, &uid, rid);
     let result = diesel::insert_into(proj_editor_table::dsl::tex_proj_editor)
         .values(&proj_editor)
         .get_result::<TexProjEditor>(&mut get_connection());
@@ -199,7 +201,8 @@ fn create_proj(
     connection: &mut PgConnection,
     rd_user_info: &RdUserInfo
 ) -> Result<TexProject, diesel::result::Error> {
-    let new_proj = TexProjectAdd::from_req(name, &rd_user_info.id, &rd_user_info.nickname);
+    let uid:i64 = rd_user_info.id.parse().unwrap();
+    let new_proj = TexProjectAdd::from_req(name, &uid, &rd_user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
