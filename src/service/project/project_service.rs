@@ -7,7 +7,8 @@ use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexProjEditor, TexProject};
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
-use crate::net::render_client::{render_request, construct_headers};
+use crate::model::response::project::tex_proj_resp::TexProjResp;
+use crate::net::render_client::{construct_headers, render_request};
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use diesel::result::Error;
 use diesel::{
@@ -16,6 +17,7 @@ use diesel::{
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
 use reqwest::Client;
+use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
@@ -46,7 +48,7 @@ pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexPr
 pub fn get_proj_by_type(
     query_params: &ProjQueryParams,
     login_user_info: &LoginUserInfo,
-) -> Vec<TexProject> {
+) -> Vec<TexProjResp> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
     let mut query = proj_editor_table::table.into_boxed::<diesel::pg::Pg>();
     if query_params.role_id.is_some() {
@@ -54,23 +56,29 @@ pub fn get_proj_by_type(
         query = query.filter(proj_editor_table::role_id.eq(rid));
     }
     query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
-    let projects: Vec<TexProjEditor> = query
+    let editors: Vec<TexProjEditor> = query
         .load::<TexProjEditor>(&mut get_connection())
         .expect("get project editor failed");
-    if projects.len() == 0 {
+    if editors.len() == 0 {
         return Vec::new();
     }
-    let proj_ids: Vec<String> = projects
-        .iter()
-        .map(|item| item.project_id.clone())
-        .collect();
+    let proj_ids: Vec<String> = editors.iter().map(|item| item.project_id.clone()).collect();
     use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
     let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
     let projects: Vec<TexProject> = proj_query
         .load::<TexProject>(&mut get_connection())
         .expect("get project editor failed");
-    return projects;
+    let mut proj_resp: Vec<TexProjResp> = map_entity(projects);
+    proj_resp.iter_mut().for_each(|item1| {
+        if let Some(item2) = editors
+            .iter()
+            .find(|item2| item1.project_id == item2.project_id)
+        {
+            item1.role_id = item2.role_id.clone();
+        }
+    });
+    return proj_resp;
 }
 
 pub fn get_prj_by_id(proj_id: &String) -> TexProject {
@@ -361,11 +369,17 @@ pub async fn send_render_req(
         .await?
         .bytes_stream()
         .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) });
-    let mut compile_params:HashMap<String,String> = HashMap::new();
+    let mut compile_params: HashMap<String, String> = HashMap::new();
     compile_params.insert("project_id".to_owned(), params.project_id.to_string());
     compile_params.insert("req_time".to_owned(), params.req_time.to_string());
-    compile_params.insert("file_path".to_owned(), json_data.get("file_path").unwrap().to_string());
-    compile_params.insert("out_path".to_owned(), json_data.get("out_path").unwrap().to_string());
+    compile_params.insert(
+        "file_path".to_owned(),
+        json_data.get("file_path").unwrap().to_string(),
+    );
+    compile_params.insert(
+        "out_path".to_owned(),
+        json_data.get("out_path").unwrap().to_string(),
+    );
     let mut resp = Box::pin(resp);
     while let Some(item) = resp.next().await {
         let data = item.unwrap();
@@ -381,6 +395,3 @@ pub async fn send_render_req(
     }
     Ok(String::new())
 }
-
-
-
