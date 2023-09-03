@@ -18,6 +18,7 @@ pub struct TexProject {
     pub proj_status: i32,
     pub template_id: i64,
     pub project_id: String,
+    pub nickname: String,
 }
 
 #[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]

@@ -169,7 +169,7 @@ async fn get_temp_auth_code() -> impl Responder {
 }
 
 async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
-    let (tx, rx): (UnboundedSender<SSEMessage>, UnboundedReceiver<SSEMessage>) =
+    let (tx, rx): (UnboundedSender<SSEMessage<String>>, UnboundedReceiver<SSEMessage<String>>) =
         tokio::sync::mpsc::unbounded_channel();
     task::spawn(async move {
         let output = send_render_req(&form.0, tx).await;

@@ -42,6 +42,7 @@ pub fn create_tpl(input_doc: &String) -> TexProject {
         proj_status: 1,
         template_id: 1,
         project_id: uuid_string,
+        nickname: "default".to_string()
     };
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
 

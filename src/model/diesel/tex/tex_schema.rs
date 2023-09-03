@@ -40,6 +40,7 @@ table! {
         proj_status -> Int4,
         template_id -> Int8,
         project_id -> Varchar,
+        nickname -> Varchar,
     }
 }
 

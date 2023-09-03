@@ -17,10 +17,11 @@ pub struct TexProjectAdd {
     pub proj_status: i32,
     pub template_id: i64,
     pub project_id: String,
+    pub nickname: String,
 }
 
 impl TexProjectAdd {
-    pub(crate) fn from_req(prj_name: &String, user_id: &i64) ->Self {
+    pub(crate) fn from_req(prj_name: &String, user_id: &i64, nickname: &String) ->Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
         Self {
@@ -30,7 +31,8 @@ impl TexProjectAdd {
             user_id: user_id.to_owned(),
             proj_status: 1,
             template_id: 1,
-            project_id: uuid_string
+            project_id: uuid_string,
+            nickname: nickname.to_string()
         }
     }
 }

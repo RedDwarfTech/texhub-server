@@ -17,16 +17,19 @@ use diesel::{
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
 use reqwest::Client;
+use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
+use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
+use tokio::runtime::Runtime;
 use tokio::sync::mpsc::UnboundedSender;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
@@ -106,33 +109,40 @@ pub fn create_empty_project(
 ) -> Result<TexProject, Error> {
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
-        let create_result = create_proj(proj_name, connection, &login_user_info.userId);
-        match create_result {
-            Ok(proj) => {
-                let result =
-                    create_main_file(&proj.project_id, connection, &login_user_info.userId);
-                match result {
-                    Ok(_) => {
-                        create_main_file_on_disk(&proj.project_id);
-                        let editor_result =
-                            create_proj_editor(&proj.project_id, login_user_info, 1);
-                        match editor_result {
-                            Ok(_) => {}
-                            Err(error) => {
-                                error!("create editor error: {}", error);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("create file failed,{}", e)
-                    }
-                }
-                return Ok(proj);
-            }
-            Err(e) => diesel::result::QueryResult::Err(e),
-        }
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async { do_create_proj_trans(proj_name, login_user_info, connection).await })
     });
     return trans_result;
+}
+
+async fn do_create_proj_trans(
+    proj_name: &String,
+    login_user_info: &LoginUserInfo,
+    connection: &mut PgConnection,
+) -> Result<TexProject, Error> {
+    let create_result = create_proj(proj_name, connection, &login_user_info.userId).await;
+    if let Err(ce) = create_result {
+        error!("Failed to create proj: {}", ce);
+        return Err(ce);
+    }
+    let proj = create_result.unwrap();
+    let result = create_main_file(&proj.project_id, connection, &login_user_info.userId);
+    match result {
+        Ok(_) => {
+            create_main_file_on_disk(&proj.project_id);
+            let editor_result = create_proj_editor(&proj.project_id, login_user_info, 1);
+            match editor_result {
+                Ok(_) => {}
+                Err(error) => {
+                    error!("create editor error: {}", error);
+                }
+            }
+        }
+        Err(e) => {
+            error!("create file failed,{}", e)
+        }
+    }
+    return Ok(proj);
 }
 
 fn create_proj_editor(
@@ -186,12 +196,13 @@ fn create_main_file(
     return result;
 }
 
-fn create_proj(
+async fn create_proj(
     name: &String,
     connection: &mut PgConnection,
     uid: &i64,
 ) -> Result<TexProject, diesel::result::Error> {
-    let new_proj = TexProjectAdd::from_req(name, &uid);
+    let user_info: RdUserInfo = get_user_info(uid).await.unwrap();
+    let new_proj = TexProjectAdd::from_req(name, &uid, &user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
@@ -354,7 +365,7 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
 
 pub async fn send_render_req(
     params: &TexCompileProjectReq,
-    tx: UnboundedSender<SSEMessage>,
+    tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let prj = get_prj_by_id(&params.project_id);
     let client = Client::new();
@@ -384,7 +395,7 @@ pub async fn send_render_req(
     while let Some(item) = resp.next().await {
         let data = item.unwrap();
         let string_content = std::str::from_utf8(&data).unwrap().to_owned();
-        let sse_mesg: SSEMessage = serde_json::from_str(&string_content).unwrap();
+        let sse_mesg: SSEMessage<String> = serde_json::from_str(&string_content).unwrap();
         let send_result = tx.send(sse_mesg);
         match send_result {
             Ok(_) => {}
