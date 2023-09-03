@@ -29,7 +29,6 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
-use tokio::runtime::Runtime;
 use tokio::sync::mpsc::UnboundedSender;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
@@ -103,34 +102,33 @@ pub fn edit_proj(edit_req: &EditPrjReq) -> TexProject {
     return update_result;
 }
 
-pub fn create_empty_project(
+pub async fn create_empty_project(
     proj_name: &String,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProject, Error> {
+    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result = connection.transaction(|connection| {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async { do_create_proj_trans(proj_name, login_user_info, connection).await })
-    });
+    let trans_result = connection
+        .transaction(|connection| do_create_proj_trans(proj_name, &user_info, connection));
     return trans_result;
 }
 
-async fn do_create_proj_trans(
+fn do_create_proj_trans(
     proj_name: &String,
-    login_user_info: &LoginUserInfo,
+    rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
 ) -> Result<TexProject, Error> {
-    let create_result = create_proj(proj_name, connection, &login_user_info.userId).await;
+    let create_result = create_proj(proj_name, connection, rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    let result = create_main_file(&proj.project_id, connection, &login_user_info.userId);
+    let result = create_main_file(&proj.project_id, connection, &rd_user_info.id);
     match result {
         Ok(_) => {
             create_main_file_on_disk(&proj.project_id);
-            let editor_result = create_proj_editor(&proj.project_id, login_user_info, 1);
+            let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
             match editor_result {
                 Ok(_) => {}
                 Err(error) => {
@@ -147,11 +145,11 @@ async fn do_create_proj_trans(
 
 fn create_proj_editor(
     proj_id: &String,
-    login_user_info: &LoginUserInfo,
+    rd_user_info: &RdUserInfo,
     rid: i32,
 ) -> Result<TexProjEditor, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
-    let proj_editor = TexProjEditorAdd::from_req(proj_id, &login_user_info.userId, rid);
+    let proj_editor = TexProjEditorAdd::from_req(proj_id, &rd_user_info.id, rid);
     let result = diesel::insert_into(proj_editor_table::dsl::tex_proj_editor)
         .values(&proj_editor)
         .get_result::<TexProjEditor>(&mut get_connection());
@@ -196,13 +194,12 @@ fn create_main_file(
     return result;
 }
 
-async fn create_proj(
+fn create_proj(
     name: &String,
     connection: &mut PgConnection,
-    uid: &i64,
+    rd_user_info: &RdUserInfo
 ) -> Result<TexProject, diesel::result::Error> {
-    let user_info: RdUserInfo = get_user_info(uid).await.unwrap();
-    let new_proj = TexProjectAdd::from_req(name, &uid, &user_info.nickname);
+    let new_proj = TexProjectAdd::from_req(name, &rd_user_info.id, &rd_user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
