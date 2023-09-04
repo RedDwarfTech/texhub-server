@@ -395,6 +395,7 @@ pub async fn send_render_req(
     while let Some(item) = resp.next().await {
         let data = item.unwrap();
         let string_content = std::str::from_utf8(&data).unwrap().to_owned();
+        warn!("recieve sse: {}", string_content);
         let sse_mesg: SSEMessage<String> = serde_json::from_str(&string_content).unwrap();
         let send_result = tx.send(sse_mesg);
         match send_result {

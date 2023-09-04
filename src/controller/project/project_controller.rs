@@ -19,9 +19,12 @@ use actix_web::{
     web::{self},
     HttpResponse, Responder,
 };
-use log::info;
+use log::error;
 use rust_wheel::{
-    common::{util::net::{sse_stream::SseStream, sse_message::SSEMessage}, wrapper::actix_http_resp::box_actix_rest_response},
+    common::{
+        util::net::{sse_message::SSEMessage, sse_stream::SseStream},
+        wrapper::actix_http_resp::box_actix_rest_response,
+    },
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
 use tokio::{
@@ -157,23 +160,27 @@ pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder 
 /**
  * the server sent event did not support http header
  * put the temp auth code in parameter to do a compile requst
- * 
+ *
  * using polyfill will facing issue:
  *  https://stackoverflow.com/questions/75841904/why-did-not-found-the-chatgpt-event-stream-data-in-google-chrome-devtools
  *  https://github.com/Yaffle/EventSource/issues/79
  *  https://stackoverflow.com/questions/77015804/why-the-event-source-polyfill-did-not-fetch-the-sse-api-data
- * 
+ *
  */
 async fn get_temp_auth_code() -> impl Responder {
     return box_actix_rest_response("123456");
 }
 
 async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
-    let (tx, rx): (UnboundedSender<SSEMessage<String>>, UnboundedReceiver<SSEMessage<String>>) =
-        tokio::sync::mpsc::unbounded_channel();
+    let (tx, rx): (
+        UnboundedSender<SSEMessage<String>>,
+        UnboundedReceiver<SSEMessage<String>>,
+    ) = tokio::sync::mpsc::unbounded_channel();
     task::spawn(async move {
         let output = send_render_req(&form.0, tx).await;
-        info!("compile result: {}", output.unwrap());
+        if let Err(e) = output {
+            error!("handle sse req error: {}", e);
+        }
     });
     let response = HttpResponse::Ok()
         .insert_header(CacheControl(vec![CacheDirective::NoCache]))
