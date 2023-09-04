@@ -2,7 +2,7 @@ use crate::{
     model::{
         request::project::{
             tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq,
+            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq,
         },
         response::project::latest_compile::LatestCompile,
     },
@@ -140,7 +140,7 @@ pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Respond
 }
 
 pub async fn compile_proj_queue(
-    form: web::Json<TexCompileProjectReq>,
+    form: web::Json<TexCompileQueueReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let queue_result = add_compile_to_queue(&form.0, &login_user_info);

@@ -7,6 +7,7 @@ use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject};
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
+use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
@@ -317,7 +318,7 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
 }
 
 pub fn add_compile_to_queue(
-    params: &TexCompileProjectReq,
+    params: &TexCompileQueueReq,
     login_user_info: &LoginUserInfo,
 ) -> Option<TexCompQueue> {
     let mut connection = get_connection();
