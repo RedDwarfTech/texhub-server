@@ -171,7 +171,7 @@ pub async fn get_temp_auth_code() -> impl Responder {
     return box_actix_rest_response("123456");
 }
 
-async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
+pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
     let (tx, rx): (
         UnboundedSender<SSEMessage<String>>,
         UnboundedReceiver<SSEMessage<String>>,

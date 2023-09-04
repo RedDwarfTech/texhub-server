@@ -397,8 +397,12 @@ pub async fn send_render_req(
         let data = item.unwrap();
         let string_content = std::str::from_utf8(&data).unwrap().to_owned();
         warn!("recieve sse: {}", string_content);
-        let sse_mesg: SSEMessage<String> = serde_json::from_str(&string_content).unwrap();
-        let send_result = tx.send(sse_mesg);
+        let sse_mesg = serde_json::from_str(&string_content);
+        if let Err(parse_err) = sse_mesg {
+            error!("parse json failed,{},text:{}", parse_err, string_content);
+            continue;
+        }
+        let send_result = tx.send(sse_mesg.unwrap());
         match send_result {
             Ok(_) => {}
             Err(e) => {
