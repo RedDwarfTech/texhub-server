@@ -13,7 +13,7 @@ mod tests {
         let status = resp.status().is_success();
         let body = test::read_body(resp).await;
         println!("Response body: {}", String::from_utf8_lossy(&body));
-        assert!(status);
+        assert!(    status);
     }
 
     #[actix_rt::test]

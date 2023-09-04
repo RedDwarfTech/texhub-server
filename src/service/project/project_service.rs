@@ -396,7 +396,6 @@ pub async fn send_render_req(
     while let Some(item) = resp.next().await {
         let data = item.unwrap();
         let string_content = std::str::from_utf8(&data).unwrap().to_owned();
-        warn!("recieve sse: {}", string_content);
         let sse_mesg = serde_json::from_str(&string_content);
         if let Err(parse_err) = sse_mesg {
             error!("parse json failed,{},text:{}", parse_err, string_content);
