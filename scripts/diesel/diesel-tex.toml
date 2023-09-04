@@ -8,6 +8,7 @@ filter = { only_tables = [
     "tex_project",
     "tex_template",
     "tex_file",
-    "tex_proj_editor"
+    "tex_proj_editor",
+    "tex_comp_queue"
 ] }
 
