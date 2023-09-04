@@ -30,6 +30,7 @@ use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
 use rust_wheel::common::wrapper::actix_http_resp::{box_error_actix_rest_response, box_actix_rest_response};
 use rust_wheel::config::app::app_conf_reader::get_app_config;
+use rust_wheel::config::cache::redis_util::push_to_stream;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use std::collections::HashMap;
@@ -345,6 +346,13 @@ pub fn add_compile_to_queue(
     if let Err(e) = result {
         error!("add compile queue failed, error info:{}", e);
         return box_error_actix_rest_response("", "QUEUE_ADD_FAILED".to_string(),"queue add failed".to_string());
+    }
+    let stream_key = get_app_config("texhub.compile_stream_name");
+    let group_name = get_app_config("texhub.compile_group_name");
+    let s_params = &[(params.project_id.as_str(),"")];
+    let p_result= push_to_stream(&stream_key.as_str(), &group_name.as_str(), s_params);
+    if let Err(pe) = p_result { 
+        error!("push to stream failed,{}",pe);
     }
     return box_actix_rest_response(result.unwrap());
 }
