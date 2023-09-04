@@ -29,3 +29,4 @@ chrono ={ version = "0.4.26"}
 reqwest = { version = "0.11.18", features = ["json","stream"] }
 actix-web-validator = "5.0.1"
 futures = "0.3"
+actix-rt = "2.9.0"

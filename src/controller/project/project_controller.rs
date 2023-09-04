@@ -167,7 +167,7 @@ pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder 
  *  https://stackoverflow.com/questions/77015804/why-the-event-source-polyfill-did-not-fetch-the-sse-api-data
  *
  */
-async fn get_temp_auth_code() -> impl Responder {
+pub async fn get_temp_auth_code() -> impl Responder {
     return box_actix_rest_response("123456");
 }
 
