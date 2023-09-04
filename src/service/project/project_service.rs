@@ -29,6 +29,7 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
@@ -368,7 +369,7 @@ pub async fn send_render_req(
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let prj = get_prj_by_id(&params.project_id);
-    let client = Client::new();
+    let client = Client::builder().timeout(Duration::from_secs(120)).build()?;
     let url_path = format!("{}", "/render/compile/v1/project/sse");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let json_data = get_proj_compile_req(params, &prj);
