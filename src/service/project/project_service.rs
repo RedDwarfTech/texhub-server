@@ -2,9 +2,10 @@ use crate::common::proj::proj_util::get_proj_compile_req;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
+use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
-use crate::model::diesel::tex::custom_tex_models::{TexProjEditor, TexProject};
+use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject};
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
@@ -125,7 +126,7 @@ fn do_create_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    let uid:i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id.parse().unwrap();
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
         Ok(_) => {
@@ -151,7 +152,7 @@ fn create_proj_editor(
     rid: i32,
 ) -> Result<TexProjEditor, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
-    let uid:i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id.parse().unwrap();
     let proj_editor = TexProjEditorAdd::from_req(proj_id, &uid, rid);
     let result = diesel::insert_into(proj_editor_table::dsl::tex_proj_editor)
         .values(&proj_editor)
@@ -200,9 +201,9 @@ fn create_main_file(
 fn create_proj(
     name: &String,
     connection: &mut PgConnection,
-    rd_user_info: &RdUserInfo
+    rd_user_info: &RdUserInfo,
 ) -> Result<TexProject, diesel::result::Error> {
-    let uid:i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id.parse().unwrap();
     let new_proj = TexProjectAdd::from_req(name, &uid, &rd_user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
@@ -315,6 +316,23 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
     return render_request(params, &prj).await;
 }
 
+pub fn add_compile_to_queue(
+    params: &TexCompileProjectReq,
+    login_user_info: &LoginUserInfo,
+) -> Option<TexCompQueue> {
+    let mut connection = get_connection();
+    let new_proj = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
+    use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
+    let result = diesel::insert_into(tex_comp_queue)
+        .values(&new_proj)
+        .get_result::<TexCompQueue>(&mut connection);
+    if let Err(e) = result {
+        error!("add compile queue failed, error info:{}", e);
+        return None;
+    }
+    return Some(result.unwrap());
+}
+
 pub async fn get_compiled_log(main_file: TexFile) -> String {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let file_folder = format!("{}/{}", base_compile_dir, main_file.project_id);
@@ -369,7 +387,9 @@ pub async fn send_render_req(
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let prj = get_prj_by_id(&params.project_id);
-    let client = Client::builder().timeout(Duration::from_secs(120)).build()?;
+    let client = Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()?;
     let url_path = format!("{}", "/render/compile/v1/project/sse");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let json_data = get_proj_compile_req(params, &prj);

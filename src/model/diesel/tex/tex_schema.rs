@@ -1,4 +1,15 @@
 table! {
+    tex_comp_queue (id) {
+        id -> Int8,
+        created_time -> Int8,
+        updated_time -> Int8,
+        user_id -> Int8,
+        comp_status -> Int4,
+        project_id -> Varchar,
+    }
+}
+
+table! {
     tex_file (id) {
         id -> Int8,
         name -> Varchar,
@@ -13,7 +24,7 @@ table! {
         main_flag -> Int2,
         sort -> Int4,
         yjs_initial -> Int2,
-        file_path -> Varchar
+        file_path -> Varchar,
     }
 }
 
@@ -68,6 +79,7 @@ table! {
 }
 
 allow_tables_to_appear_in_same_query!(
+    tex_comp_queue,
     tex_file,
     tex_proj_editor,
     tex_project,

@@ -9,8 +9,9 @@ use crate::{
     service::{
         file::file_service::get_main_file_list,
         project::project_service::{
-            compile_project, create_empty_project, del_project, edit_proj, get_compiled_log,
-            get_prj_by_id, get_proj_by_type, get_project_pdf, join_project, send_render_req,
+            add_compile_to_queue, compile_project, create_empty_project, del_project, edit_proj,
+            get_compiled_log, get_prj_by_id, get_proj_by_type, get_project_pdf, join_project,
+            send_render_req,
         },
     },
 };
@@ -138,6 +139,18 @@ pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Respond
     HttpResponse::Ok().json(res)
 }
 
+pub async fn compile_proj_queue(
+    form: web::Json<TexCompileProjectReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let queue_result = add_compile_to_queue(&form.0, &login_user_info);
+    let res = ApiResponse {
+        result: queue_result.unwrap(),
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
 pub async fn get_compile_log(form: web::Query<TexCompileProjectReq>) -> impl Responder {
     let main_file = get_main_file_list(&form.project_id);
     let log_output = get_compiled_log(main_file[0].clone()).await;
@@ -201,6 +214,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/log", web::get().to(get_compile_log))
             .route("/log/stream", web::get().to(sse_handler))
             .route("/temp/code", web::get().to(get_temp_auth_code))
-            .route("/compile", web::put().to(compile_proj)),
+            .route("/compile", web::put().to(compile_proj))
+            .route("/compile/queue", web::post().to(compile_proj_queue)),
     );
 }

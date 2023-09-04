@@ -8,6 +8,17 @@ use serde::Deserialize;
 use crate::model::diesel::tex::tex_schema::*;
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_comp_queue")]
+pub struct TexCompQueue {
+    pub id: i64,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub comp_status: i32,
+    pub project_id: String,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
 #[diesel(table_name = "tex_file")]
 pub struct TexFile {
     pub id: i64,
@@ -21,7 +32,9 @@ pub struct TexFile {
     pub file_id: String,
     pub parent: String,
     pub main_flag: i16,
-    pub sort: Option<i32>,
+    pub sort: i32,
+    pub yjs_initial: i16,
+    pub file_path: String,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
@@ -48,6 +61,7 @@ pub struct TexProject {
     pub proj_status: i32,
     pub template_id: i64,
     pub project_id: String,
+    pub nickname: String,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
