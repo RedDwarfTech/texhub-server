@@ -143,12 +143,7 @@ pub async fn compile_proj_queue(
     form: web::Json<TexCompileQueueReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let queue_result = add_compile_to_queue(&form.0, &login_user_info);
-    let res = ApiResponse {
-        result: queue_result.unwrap(),
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    return add_compile_to_queue(&form.0, &login_user_info);
 }
 
 pub async fn get_compile_log(form: web::Query<TexCompileProjectReq>) -> impl Responder {

@@ -1,4 +1,5 @@
 use crate::common::proj::proj_util::get_proj_compile_req;
+use crate::common::types::compile_status::CompileStatus;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -6,12 +7,15 @@ use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueu
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject};
+use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
+use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
+use actix_web::HttpResponse;
 use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
@@ -24,6 +28,7 @@ use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
+use rust_wheel::common::wrapper::actix_http_resp::{box_error_actix_rest_response, box_actix_rest_response};
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
@@ -320,8 +325,18 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
 pub fn add_compile_to_queue(
     params: &TexCompileQueueReq,
     login_user_info: &LoginUserInfo,
-) -> Option<TexCompQueue> {
+) -> HttpResponse {
     let mut connection = get_connection();
+    let queue_req = QueueReq {
+        comp_status: vec![
+            CompileStatus::Complete as i32,
+            CompileStatus::Queued as i32,
+        ],
+    };
+    let queue_list = get_proj_queue_list(&queue_req, login_user_info);
+    if !queue_list.is_empty() {
+        return box_error_actix_rest_response("", "QUEUE_BUSY".to_string(),"queue busy".to_string());
+    }
     let new_proj = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
     let result = diesel::insert_into(tex_comp_queue)
@@ -329,9 +344,9 @@ pub fn add_compile_to_queue(
         .get_result::<TexCompQueue>(&mut connection);
     if let Err(e) = result {
         error!("add compile queue failed, error info:{}", e);
-        return None;
+        return box_error_actix_rest_response("", "QUEUE_ADD_FAILED".to_string(),"queue add failed".to_string());
     }
-    return Some(result.unwrap());
+    return box_actix_rest_response(result.unwrap());
 }
 
 pub async fn get_compiled_log(main_file: TexFile) -> String {
