@@ -336,7 +336,7 @@ pub fn add_compile_to_queue(
     };
     let queue_list = get_proj_queue_list(&queue_req, login_user_info);
     if !queue_list.is_empty() {
-        return box_error_actix_rest_response("", "QUEUE_BUSY".to_string(),"queue busy".to_string());
+        // return box_error_actix_rest_response("", "QUEUE_BUSY".to_string(),"queue busy".to_string());
     }
     let new_proj = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
@@ -347,7 +347,7 @@ pub fn add_compile_to_queue(
         error!("add compile queue failed, error info:{}", e);
         return box_error_actix_rest_response("", "QUEUE_ADD_FAILED".to_string(),"queue add failed".to_string());
     }
-    let stream_key = get_app_config("texhub.compile_stream_name");
+    let stream_key = get_app_config("texhub.compile_stream_redis_key");
     let group_name = get_app_config("texhub.compile_group_name");
     let s_params = &[(params.project_id.as_str(),"")];
     let p_result= push_to_stream(&stream_key.as_str(), &group_name.as_str(), s_params);
