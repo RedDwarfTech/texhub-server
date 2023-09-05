@@ -2,7 +2,7 @@ use crate::{
     model::{
         request::project::{
             tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq,
+            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq, queue::queue_status_req::QueueStatusReq,
         },
         response::project::latest_compile::LatestCompile,
     },
@@ -11,7 +11,7 @@ use crate::{
         project::project_service::{
             add_compile_to_queue, compile_project, create_empty_project, del_project, edit_proj,
             get_compiled_log, get_prj_by_id, get_proj_by_type, get_project_pdf, join_project,
-            send_render_req,
+            send_render_req, get_cached_queue_status,
         },
     },
 };
@@ -197,6 +197,11 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
+pub async fn get_queue_status(form: web::Query<QueueStatusReq>) -> HttpResponse {
+    let result = get_cached_queue_status(&form.0).await;
+    return box_actix_rest_response(result.unwrap());
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -210,6 +215,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/log/stream", web::get().to(sse_handler))
             .route("/temp/code", web::get().to(get_temp_auth_code))
             .route("/compile", web::put().to(compile_proj))
+            .route("/queue/status", web::get().to(get_queue_status))
             .route("/compile/queue", web::post().to(compile_proj_queue)),
     );
 }

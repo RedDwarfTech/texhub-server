@@ -8,6 +8,7 @@ use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject};
 use crate::model::request::project::queue::queue_req::QueueReq;
+use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
@@ -33,7 +34,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::push_to_stream;
+use rust_wheel::config::cache::redis_util::{push_to_stream, get_str_default};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use std::collections::HashMap;
@@ -470,3 +471,15 @@ pub async fn send_render_req(
     }
     Ok(String::new())
 }
+
+pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueue>{
+    let stream_key = get_app_config("texhub.compile_status_cached_key");
+    let full_cached_key = format!("{}:{}", stream_key, req.id);
+    let cached_queue_result = get_str_default(&full_cached_key.as_str());
+    if let Err(e) = cached_queue_result {
+        error!("get cached queue failed,{}", e);
+        return None;
+    }
+    let queue:Result<TexCompQueue, serde_json::Error> = serde_json::from_str(cached_queue_result.unwrap().as_str());
+    return Some(queue.unwrap());
+} 
