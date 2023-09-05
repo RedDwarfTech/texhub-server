@@ -139,16 +139,16 @@ pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Respond
     HttpResponse::Ok().json(res)
 }
 
-pub async fn compile_proj_queue(
+pub async fn add_compile_queue(
     form: web::Json<TexCompileQueueReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    return add_compile_to_queue(&form.0, &login_user_info);
+    return add_compile_to_queue(&form.0, &login_user_info).await;
 }
 
 pub async fn get_compile_log(form: web::Query<TexCompileProjectReq>) -> impl Responder {
     let main_file = get_main_file_list(&form.project_id);
-    let log_output = get_compiled_log(main_file[0].clone()).await;
+    let log_output = get_compiled_log(main_file.unwrap().clone()).await;
     box_actix_rest_response(log_output)
 }
 
@@ -236,6 +236,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile", web::put().to(compile_proj))
             .route("/queue/status", web::get().to(get_queue_status))
             .route("/compile/qlog",web::get().to(get_proj_compile_log_stream))
-            .route("/compile/queue", web::post().to(compile_proj_queue)),
+            .route("/compile/queue", web::post().to(add_compile_queue)),
     );
 }

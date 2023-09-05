@@ -52,7 +52,7 @@ pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::parent.eq(parent_id));
-    let cvs = query.load::<TexFile>(&mut get_connection());
+    let cvs:Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
     match cvs {
         Ok(result) => {
             return result;
@@ -64,7 +64,7 @@ pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
     }
 }
 
-pub fn get_main_file_list(project_id: &String) -> Vec<TexFile> {
+pub fn get_main_file_list(project_id: &String) -> Option<TexFile> {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(
@@ -72,14 +72,14 @@ pub fn get_main_file_list(project_id: &String) -> Vec<TexFile> {
             .eq(project_id)
             .and(cv_work_table::main_flag.eq(1)),
     );
-    let cvs = query.load::<TexFile>(&mut get_connection());
+    let cvs:Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
     match cvs {
         Ok(result) => {
-            return result;
+            return Some(result[0].to_owned());
         }
         Err(err) => {
-            error!("get main files failed, {}", err);
-            return Vec::new();
+            error!("get files failed, {}", err);
+            return None;
         }
     }
 }

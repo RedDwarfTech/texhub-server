@@ -1,11 +1,13 @@
 use crate::common::proj::proj_util::get_proj_compile_req;
 use crate::common::types::compile_status::CompileStatus;
+use crate::controller::file::file_controller::get_main_file;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
+use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject};
 use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
@@ -14,6 +16,7 @@ use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
+use crate::service::file::file_service::get_main_file_list;
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -327,7 +330,7 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
     return render_request(params, &prj).await;
 }
 
-pub fn add_compile_to_queue(
+pub async fn add_compile_to_queue(
     params: &TexCompileQueueReq,
     login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
@@ -352,11 +355,13 @@ pub fn add_compile_to_queue(
             "queue add failed".to_string(),
         );
     }
+    let proj_cache = get_cached_proj_info(&params.project_id).await;
+    let main_file_name = proj_cache.unwrap().main_file.name;
     let stream_key = get_app_config("texhub.compile_stream_redis_key");
-    let json_data = get_proj_compile_req(&params.project_id, &params.file_name);
+    let json_data = get_proj_compile_req(&params.project_id, &main_file_name);
     let file_path = format!(
         "/opt/data/project/{}/{}",
-        &params.project_id, &params.file_name
+        &params.project_id, &main_file_name
     );
     let out_path = format!("/opt/data/project/{}", &params.project_id);
     let rt = get_current_millisecond().to_string();
@@ -483,3 +488,24 @@ pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueu
     let queue:Result<TexCompQueue, serde_json::Error> = serde_json::from_str(cached_queue_result.unwrap().as_str());
     return Some(queue.unwrap());
 } 
+
+pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
+    let cache_key = format!("{}:{}","texhub:proj:info",proj_id);
+    let proj_info_result = get_str_default(&cache_key.as_str());
+    if let Err(e) = proj_info_result.as_ref() {
+        error!("get cached project info failed,{}", e);
+        return None;
+    }
+    if proj_info_result.as_ref().unwrap().is_empty() {
+        let proj = get_prj_by_id(proj_id);
+        let file = get_main_file_list(proj_id);
+        let proj_info = TexProjectCache::from_db(&proj, file.unwrap());
+        return Some(proj_info);
+    }
+    let cached_proj = serde_json::from_str(proj_info_result.unwrap().as_str());
+    if let Err(e) = cached_proj {
+        error!("parse cached project info failed,{}", e);
+        return None;
+    }
+    return Some(cached_proj.unwrap());
+}

@@ -54,7 +54,7 @@ pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
 pub async fn get_main_file(params: web::Query<MainFileParams>) -> impl Responder {
     let docs = get_main_file_list(&params.project_id);
     let res = ApiResponse {
-        result: docs[0].clone(),
+        result: docs.unwrap(),
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
