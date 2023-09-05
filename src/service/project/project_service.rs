@@ -28,7 +28,10 @@ use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
 use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
-use rust_wheel::common::wrapper::actix_http_resp::{box_error_actix_rest_response, box_actix_rest_response};
+use rust_wheel::common::util::time_util::get_current_millisecond;
+use rust_wheel::common::wrapper::actix_http_resp::{
+    box_actix_rest_response, box_error_actix_rest_response,
+};
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::push_to_stream;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
@@ -329,10 +332,7 @@ pub fn add_compile_to_queue(
 ) -> HttpResponse {
     let mut connection = get_connection();
     let queue_req = QueueReq {
-        comp_status: vec![
-            CompileStatus::Complete as i32,
-            CompileStatus::Queued as i32,
-        ],
+        comp_status: vec![CompileStatus::Complete as i32, CompileStatus::Queued as i32],
     };
     let queue_list = get_proj_queue_list(&queue_req, login_user_info);
     if !queue_list.is_empty() {
@@ -345,13 +345,29 @@ pub fn add_compile_to_queue(
         .get_result::<TexCompQueue>(&mut connection);
     if let Err(e) = result {
         error!("add compile queue failed, error info:{}", e);
-        return box_error_actix_rest_response("", "QUEUE_ADD_FAILED".to_string(),"queue add failed".to_string());
+        return box_error_actix_rest_response(
+            "",
+            "QUEUE_ADD_FAILED".to_string(),
+            "queue add failed".to_string(),
+        );
     }
     let stream_key = get_app_config("texhub.compile_stream_redis_key");
-    let s_params = &[(params.project_id.as_str(),"")];
-    let p_result= push_to_stream(&stream_key.as_str(), s_params);
-    if let Err(pe) = p_result { 
-        error!("push to stream failed,{}",pe);
+    let json_data = get_proj_compile_req(&params.project_id, &params.file_name);
+    let file_path = format!(
+        "/opt/data/project/{}/{}",
+        &params.project_id, &params.file_name
+    );
+    let out_path = format!("/opt/data/project/{}", &params.project_id);
+    let rt = get_current_millisecond().to_string();
+    let s_params = [
+        ("file_path", file_path.as_str()),
+        ("out_path", out_path.as_str()),
+        ("project_id", params.project_id.as_str()),
+        ("req_time", rt.as_str()),
+    ];
+    let p_result = push_to_stream(&stream_key.as_str(), &s_params);
+    if let Err(pe) = p_result {
+        error!("push to stream failed,{}", pe);
     }
     return box_actix_rest_response(result.unwrap());
 }
@@ -415,7 +431,7 @@ pub async fn send_render_req(
         .build()?;
     let url_path = format!("{}", "/render/compile/v1/project/sse");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
-    let json_data = get_proj_compile_req(params, &prj);
+    let json_data = get_proj_compile_req(&params.project_id, &params.file_name);
     let resp = client
         .get(url)
         .headers(construct_headers())

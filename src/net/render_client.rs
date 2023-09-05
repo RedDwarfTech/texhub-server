@@ -17,7 +17,7 @@ pub async fn render_request(
     let client = Client::new();
     let url_path = format!("{}", "/render/compile/v1/project");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
-    let req_value = get_proj_compile_req(params, proj);
+    let req_value = get_proj_compile_req(&params.project_id, &params.file_name);
     let response = client
         .post(url)
         .headers(construct_headers())
