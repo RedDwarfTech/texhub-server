@@ -1,6 +1,5 @@
 use crate::common::proj::proj_util::get_proj_compile_req;
 use crate::common::types::compile_status::CompileStatus;
-use crate::controller::file::file_controller::get_main_file;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -37,7 +36,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::{push_to_stream, get_str_default};
+use rust_wheel::config::cache::redis_util::{push_to_stream, get_str_default, set_value};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use std::collections::HashMap;
@@ -500,6 +499,8 @@ pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
         let proj = get_prj_by_id(proj_id);
         let file = get_main_file_list(proj_id);
         let proj_info = TexProjectCache::from_db(&proj, file.unwrap());
+        let proj_cached_json = serde_json::to_string(&proj_info).unwrap();
+        set_value(&cache_key.as_str(), &proj_cached_json.as_str(),86400);
         return Some(proj_info);
     }
     let cached_proj = serde_json::from_str(proj_info_result.unwrap().as_str());
