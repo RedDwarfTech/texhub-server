@@ -348,9 +348,8 @@ pub fn add_compile_to_queue(
         return box_error_actix_rest_response("", "QUEUE_ADD_FAILED".to_string(),"queue add failed".to_string());
     }
     let stream_key = get_app_config("texhub.compile_stream_redis_key");
-    let group_name = get_app_config("texhub.compile_group_name");
     let s_params = &[(params.project_id.as_str(),"")];
-    let p_result= push_to_stream(&stream_key.as_str(), &group_name.as_str(), s_params);
+    let p_result= push_to_stream(&stream_key.as_str(), s_params);
     if let Err(pe) = p_result { 
         error!("push to stream failed,{}",pe);
     }
