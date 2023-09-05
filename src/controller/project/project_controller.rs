@@ -197,6 +197,25 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
+pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
+    let (tx, rx): (
+        UnboundedSender<SSEMessage<String>>,
+        UnboundedReceiver<SSEMessage<String>>,
+    ) = tokio::sync::mpsc::unbounded_channel();
+    task::spawn(async move {
+        let output = send_render_req(&form.0, tx).await;
+        if let Err(e) = output {
+            error!("handle sse req error: {}", e);
+        }
+    });
+    let response = HttpResponse::Ok()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .content_type("text/event-stream")
+        .streaming(SseStream { receiver: Some(rx) });
+    response
+}
+
+
 pub async fn get_queue_status(form: web::Query<QueueStatusReq>) -> HttpResponse {
     let result = get_cached_queue_status(&form.0).await;
     return box_actix_rest_response(result.unwrap());
@@ -216,6 +235,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/temp/code", web::get().to(get_temp_auth_code))
             .route("/compile", web::put().to(compile_proj))
             .route("/queue/status", web::get().to(get_queue_status))
+            .route("/compile/qlog",web::get().to(get_proj_compile_log_stream))
             .route("/compile/queue", web::post().to(compile_proj_queue)),
     );
 }
