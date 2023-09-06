@@ -2,7 +2,7 @@ use crate::{
     model::{
         request::project::{
             tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq, queue::queue_status_req::QueueStatusReq,
+            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq, queue::queue_status_req::QueueStatusReq, tex_compile_queue_status::TexCompileQueueStatus,
         },
         response::project::latest_compile::LatestCompile,
     },
@@ -11,7 +11,7 @@ use crate::{
         project::project_service::{
             add_compile_to_queue, compile_project, create_empty_project, del_project, edit_proj,
             get_compiled_log, get_prj_by_id, get_proj_by_type, get_project_pdf, join_project,
-            send_render_req, get_cached_queue_status,
+            send_render_req, get_cached_queue_status, compile_status_update,
         },
     },
 };
@@ -139,11 +139,25 @@ pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Respond
     HttpResponse::Ok().json(res)
 }
 
-pub async fn add_compile_queue(
+pub async fn add_compile_req_to_queue(
     form: web::Json<TexCompileQueueReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     return add_compile_to_queue(&form.0, &login_user_info).await;
+}
+
+pub async fn add_compile_req_to_db(
+    form: web::Json<TexCompileQueueReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    return add_compile_to_queue(&form.0, &login_user_info).await;
+}
+
+pub async fn update_compile_status(
+    form: web::Json<TexCompileQueueStatus>,
+) -> impl Responder {
+    let u_result = compile_status_update(&form.0).await;
+    return  box_actix_rest_response(u_result.unwrap());
 }
 
 pub async fn get_compile_log(form: web::Query<TexCompileProjectReq>) -> impl Responder {
@@ -236,6 +250,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile", web::put().to(compile_proj))
             .route("/queue/status", web::get().to(get_queue_status))
             .route("/compile/qlog",web::get().to(get_proj_compile_log_stream))
-            .route("/compile/queue", web::post().to(add_compile_queue)),
+            .route("/compile/queue", web::post().to(add_compile_req_to_queue))
+            .route("/compile/store", web::post().to(add_compile_req_to_db))
+            .route("./compile/status", web::put().to(update_compile_status)),
     );
 }

@@ -12,6 +12,7 @@ use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
+use crate::model::request::project::tex_compile_queue_status::TexCompileQueueStatus;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
@@ -328,6 +329,20 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
     return render_request(params).await;
 }
 
+pub async fn compile_status_update(params: &TexCompileQueueStatus) -> Option<TexCompQueue>{
+    use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
+    let predicate =
+        crate::model::diesel::tex::tex_schema::tex_comp_queue::id.eq(params.id.clone());
+    let update_result = diesel::update(tex_comp_queue.filter(predicate))
+        .set(comp_status.eq(params.comp_status))
+        .get_result::<TexCompQueue>(&mut get_connection());
+    if let Err(e) = update_result {
+        error!("update compile queue failed, error info:{}", e);
+        return None
+    }
+    return Some(update_result.unwrap());
+}
+
 pub async fn add_compile_to_queue(
     params: &TexCompileQueueReq,
     login_user_info: &LoginUserInfo,
@@ -490,7 +505,7 @@ pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueu
 }
 
 pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
-    let cache_key = format!("{}:{}", "texhub:proj:info", proj_id);
+    let cache_key = format!("{}:{}", "texhub-server:proj:info", proj_id);
     let proj_info_result = get_str_default(&cache_key.as_str());
     if let Err(e) = proj_info_result.as_ref() {
         error!("get cached project info failed,{}", e);
