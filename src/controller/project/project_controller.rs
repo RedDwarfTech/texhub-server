@@ -252,6 +252,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile/qlog",web::get().to(get_proj_compile_log_stream))
             .route("/compile/queue", web::post().to(add_compile_req_to_queue))
             .route("/compile/store", web::post().to(add_compile_req_to_db))
-            .route("./compile/status", web::put().to(update_compile_status)),
+            .route("/compile/status", web::put().to(update_compile_status)),
     );
 }
