@@ -377,11 +377,13 @@ pub async fn add_compile_to_queue(
     );
     let out_path = format!("/opt/data/project/{}", &params.project_id);
     let rt = get_current_millisecond().to_string();
+    let qid = result.as_ref().unwrap().id.to_string();
     let s_params = [
         ("file_path", file_path.as_str()),
         ("out_path", out_path.as_str()),
         ("project_id", params.project_id.as_str()),
         ("req_time", rt.as_str()),
+        ("qid", qid.as_str()),
     ];
     let p_result = push_to_stream(&stream_key.as_str(), &s_params);
     if let Err(pe) = p_result {
