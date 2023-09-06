@@ -495,17 +495,22 @@ pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
         error!("get cached project info failed,{}", e);
         return None;
     }
-    if proj_info_result.as_ref().unwrap().is_empty() {
+    let cached_proj_info = proj_info_result.unwrap();
+    if cached_proj_info.is_empty() || cached_proj_info.len() == 0 {
         let proj = get_prj_by_id(proj_id);
         let file = get_main_file_list(proj_id);
         let proj_info = TexProjectCache::from_db(&proj, file.unwrap());
         let proj_cached_json = serde_json::to_string(&proj_info).unwrap();
-        set_value(&cache_key.as_str(), &proj_cached_json.as_str(),86400);
+        let cache_result = set_value(&cache_key.as_str(), &proj_cached_json.as_str(),86400);
+        if let Err(e) = cache_result {
+            error!("set cached project info failed,{}", e);
+            return None;
+        }
         return Some(proj_info);
     }
-    let cached_proj = serde_json::from_str(proj_info_result.unwrap().as_str());
+    let cached_proj = serde_json::from_str(cached_proj_info.as_str());
     if let Err(e) = cached_proj {
-        error!("parse cached project info failed,{}", e);
+        error!("parse cached project info failed,{},cached project info: {}, pid: {}", e, cached_proj_info, proj_id);
         return None;
     }
     return Some(cached_proj.unwrap());
