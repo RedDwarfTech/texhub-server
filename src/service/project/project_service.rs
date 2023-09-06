@@ -36,7 +36,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::{push_to_stream, get_str_default, set_value};
+use rust_wheel::config::cache::redis_util::{get_str_default, push_to_stream, set_value};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use std::collections::HashMap;
@@ -325,8 +325,7 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
 }
 
 pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json::Value> {
-    let prj = get_prj_by_id(&params.project_id);
-    return render_request(params, &prj).await;
+    return render_request(params).await;
 }
 
 pub async fn add_compile_to_queue(
@@ -357,7 +356,6 @@ pub async fn add_compile_to_queue(
     let proj_cache = get_cached_proj_info(&params.project_id).await;
     let main_file_name = proj_cache.unwrap().main_file.name;
     let stream_key = get_app_config("texhub.compile_stream_redis_key");
-    let json_data = get_proj_compile_req(&params.project_id, &main_file_name);
     let file_path = format!(
         "/opt/data/project/{}/{}",
         &params.project_id, &main_file_name
@@ -430,7 +428,6 @@ pub async fn send_render_req(
     params: &TexCompileProjectReq,
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
-    let prj = get_prj_by_id(&params.project_id);
     let client = Client::builder()
         .timeout(Duration::from_secs(120))
         .build()?;
@@ -476,7 +473,7 @@ pub async fn send_render_req(
     Ok(String::new())
 }
 
-pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueue>{
+pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueue> {
     let stream_key = get_app_config("texhub.compile_status_cached_key");
     let full_cached_key = format!("{}:{}", stream_key, req.id);
     let cached_queue_result = get_str_default(&full_cached_key.as_str());
@@ -484,33 +481,42 @@ pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueu
         error!("get cached queue failed,{}", e);
         return None;
     }
-    let queue:Result<TexCompQueue, serde_json::Error> = serde_json::from_str(cached_queue_result.unwrap().as_str());
+    if cached_queue_result.as_ref().unwrap().is_none() {
+        return None;
+    }
+    let queue: Result<TexCompQueue, serde_json::Error> =
+        serde_json::from_str(cached_queue_result.unwrap().unwrap().as_str());
     return Some(queue.unwrap());
-} 
+}
 
 pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
-    let cache_key = format!("{}:{}","texhub:proj:info",proj_id);
+    let cache_key = format!("{}:{}", "texhub:proj:info", proj_id);
     let proj_info_result = get_str_default(&cache_key.as_str());
     if let Err(e) = proj_info_result.as_ref() {
         error!("get cached project info failed,{}", e);
         return None;
     }
     let cached_proj_info = proj_info_result.unwrap();
-    if cached_proj_info.is_empty() || cached_proj_info.len() == 0 {
+    if cached_proj_info.is_none() {
         let proj = get_prj_by_id(proj_id);
         let file = get_main_file_list(proj_id);
         let proj_info = TexProjectCache::from_db(&proj, file.unwrap());
         let proj_cached_json = serde_json::to_string(&proj_info).unwrap();
-        let cache_result = set_value(&cache_key.as_str(), &proj_cached_json.as_str(),86400);
+        let cache_result = set_value(&cache_key.as_str(), &proj_cached_json.as_str(), 86400);
         if let Err(e) = cache_result {
             error!("set cached project info failed,{}", e);
             return None;
         }
         return Some(proj_info);
     }
-    let cached_proj = serde_json::from_str(cached_proj_info.as_str());
+    let cached_proj = serde_json::from_str(cached_proj_info.as_ref().unwrap().as_str());
     if let Err(e) = cached_proj {
-        error!("parse cached project info failed,{},cached project info: {}, pid: {}", e, cached_proj_info, proj_id);
+        error!(
+            "parse cached project info failed,{},cached project info: {}, pid: {}",
+            e,
+            cached_proj_info.unwrap(),
+            proj_id
+        );
         return None;
     }
     return Some(cached_proj.unwrap());

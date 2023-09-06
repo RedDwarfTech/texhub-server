@@ -5,15 +5,12 @@ use reqwest::{
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
-use crate::{model::{
-    diesel::tex::custom_tex_models::TexProject,
-    request::project::tex_compile_project_req::TexCompileProjectReq,
-}, common::proj::proj_util::get_proj_compile_req};
+use crate::{
+    common::proj::proj_util::get_proj_compile_req,
+    model::request::project::tex_compile_project_req::TexCompileProjectReq,
+};
 
-pub async fn render_request(
-    params: &TexCompileProjectReq,
-    proj: &TexProject,
-) -> Option<serde_json::Value> {
+pub async fn render_request(params: &TexCompileProjectReq) -> Option<serde_json::Value> {
     let client = Client::new();
     let url_path = format!("{}", "/render/compile/v1/project");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
