@@ -212,8 +212,8 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
 
 pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
     let (tx, rx): (
-        UnboundedSender<SSEMessage<String>>,
-        UnboundedReceiver<SSEMessage<String>>,
+        UnboundedSender<String>,
+        UnboundedReceiver<String>,
     ) = tokio::sync::mpsc::unbounded_channel();
     task::spawn(async move {
         let output = get_comp_log_stream(&form.0, tx).await;

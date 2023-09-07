@@ -21,7 +21,8 @@ use crate::{common::database::get_connection, model::diesel::tex::custom_tex_mod
 use actix_web::HttpResponse;
 use diesel::result::Error;
 use diesel::{
-    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
+    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection,
+    QueryDsl,
 };
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
@@ -44,7 +45,8 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, Read, Write};
 use std::path::Path;
-use std::process::{Stdio, Command};
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
@@ -476,7 +478,7 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
 
 pub async fn get_comp_log_stream(
     params: &TexCompileProjectReq,
-    tx: UnboundedSender<SSEMessage<String>>,
+    tx: UnboundedSender<String>,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let file_path = format!(
@@ -484,6 +486,8 @@ pub async fn get_comp_log_stream(
         params.project_id, file_name_without_ext
     );
     let mut cmd = Command::new("tail")
+        .arg("-n")
+        .arg("+1")
         .arg("-f")
         .arg(file_path)
         .stdout(Stdio::piped())
@@ -491,23 +495,38 @@ pub async fn get_comp_log_stream(
         .unwrap();
     let log_stdout = cmd.stdout.take().unwrap();
     let reader = std::io::BufReader::new(log_stdout);
-    task::spawn_blocking(move || {
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                let msg_content = format!("{}\n", line.to_owned());
-                warn!("{}", msg_content);
-                _do_msg_send(&line, tx.clone(), "TEX_COMP_LOG");
+    task::spawn_blocking({
+        let tx: UnboundedSender<String> = tx.clone();
+        move || {
+            let shared_tx = Arc::new(Mutex::new(tx));
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    let msg_content = format!("{}\n", line.to_owned());
+                    warn!("{}", msg_content);
+                    let sse_msg: SSEMessage<String> =
+                        SSEMessage::from_data(msg_content.to_string(), &"TEX_COMP_LOG".to_string());
+                    let sse_string = serde_json::to_string(&sse_msg);
+                    let send_result = shared_tx.lock().unwrap().send(sse_string.unwrap());
+                    if let Err(se) = send_result {
+                        error!("send xelatex render compile log error: {}", se);
+                    }
+                }
             }
+            _do_msg_send(&"end".to_string(), shared_tx, "TEX_COMP_END");
         }
-        _do_msg_send(&"end".to_string(), tx.clone(), "TEX_COMP_END");
     });
     Ok("".to_owned())
 }
 
-pub fn _do_msg_send(line: &String, tx: UnboundedSender<SSEMessage<String>>, msg_type: &str) {
+pub fn _do_msg_send(
+    line: &String,
+    tx: Arc<std::sync::Mutex<UnboundedSender<String>>>,
+    msg_type: &str,
+) {
     let sse_msg: SSEMessage<String> =
         SSEMessage::from_data(line.to_string(), &msg_type.to_string());
-    let send_result = tx.send(sse_msg);
+    let sse_content = serde_json::to_string(&sse_msg).unwrap();
+    let send_result = tx.lock().unwrap().send(sse_content);
     match send_result {
         Ok(_) => {}
         Err(e) => {
