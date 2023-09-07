@@ -1,5 +1,4 @@
 use crate::common::proj::proj_util::get_proj_compile_req;
-use crate::common::types::compile_status::CompileStatus;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -40,6 +39,7 @@ use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{get_str_default, push_to_stream, set_value};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
+use rust_wheel::texhub::compile_status::CompileStatus;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -329,7 +329,7 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
     return render_request(params).await;
 }
 
-pub async fn compile_status_update(params: &TexCompileQueueStatus) -> Option<TexCompQueue>{
+pub async fn compile_status_update(params: &TexCompileQueueStatus) -> HttpResponse {
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
     let predicate =
         crate::model::diesel::tex::tex_schema::tex_comp_queue::id.eq(params.id.clone());
@@ -338,9 +338,13 @@ pub async fn compile_status_update(params: &TexCompileQueueStatus) -> Option<Tex
         .get_result::<TexCompQueue>(&mut get_connection());
     if let Err(e) = update_result {
         error!("update compile queue failed, error info:{}", e);
-        return None
+        return box_error_actix_rest_response("", "UPDATE_QUEUE_FAILED".to_owned(), "update queue failed".to_owned())
     }
-    return Some(update_result.unwrap());
+    let q = update_result.unwrap();
+    if let Some(resp) = cache_queue(&q.project_id, &q){
+        return resp;
+    }
+    return box_actix_rest_response(q);
 }
 
 pub async fn add_compile_to_queue(
@@ -357,10 +361,10 @@ pub async fn add_compile_to_queue(
     }
     let new_proj = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
-    let result = diesel::insert_into(tex_comp_queue)
+    let queue_result = diesel::insert_into(tex_comp_queue)
         .values(&new_proj)
         .get_result::<TexCompQueue>(&mut connection);
-    if let Err(e) = result {
+    if let Err(e) = queue_result {
         error!("add compile queue failed, error info:{}", e);
         return box_error_actix_rest_response(
             "",
@@ -377,7 +381,7 @@ pub async fn add_compile_to_queue(
     );
     let out_path = format!("/opt/data/project/{}", &params.project_id);
     let rt = get_current_millisecond().to_string();
-    let qid = result.as_ref().unwrap().id.to_string();
+    let qid = queue_result.as_ref().unwrap().id.to_string();
     let s_params = [
         ("file_path", file_path.as_str()),
         ("out_path", out_path.as_str()),
@@ -388,8 +392,32 @@ pub async fn add_compile_to_queue(
     let p_result = push_to_stream(&stream_key.as_str(), &s_params);
     if let Err(pe) = p_result {
         error!("push to stream failed,{}", pe);
+        return box_error_actix_rest_response(
+            "push stream failed",
+            "QUEUE_ADD_FAILED".to_string(),
+            "queue add failed".to_string(),
+        ); 
     }
-    return box_actix_rest_response(result.unwrap());
+    if let Some(resp) = cache_queue(&params.project_id, queue_result.as_ref().unwrap()){
+        return resp;
+    }
+    return box_actix_rest_response(queue_result.unwrap());
+}
+
+pub fn cache_queue(proj_id: &String, queue_result: &TexCompQueue) -> Option<HttpResponse> {
+    let queue_status_key = get_app_config("texhub.compile_status_cached_key");
+    let full_cached_key = format!("{}:{}", queue_status_key, proj_id.as_str());
+    let queue_str = serde_json::to_string(queue_result);
+    let cached_result = set_value(&full_cached_key,queue_str.unwrap().as_str() , 86400);
+    if let Err(ce) = cached_result {
+        error!("set queue value failed,{}", ce);
+        return Some(box_error_actix_rest_response(
+            "cached queue failed",
+            "QUEUE_CACHED_FAILED".to_string(),
+            "queue cached failed".to_string(),
+        ));
+    }
+    return None;
 }
 
 pub async fn get_compiled_log(main_file: TexFile) -> String {
@@ -491,8 +519,8 @@ pub async fn send_render_req(
 }
 
 pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueue> {
-    let stream_key = get_app_config("texhub.compile_status_cached_key");
-    let full_cached_key = format!("{}:{}", stream_key, req.id);
+    let queue_status_key = get_app_config("texhub.compile_status_cached_key");
+    let full_cached_key = format!("{}:{}", queue_status_key, req.id);
     let cached_queue_result = get_str_default(&full_cached_key.as_str());
     if let Err(e) = cached_queue_result {
         error!("get cached queue failed,{}", e);

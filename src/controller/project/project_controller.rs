@@ -156,8 +156,7 @@ pub async fn add_compile_req_to_db(
 pub async fn update_compile_status(
     form: web::Json<TexCompileQueueStatus>,
 ) -> impl Responder {
-    let u_result = compile_status_update(&form.0).await;
-    return  box_actix_rest_response(u_result.unwrap());
+    return compile_status_update(&form.0).await;
 }
 
 pub async fn get_compile_log(form: web::Query<TexCompileProjectReq>) -> impl Responder {
