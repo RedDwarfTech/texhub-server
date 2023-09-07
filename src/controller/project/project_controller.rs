@@ -11,7 +11,7 @@ use crate::{
         project::project_service::{
             add_compile_to_queue, compile_project, create_empty_project, del_project, edit_proj,
             get_compiled_log, get_prj_by_id, get_proj_by_type, get_project_pdf, join_project,
-            send_render_req, get_cached_queue_status, compile_status_update,
+            send_render_req, get_cached_queue_status, compile_status_update, get_comp_log_stream,
         },
     },
 };
@@ -216,7 +216,7 @@ pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileProjectReq>)
         UnboundedReceiver<SSEMessage<String>>,
     ) = tokio::sync::mpsc::unbounded_channel();
     task::spawn(async move {
-        let output = send_render_req(&form.0, tx).await;
+        let output = get_comp_log_stream(&form.0, tx).await;
         if let Err(e) = output {
             error!("handle sse req error: {}", e);
         }

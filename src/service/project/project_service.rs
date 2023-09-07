@@ -1,4 +1,5 @@
 use crate::common::proj::proj_util::get_proj_compile_req;
+use crate::controller::file;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -42,7 +43,7 @@ use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
@@ -331,17 +332,20 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
 
 pub async fn compile_status_update(params: &TexCompileQueueStatus) -> HttpResponse {
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
-    let predicate =
-        crate::model::diesel::tex::tex_schema::tex_comp_queue::id.eq(params.id.clone());
+    let predicate = crate::model::diesel::tex::tex_schema::tex_comp_queue::id.eq(params.id.clone());
     let update_result = diesel::update(tex_comp_queue.filter(predicate))
         .set(comp_status.eq(params.comp_status))
         .get_result::<TexCompQueue>(&mut get_connection());
     if let Err(e) = update_result {
         error!("update compile queue failed, error info:{}", e);
-        return box_error_actix_rest_response("", "UPDATE_QUEUE_FAILED".to_owned(), "update queue failed".to_owned())
+        return box_error_actix_rest_response(
+            "",
+            "UPDATE_QUEUE_FAILED".to_owned(),
+            "update queue failed".to_owned(),
+        );
     }
     let q = update_result.unwrap();
-    if let Some(resp) = cache_queue( &q){
+    if let Some(resp) = cache_queue(&q) {
         return resp;
     }
     return box_actix_rest_response(q);
@@ -396,9 +400,9 @@ pub async fn add_compile_to_queue(
             "push stream failed",
             "QUEUE_ADD_FAILED".to_string(),
             "queue add failed".to_string(),
-        ); 
+        );
     }
-    if let Some(resp) = cache_queue( queue_result.as_ref().unwrap()){
+    if let Some(resp) = cache_queue(queue_result.as_ref().unwrap()) {
         return resp;
     }
     return box_actix_rest_response(queue_result.unwrap());
@@ -408,7 +412,7 @@ pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
     let queue_status_key = get_app_config("texhub.compile_status_cached_key");
     let full_cached_key = format!("{}:{}", queue_status_key, queue_result.id);
     let queue_str = serde_json::to_string(queue_result);
-    let cached_result = set_value(&full_cached_key,queue_str.unwrap().as_str() , 86400);
+    let cached_result = set_value(&full_cached_key, queue_str.unwrap().as_str(), 86400);
     if let Err(ce) = cached_result {
         error!("set queue value failed,{}", ce);
         return Some(box_error_actix_rest_response(
@@ -465,6 +469,55 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
         }
         None => {
             return "".to_owned();
+        }
+    }
+}
+
+pub async fn get_comp_log_stream(
+    params: &TexCompileProjectReq,
+    tx: UnboundedSender<SSEMessage<String>>,
+) -> Result<String, reqwest::Error> {
+    let file_path = format!(
+        "/opt/data/project/{}/{}",
+        params.project_id, params.file_name
+    );
+    let file = File::open(file_path);
+    if let Err(err) = file {
+        error!("Error opening file: {:?}", err);
+        return Ok(String::new());
+    }
+    let mut reader = BufReader::new(file.unwrap());
+    let mut pos_result = reader.seek(SeekFrom::End(0));
+    if let Err(err) = pos_result {
+        error!("Error seeking file: {:?}", err);
+        return Ok(String::new());
+    }
+    let mut pos = pos_result.unwrap();
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line).unwrap() > 0 {
+            print!("{}", line);
+            _do_msg_send(&line,tx.clone(),&"TEX_COMPILE_LOG".to_string().as_str());
+        }
+        let len = reader.seek(SeekFrom::End(0)).unwrap();
+        if len > pos {
+            pos = len;
+            reader.seek(SeekFrom::Start(pos)).unwrap();
+        }
+    }
+}
+
+pub fn _do_msg_send(
+    line: &String,
+    tx: UnboundedSender<SSEMessage<String>>,
+    msg_type: &str,
+) {
+    let sse_msg: SSEMessage<String> = SSEMessage::from_data(line.to_string(), &msg_type.to_string());
+    let send_result = tx.send(sse_msg);
+    match send_result {
+        Ok(_) => {}
+        Err(e) => {
+            error!("send xelatex compile log error: {}", e);
         }
     }
 }
