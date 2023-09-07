@@ -1,5 +1,4 @@
 use crate::common::proj::proj_util::get_proj_compile_req;
-use crate::controller::file;
 use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -43,8 +42,9 @@ use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{self, BufRead, Read, Write};
 use std::path::Path;
+use std::process::{Stdio, Command};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
@@ -483,30 +483,23 @@ pub async fn get_comp_log_stream(
         "/opt/data/project/{}/{}.log",
         params.project_id, file_name_without_ext
     );
-    let file = File::open(file_path);
-    if let Err(err) = file {
-        error!("Error opening file: {:?}", err);
-        return Ok(String::new());
-    }
+    let mut cmd = Command::new("tail")
+        .arg("-f")
+        .arg(file_path)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let log_stdout = cmd.stdout.take().unwrap();
+    let reader = std::io::BufReader::new(log_stdout);
     task::spawn_blocking(move || {
-        let mut reader = BufReader::new(file.unwrap());
-        let pos_result = reader.seek(SeekFrom::End(0));
-        if let Err(err) = pos_result.as_ref() {
-            error!("Error seeking file: {:?}", err);
-        }
-        let mut pos = pos_result.unwrap();
-        loop {
-            let mut line = String::new();
-            if reader.read_line(&mut line).unwrap() > 0 {
-                warn!("{}", line);
-                _do_msg_send(&line, tx.clone(), &"TEX_COMPILE_LOG".to_string().as_str());
-            }
-            let len = reader.seek(SeekFrom::End(0)).unwrap();
-            if len > pos {
-                pos = len;
-                reader.seek(SeekFrom::Start(pos)).unwrap();
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                let msg_content = format!("{}\n", line.to_owned());
+                warn!("{}", msg_content);
+                _do_msg_send(&line, tx.clone(), "TEX_COMP_LOG");
             }
         }
+        _do_msg_send(&"end".to_string(), tx.clone(), "TEX_COMP_END");
     });
     Ok("".to_owned())
 }
