@@ -477,9 +477,10 @@ pub async fn get_comp_log_stream(
     params: &TexCompileProjectReq,
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
+    let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let file_path = format!(
-        "/opt/data/project/{}/{}",
-        params.project_id, params.file_name
+        "/opt/data/project/{}/{}.log",
+        params.project_id, file_name_without_ext
     );
     let file = File::open(file_path);
     if let Err(err) = file {
