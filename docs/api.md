@@ -20,3 +20,8 @@ curl -N -H "Accept: text/event-stream" -H "Host: tex.poemhub.top" -H "content-ty
 ```
 
 
+#### 获取授权码
+
+```
+curl http://localhost:8000/tex/project/temp/code
+```

@@ -47,6 +47,7 @@ use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::task;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -487,33 +488,32 @@ pub async fn get_comp_log_stream(
         error!("Error opening file: {:?}", err);
         return Ok(String::new());
     }
-    let mut reader = BufReader::new(file.unwrap());
-    let mut pos_result = reader.seek(SeekFrom::End(0));
-    if let Err(err) = pos_result {
-        error!("Error seeking file: {:?}", err);
-        return Ok(String::new());
-    }
-    let mut pos = pos_result.unwrap();
-    loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line).unwrap() > 0 {
-            print!("{}", line);
-            _do_msg_send(&line,tx.clone(),&"TEX_COMPILE_LOG".to_string().as_str());
+    task::spawn_blocking(move || {
+        let mut reader = BufReader::new(file.unwrap());
+        let pos_result = reader.seek(SeekFrom::End(0));
+        if let Err(err) = pos_result.as_ref() {
+            error!("Error seeking file: {:?}", err);
         }
-        let len = reader.seek(SeekFrom::End(0)).unwrap();
-        if len > pos {
-            pos = len;
-            reader.seek(SeekFrom::Start(pos)).unwrap();
+        let mut pos = pos_result.unwrap();
+        loop {
+            let mut line = String::new();
+            if reader.read_line(&mut line).unwrap() > 0 {
+                warn!("{}", line);
+                _do_msg_send(&line, tx.clone(), &"TEX_COMPILE_LOG".to_string().as_str());
+            }
+            let len = reader.seek(SeekFrom::End(0)).unwrap();
+            if len > pos {
+                pos = len;
+                reader.seek(SeekFrom::Start(pos)).unwrap();
+            }
         }
-    }
+    });
+    Ok("".to_owned())
 }
 
-pub fn _do_msg_send(
-    line: &String,
-    tx: UnboundedSender<SSEMessage<String>>,
-    msg_type: &str,
-) {
-    let sse_msg: SSEMessage<String> = SSEMessage::from_data(line.to_string(), &msg_type.to_string());
+pub fn _do_msg_send(line: &String, tx: UnboundedSender<SSEMessage<String>>, msg_type: &str) {
+    let sse_msg: SSEMessage<String> =
+        SSEMessage::from_data(line.to_string(), &msg_type.to_string());
     let send_result = tx.send(sse_msg);
     match send_result {
         Ok(_) => {}
