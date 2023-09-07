@@ -478,7 +478,7 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
 
 pub async fn get_comp_log_stream(
     params: &TexCompileProjectReq,
-    tx: UnboundedSender<String>,
+    tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let file_path = format!(
@@ -496,7 +496,7 @@ pub async fn get_comp_log_stream(
     let log_stdout = cmd.stdout.take().unwrap();
     let reader = std::io::BufReader::new(log_stdout);
     task::spawn_blocking({
-        let tx: UnboundedSender<String> = tx.clone();
+        let tx: UnboundedSender<SSEMessage<String>> = tx.clone();
         move || {
             let shared_tx = Arc::new(Mutex::new(tx));
             for line in reader.lines() {
@@ -505,8 +505,7 @@ pub async fn get_comp_log_stream(
                     warn!("{}", msg_content);
                     let sse_msg: SSEMessage<String> =
                         SSEMessage::from_data(msg_content.to_string(), &"TEX_COMP_LOG".to_string());
-                    let sse_string = serde_json::to_string(&sse_msg);
-                    let send_result = shared_tx.lock().unwrap().send(sse_string.unwrap());
+                    let send_result = shared_tx.lock().unwrap().send(sse_msg);
                     if let Err(se) = send_result {
                         error!("send xelatex render compile log error: {}", se);
                     }
@@ -520,13 +519,12 @@ pub async fn get_comp_log_stream(
 
 pub fn _do_msg_send(
     line: &String,
-    tx: Arc<std::sync::Mutex<UnboundedSender<String>>>,
+    tx: Arc<std::sync::Mutex<UnboundedSender<SSEMessage<String>>>>,
     msg_type: &str,
 ) {
     let sse_msg: SSEMessage<String> =
         SSEMessage::from_data(line.to_string(), &msg_type.to_string());
-    let sse_content = serde_json::to_string(&sse_msg).unwrap();
-    let send_result = tx.lock().unwrap().send(sse_content);
+    let send_result = tx.lock().unwrap().send(sse_msg);
     match send_result {
         Ok(_) => {}
         Err(e) => {
