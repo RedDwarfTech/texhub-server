@@ -341,7 +341,7 @@ pub async fn compile_status_update(params: &TexCompileQueueStatus) -> HttpRespon
         return box_error_actix_rest_response("", "UPDATE_QUEUE_FAILED".to_owned(), "update queue failed".to_owned())
     }
     let q = update_result.unwrap();
-    if let Some(resp) = cache_queue(&q.project_id, &q){
+    if let Some(resp) = cache_queue( &q){
         return resp;
     }
     return box_actix_rest_response(q);
@@ -398,15 +398,15 @@ pub async fn add_compile_to_queue(
             "queue add failed".to_string(),
         ); 
     }
-    if let Some(resp) = cache_queue(&params.project_id, queue_result.as_ref().unwrap()){
+    if let Some(resp) = cache_queue( queue_result.as_ref().unwrap()){
         return resp;
     }
     return box_actix_rest_response(queue_result.unwrap());
 }
 
-pub fn cache_queue(proj_id: &String, queue_result: &TexCompQueue) -> Option<HttpResponse> {
+pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
     let queue_status_key = get_app_config("texhub.compile_status_cached_key");
-    let full_cached_key = format!("{}:{}", queue_status_key, proj_id.as_str());
+    let full_cached_key = format!("{}:{}", queue_status_key, queue_result.id);
     let queue_str = serde_json::to_string(queue_result);
     let cached_result = set_value(&full_cached_key,queue_str.unwrap().as_str() , 86400);
     if let Err(ce) = cached_result {
