@@ -231,7 +231,7 @@ pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileProjectReq>)
 
 pub async fn get_queue_status(form: web::Query<QueueStatusReq>) -> HttpResponse {
     let result = get_cached_queue_status(&form.0).await;
-    return box_actix_rest_response(result.unwrap());
+    return box_actix_rest_response(result.unwrap_or_default());
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
