@@ -499,7 +499,7 @@ pub async fn get_comp_log_stream(
         .unwrap();
     let log_stdout = cmd.stdout.take().unwrap();
     let reader = std::io::BufReader::new(log_stdout);
-    task::spawn_blocking({
+    let read_handle = task::spawn_blocking({
         let tx: UnboundedSender<SSEMessage<String>> = tx.clone();
         move || {
             let shared_tx = Arc::new(Mutex::new(tx));
@@ -518,6 +518,10 @@ pub async fn get_comp_log_stream(
             _do_msg_send(&"end".to_string(), shared_tx, "TEX_COMP_END");
         }
     });
+    let read_result = read_handle.await;
+    if let Err(e) = read_result {
+        error!("read xelatex render compile log error: {}", e)
+    }
     Ok("".to_owned())
 }
 
