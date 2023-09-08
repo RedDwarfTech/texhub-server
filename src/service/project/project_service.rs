@@ -22,8 +22,7 @@ use crate::{common::database::get_connection, model::diesel::tex::custom_tex_mod
 use actix_web::HttpResponse;
 use diesel::result::Error;
 use diesel::{
-    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection,
-    QueryDsl,
+    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
@@ -396,7 +395,10 @@ pub async fn add_compile_to_queue(
         ("project_id", params.project_id.as_str()),
         ("req_time", rt.as_str()),
         ("qid", qid.as_str()),
-        ("version_no", queue_result.as_ref().unwrap().version_no.as_str())
+        (
+            "version_no",
+            queue_result.as_ref().unwrap().version_no.as_str(),
+        ),
     ];
     let p_result = push_to_stream(&stream_key.as_str(), &s_params);
     if let Err(pe) = p_result {
@@ -485,9 +487,7 @@ pub async fn get_comp_log_stream(
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let file_path = format!(
         "/opt/data/project/{}/{}/{}.log",
-        params.project_id, 
-        params.version_no,
-        file_name_without_ext
+        params.project_id, params.version_no, file_name_without_ext
     );
     let mut cmd = Command::new("tail")
         .arg("-n")
@@ -515,7 +515,12 @@ pub async fn get_comp_log_stream(
                     }
                 }
             }
-            _do_msg_send(&"end".to_string(), shared_tx, "TEX_COMP_END");
+            let sse_msg_end: SSEMessage<String> =
+                SSEMessage::from_data("".to_owned(), &"TEX_COMP_END".to_string());
+            let send_result = shared_tx.lock().unwrap().send(sse_msg_end);
+            if let Err(se) = send_result {
+                error!("send xelatex render end compile log error: {}", se);
+            }
         }
     });
     let read_result = read_handle.await;
