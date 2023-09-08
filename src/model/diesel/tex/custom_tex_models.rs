@@ -16,6 +16,7 @@ pub struct TexCompQueue {
     pub user_id: i64,
     pub comp_status: i32,
     pub project_id: String,
+    pub version_no: String,
 }
 
 #[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]

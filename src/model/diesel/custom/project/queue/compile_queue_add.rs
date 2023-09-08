@@ -15,16 +15,20 @@ pub struct CompileQueueAdd {
     pub user_id: i64,
     pub comp_status: i32,
     pub project_id: String,
+    pub version_no: String,
 }
 
 impl CompileQueueAdd {
     pub(crate) fn from_req(proj_id: &String, user_id: &i64) ->Self {
+        let uuid = Uuid::new_v4();
+        let uuid_string = uuid.to_string().replace("-", "");
         Self {
             created_time: get_current_millisecond(),
             updated_time: get_current_millisecond(),
             user_id: user_id.to_owned(),
             project_id: proj_id.to_string(),
             comp_status: 0,
+            version_no: uuid_string,
         }
     }
 }
