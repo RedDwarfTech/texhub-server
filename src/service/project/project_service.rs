@@ -499,14 +499,17 @@ pub async fn get_comp_log_stream(
         .unwrap();
     let log_stdout = cmd.stdout.take().unwrap();
     let reader = std::io::BufReader::new(log_stdout);
-    let read_handle = task::spawn_blocking({
+    task::spawn_blocking({
         let tx: UnboundedSender<SSEMessage<String>> = tx.clone();
         move || {
             let shared_tx = Arc::new(Mutex::new(tx));
             for line in reader.lines() {
                 if let Ok(line) = line {
                     let msg_content = format!("{}\n", line.to_owned());
-                    warn!("{}", msg_content);
+                    if msg_content.contains("====END====") {
+                        _do_msg_send(&"end".to_string(), shared_tx, &"TEX_COMP_LOG".to_string());
+                        return;
+                    }
                     let sse_msg: SSEMessage<String> =
                         SSEMessage::from_data(msg_content.to_string(), &"TEX_COMP_LOG".to_string());
                     let send_result = shared_tx.lock().unwrap().send(sse_msg);
@@ -515,18 +518,9 @@ pub async fn get_comp_log_stream(
                     }
                 }
             }
-            let sse_msg_end: SSEMessage<String> =
-                SSEMessage::from_data("".to_owned(), &"TEX_COMP_END".to_string());
-            let send_result = shared_tx.lock().unwrap().send(sse_msg_end);
-            if let Err(se) = send_result {
-                error!("send xelatex render end compile log error: {}", se);
-            }
+            
         }
     });
-    let read_result = read_handle.await;
-    if let Err(e) = read_result {
-        error!("read xelatex render compile log error: {}", e)
-    }
     Ok("".to_owned())
 }
 
