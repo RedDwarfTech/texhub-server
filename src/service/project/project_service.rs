@@ -10,6 +10,7 @@ use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, 
 use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
+use crate::model::request::project::tex_compile_queue_log::TexCompileQueueLog;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_compile_queue_status::TexCompileQueueStatus;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
@@ -478,13 +479,15 @@ pub async fn get_project_pdf(params: &GetPrjParams) -> String {
 }
 
 pub async fn get_comp_log_stream(
-    params: &TexCompileProjectReq,
+    params: &TexCompileQueueLog,
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let file_path = format!(
-        "/opt/data/project/{}/{}.log",
-        params.project_id, file_name_without_ext
+        "/opt/data/project/{}/{}/{}.log",
+        params.project_id, 
+        params.version_no,
+        file_name_without_ext
     );
     let mut cmd = Command::new("tail")
         .arg("-n")
@@ -554,7 +557,7 @@ pub async fn send_render_req(
         .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) });
     let mut compile_params: HashMap<String, String> = HashMap::new();
     compile_params.insert("project_id".to_owned(), params.project_id.to_string());
-    compile_params.insert("req_time".to_owned(), params.req_time.to_string());
+    compile_params.insert("req_time".to_owned(), get_current_millisecond().to_string());
     compile_params.insert(
         "file_path".to_owned(),
         json_data.get("file_path").unwrap().to_string(),

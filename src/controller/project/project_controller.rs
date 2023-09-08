@@ -2,7 +2,7 @@ use crate::{
     model::{
         request::project::{
             tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq, queue::queue_status_req::QueueStatusReq, tex_compile_queue_status::TexCompileQueueStatus,
+            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq, queue::queue_status_req::QueueStatusReq, tex_compile_queue_status::TexCompileQueueStatus, tex_compile_queue_log::TexCompileQueueLog,
         },
         response::project::latest_compile::LatestCompile,
     },
@@ -210,7 +210,7 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
-pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
+pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileQueueLog>) -> HttpResponse {
     let (tx, rx): (
         UnboundedSender<SSEMessage<String>>,
         UnboundedReceiver<SSEMessage<String>>,
