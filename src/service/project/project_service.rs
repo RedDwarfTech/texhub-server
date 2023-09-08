@@ -507,7 +507,7 @@ pub async fn get_comp_log_stream(
                 if let Ok(line) = line {
                     let msg_content = format!("{}\n", line.to_owned());
                     if msg_content.contains("====END====") {
-                        _do_msg_send(&"end".to_string(), shared_tx, &"TEX_COMP_LOG".to_string());
+                        _do_msg_send(&"end".to_string(), shared_tx, &"TEX_COMP_END".to_string());
                         return;
                     }
                     let sse_msg: SSEMessage<String> =
