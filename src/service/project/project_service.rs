@@ -516,6 +516,7 @@ pub async fn get_comp_log_stream(
                             shared_tx.clone(),
                             &"TEX_COMP_END".to_string(),
                         );
+                        break;
                     } else {
                         do_msg_send(
                             &msg_content.to_string(),
@@ -525,6 +526,7 @@ pub async fn get_comp_log_stream(
                     }
                 }
             }
+            drop(shared_tx);
         }
     });
     Ok("".to_owned())
