@@ -220,7 +220,7 @@ pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileQueueLog>) -
 }
 
 pub async fn get_proj_compile_log(form: web::Query<TexCompileQueueLog>) -> HttpResponse {
-    let output = get_compiled_log(&form.project_id, &form.file_name);
+    let output = get_compiled_log(&form.0);
     return box_actix_rest_response(output);
 }
 

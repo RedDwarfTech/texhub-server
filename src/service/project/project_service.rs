@@ -431,11 +431,14 @@ pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
     return None;
 }
 
-pub fn get_compiled_log(proj_id: &String, main_file_name: &String) -> String {
+pub fn get_compiled_log(req: &TexCompileQueueLog) -> String {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let file_folder = format!("{}/{}", base_compile_dir, proj_id);
-    let file_name_without_ext = get_filename_without_ext(&main_file_name);
-    let log_full_path = format!("{}/{}.log", file_folder, file_name_without_ext);
+    let file_folder = format!("{}/{}", base_compile_dir, req.project_id);
+    let file_name_without_ext = get_filename_without_ext(&req.file_name);
+    let log_full_path = format!(
+        "{}/{}/{}.log",
+        file_folder, req.version_no, file_name_without_ext
+    );
     let mut file = match File::open(log_full_path) {
         Ok(file) => file,
         Err(error) => {
@@ -485,9 +488,10 @@ pub async fn get_comp_log_stream(
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let file_path = format!(
-        "/opt/data/project/{}/{}/{}.log",
-        params.project_id, params.version_no, file_name_without_ext
+        "{}/{}/{}/{}.log",
+        base_compile_dir, params.project_id, params.version_no, file_name_without_ext
     );
     let mut cmd = Command::new("tail")
         .arg("-n")
@@ -507,9 +511,17 @@ pub async fn get_comp_log_stream(
                 if let Ok(line) = line {
                     let msg_content = format!("{}\n", line.to_owned());
                     if msg_content.contains("====END====") {
-                        do_msg_send(&"end".to_string(), shared_tx.clone(), &"TEX_COMP_END".to_string());
+                        do_msg_send(
+                            &"end".to_string(),
+                            shared_tx.clone(),
+                            &"TEX_COMP_END".to_string(),
+                        );
                     } else {
-                        do_msg_send(&msg_content.to_string(), shared_tx.clone(), &"TEX_COMP_LOG".to_string());
+                        do_msg_send(
+                            &msg_content.to_string(),
+                            shared_tx.clone(),
+                            &"TEX_COMP_LOG".to_string(),
+                        );
                     }
                 }
             }
