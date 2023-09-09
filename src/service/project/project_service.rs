@@ -507,18 +507,20 @@ pub async fn get_comp_log_stream(
                 if let Ok(line) = line {
                     let msg_content = format!("{}\n", line.to_owned());
                     if msg_content.contains("====END====") {
-                        _do_msg_send(&"end".to_string(), shared_tx, &"TEX_COMP_END".to_string());
-                        return;
-                    }
-                    let sse_msg: SSEMessage<String> =
-                        SSEMessage::from_data(msg_content.to_string(), &"TEX_COMP_LOG".to_string());
-                    let send_result = shared_tx.lock().unwrap().send(sse_msg);
-                    if let Err(se) = send_result {
-                        error!("send xelatex render compile log error: {}", se);
+                        warn!("found the end flag, {}", msg_content);
+                        _do_msg_send(&"end".to_string(), shared_tx.clone(), &"TEX_COMP_END".to_string());
+                    } else {
+                        let sse_msg: SSEMessage<String> = SSEMessage::from_data(
+                            msg_content.to_string(),
+                            &"TEX_COMP_LOG".to_string(),
+                        );
+                        let send_result = shared_tx.lock().unwrap().send(sse_msg);
+                        if let Err(se) = send_result {
+                            error!("send xelatex render compile log error: {}", se);
+                        }
                     }
                 }
             }
-            
         }
     });
     Ok("".to_owned())
