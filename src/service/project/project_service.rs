@@ -431,10 +431,10 @@ pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
     return None;
 }
 
-pub async fn get_compiled_log(main_file: TexFile) -> String {
+pub fn get_compiled_log(proj_id: &String, main_file_name: &String) -> String {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let file_folder = format!("{}/{}", base_compile_dir, main_file.project_id);
-    let file_name_without_ext = get_filename_without_ext(&main_file.name);
+    let file_folder = format!("{}/{}", base_compile_dir, proj_id);
+    let file_name_without_ext = get_filename_without_ext(&main_file_name);
     let log_full_path = format!("{}/{}.log", file_folder, file_name_without_ext);
     let mut file = match File::open(log_full_path) {
         Ok(file) => file,
@@ -507,17 +507,9 @@ pub async fn get_comp_log_stream(
                 if let Ok(line) = line {
                     let msg_content = format!("{}\n", line.to_owned());
                     if msg_content.contains("====END====") {
-                        warn!("found the end flag, {}", msg_content);
-                        _do_msg_send(&"end".to_string(), shared_tx.clone(), &"TEX_COMP_END".to_string());
+                        do_msg_send(&"end".to_string(), shared_tx.clone(), &"TEX_COMP_END".to_string());
                     } else {
-                        let sse_msg: SSEMessage<String> = SSEMessage::from_data(
-                            msg_content.to_string(),
-                            &"TEX_COMP_LOG".to_string(),
-                        );
-                        let send_result = shared_tx.lock().unwrap().send(sse_msg);
-                        if let Err(se) = send_result {
-                            error!("send xelatex render compile log error: {}", se);
-                        }
+                        do_msg_send(&msg_content.to_string(), shared_tx.clone(), &"TEX_COMP_LOG".to_string());
                     }
                 }
             }
@@ -526,7 +518,7 @@ pub async fn get_comp_log_stream(
     Ok("".to_owned())
 }
 
-pub fn _do_msg_send(
+pub fn do_msg_send(
     line: &String,
     tx: Arc<std::sync::Mutex<UnboundedSender<SSEMessage<String>>>>,
     msg_type: &str,
