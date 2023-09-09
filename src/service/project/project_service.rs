@@ -491,7 +491,7 @@ pub async fn get_comp_log_stream(
     );
     let mut cmd = Command::new("tail")
         .arg("-n")
-        .arg("+1")
+        .arg("+0")
         .arg("-f")
         .arg(file_path)
         .stdout(Stdio::piped())

@@ -25,3 +25,24 @@ curl -N -H "Accept: text/event-stream" -H "Host: tex.poemhub.top" -H "content-ty
 ```
 curl http://localhost:8000/tex/project/temp/code
 ```
+
+#### 请求SSE编译日志
+
+
+```
+curl 'http://localhost:8000/tex/project/compile/qlog?project_id=c98f73bc869143d084eb38a0fc38a8e7&file_name=main.tex&version_no=f49741af436644e9bed0fd17753c6007' \
+  -H 'Accept: text/event-stream' \
+  -H 'Accept-Language: en,zh-CN;q=0.9,zh;q=0.8,zh-TW;q=0.7,fr;q=0.6' \
+  -H 'Cache-Control: no-cache' \
+  -H 'Connection: keep-alive' \
+  -H 'DNT: 1' \
+  -H 'Referer: https://tex.poemhub.top/editor?pid=c98f73bc869143d084eb38a0fc38a8e7' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36' \
+  -H 'sec-ch-ua: "Chromium";v="116", "Not)A;Brand";v="24", "Google Chrome";v="116"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  --compressed
+```
