@@ -141,10 +141,13 @@ pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> 
 
 pub fn create_file_on_disk(file: &TexFile) {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let file_full_path = format!("{}/{}", base_compile_dir, file.file_path);
+    let file_full_path = format!(
+        "{}/{}/{}",
+        base_compile_dir, file.project_id, file.file_path
+    );
     if file.file_type == 0 {
         create_folder_not_exists(&file_full_path);
-    }else{
+    } else {
         let create_result = create_disk_file(&file_full_path);
         if let Err(e) = create_result {
             error!("create file on disk failed, {}", e);
