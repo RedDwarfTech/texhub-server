@@ -167,15 +167,21 @@ fn create_disk_file(file_path: &str) -> std::io::Result<()> {
 }
 
 pub fn get_file_path(add_req: &TexFileAddReq) -> String {
-    let file_info = get_file_by_fid(&add_req.parent);
-    if file_info.is_none() {
-        return "/".to_owned();
-    }
-    let finfo = file_info.unwrap();
-    if add_req.file_type == 0 {
-        return format!("{}{}/", finfo.file_path.clone(), finfo.name.clone());
-    } else {
-        return finfo.file_path.clone();
+    match get_file_by_fid(&add_req.parent) {
+        None => {
+            if add_req.file_type == 0 {
+                format!("/{}", add_req.name)
+            } else {
+                "/".to_owned()
+            }
+        }
+        Some(finfo) => {
+            if add_req.file_type == 0 {
+                format!("{}{}/", finfo.file_path, add_req.name)
+            } else {
+                finfo.file_path.clone()
+            }
+        }
     }
 }
 
