@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 
 use crate::common::database::get_connection;
 use crate::controller::file::file_controller::FileCodeParams;
@@ -20,6 +20,7 @@ use diesel::{
 use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
+use rust_wheel::common::util::rd_file_util::create_folder_not_exists;
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
@@ -52,7 +53,7 @@ pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::parent.eq(parent_id));
-    let cvs:Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
     match cvs {
         Ok(result) => {
             return result;
@@ -72,7 +73,7 @@ pub fn get_main_file_list(project_id: &String) -> Option<TexFile> {
             .eq(project_id)
             .and(cv_work_table::main_flag.eq(1)),
     );
-    let cvs:Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
     match cvs {
         Ok(result) => {
             return Some(result[0].to_owned());
@@ -133,8 +134,30 @@ pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> 
         .values(&new_file)
         .get_result::<TexFile>(&mut get_connection())
         .expect("failed to add new tex file or folder");
+    create_file_on_disk(&result);
     let resp = box_actix_rest_response(result);
     return resp;
+}
+
+pub fn create_file_on_disk(file: &TexFile) {
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    let file_full_path = format!("{}/{}", base_compile_dir, file.file_path);
+    if file.file_type == 0 {
+        create_folder_not_exists(&file_full_path);
+    }else{
+        let create_result = create_disk_file(&file_full_path);
+        if let Err(e) = create_result {
+            error!("create file on disk failed, {}", e);
+        }
+    }
+}
+
+fn create_disk_file(file_path: &str) -> std::io::Result<()> {
+    if !std::path::Path::new(file_path).exists() {
+        let mut file = File::create(file_path)?;
+        file.write_all(b"")?;
+    }
+    Ok(())
 }
 
 pub fn get_file_path(add_req: &TexFileAddReq) -> String {
