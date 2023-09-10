@@ -32,7 +32,7 @@ use tokio::{
 
 #[derive(serde::Deserialize)]
 pub struct ProjQueryParams {
-    pub tag: String,
+    pub tag: Option<String>,
     pub role_id: Option<i32>,
 }
 
