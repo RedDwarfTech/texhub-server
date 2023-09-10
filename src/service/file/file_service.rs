@@ -20,7 +20,7 @@ use diesel::{
 use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
-use rust_wheel::common::util::rd_file_util::create_folder_not_exists;
+use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
@@ -141,10 +141,13 @@ pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> 
 
 pub fn create_file_on_disk(file: &TexFile) {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let file_full_path = format!(
-        "{}/{}/{}",
-        base_compile_dir, file.project_id, file.file_path
-    );
+    let split_path = &[
+        base_compile_dir,
+        file.project_id.clone(),
+        file.file_path.clone(),
+        file.name.clone(),
+    ];
+    let file_full_path = join_paths(split_path);
     if file.file_type == 0 {
         create_folder_not_exists(&file_full_path);
     } else {
