@@ -177,7 +177,7 @@ pub fn get_file_path(add_req: &TexFileAddReq) -> String {
         }
         Some(finfo) => {
             if add_req.file_type == 0 {
-                format!("{}{}/", finfo.file_path, add_req.name)
+                join_paths(&[finfo.file_path, add_req.name.to_string()])
             } else {
                 finfo.file_path.clone()
             }
