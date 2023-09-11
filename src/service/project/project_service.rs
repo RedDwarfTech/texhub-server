@@ -43,10 +43,9 @@ use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
-use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
@@ -504,42 +503,35 @@ pub async fn get_comp_log_stream(
     let log_stdout = cmd.stdout.take().unwrap();
     let reader = std::io::BufReader::new(log_stdout);
     task::spawn_blocking({
-        let tx: UnboundedSender<SSEMessage<String>> = tx.clone();
         move || {
-            let shared_tx = Arc::new(Mutex::new(tx));
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    let msg_content = format!("{}\n", line.to_owned());
-                    if msg_content.contains("====END====") {
-                        do_msg_send(
-                            &"end".to_string(),
-                            shared_tx.clone(),
-                            &"TEX_COMP_END".to_string(),
-                        );
-                        break;
-                    } else {
-                        do_msg_send(
-                            &msg_content.to_string(),
-                            shared_tx.clone(),
-                            &"TEX_COMP_LOG".to_string(),
-                        );
-                    }
-                }
-            }
-            drop(shared_tx);
+            comp_log_file_read(reader, &tx);
+            drop(tx);
         }
     });
     Ok("".to_owned())
 }
 
-pub fn do_msg_send(
-    line: &String,
-    tx: Arc<std::sync::Mutex<UnboundedSender<SSEMessage<String>>>>,
-    msg_type: &str,
+pub fn comp_log_file_read(
+    reader: BufReader<ChildStdout>,
+    tx: &UnboundedSender<SSEMessage<String>>,
 ) {
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            let msg_content = format!("{}\n", line.to_owned());
+            if msg_content.contains("====END====") {
+                do_msg_send_sync(&"end".to_string(), &tx, &"TEX_COMP_END".to_string());
+                break;
+            } else {
+                do_msg_send_sync(&msg_content.to_string(), &tx, &"TEX_COMP_LOG".to_string());
+            }
+        }
+    }
+}
+
+pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {
     let sse_msg: SSEMessage<String> =
         SSEMessage::from_data(line.to_string(), &msg_type.to_string());
-    let send_result = tx.lock().unwrap().send(sse_msg);
+    let send_result = tx.send(sse_msg);
     match send_result {
         Ok(_) => {}
         Err(e) => {
