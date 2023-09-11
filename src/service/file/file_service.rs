@@ -29,7 +29,9 @@ use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
-    let cached_file = sync_get_str(&filter_id).unwrap();
+    let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
+    let file_cached_key = format!("{}:{}",file_cached_key_prev,&filter_id);
+    let cached_file = sync_get_str(&file_cached_key).unwrap();
     if cached_file.is_some() {
         let tf: TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
         return Some(tf);
@@ -45,7 +47,7 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_json = serde_json::to_string(file).unwrap();
     let one_day = Duration::days(1);
     let seconds_in_one_day = one_day.num_seconds();
-    set_value(&filter_id, &file_json, seconds_in_one_day as usize).unwrap();
+    set_value(&file_cached_key, &file_json, seconds_in_one_day as usize).unwrap();
     return Some(file.to_owned());
 }
 
