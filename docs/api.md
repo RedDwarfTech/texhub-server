@@ -1,6 +1,6 @@
+### 项目
 
-
-### 请求编译项目
+#### 请求编译项目
 
 ```bash
 # 直接请求渲染器
@@ -46,3 +46,13 @@ curl 'http://localhost:8000/tex/project/compile/qlog?project_id=c98f73bc869143d0
   -H 'sec-ch-ua-platform: "macOS"' \
   --compressed
 ```
+
+#### 初始化模版内容到yjs
+
+
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"docId": "12345", "projectId": "67890", "initContext": "Hello"}' http://localhost:3000/y-websocket/file/initial
+```
+
+
+

@@ -16,6 +16,7 @@ use crate::model::request::project::tex_compile_queue_status::TexCompileQueueSta
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
+use crate::net::y_websocket_client::initial_file_request;
 use crate::service::file::file_service::get_main_file_list;
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
@@ -43,7 +44,7 @@ use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
@@ -128,7 +129,9 @@ pub async fn create_empty_project(
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection
-        .transaction(|connection| do_create_proj_trans(proj_name, &user_info, connection));
+        .transaction(|connection| {
+            do_create_proj_trans(proj_name, &user_info, connection)
+        });
     return trans_result;
 }
 
@@ -146,8 +149,11 @@ fn do_create_proj_trans(
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
-        Ok(_) => {
-            create_main_file_on_disk(&proj.project_id);
+        Ok(file) => {
+            let file_create_proj_id = proj.project_id.clone();
+            task::spawn(async move {
+                create_main_file_on_disk(&file_create_proj_id, &file.file_id).await;
+            });
             let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
             match editor_result {
                 Ok(_) => {}
@@ -177,22 +183,14 @@ fn create_proj_editor(
     return result;
 }
 
-fn create_main_file_on_disk(project_id: &String) {
+async fn create_main_file_on_disk(project_id: &String, file_id: &String) {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let file_folder = format!("{}/{}", base_compile_dir, project_id);
     match create_directory_if_not_exists(&file_folder) {
         Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
     }
-    if let Ok(mut file) = File::create(format!("{}/{}", &file_folder, "main.tex")) {
-        if let Err(we) = file.write_all(
-            b"\\documentclass{article}\n\n\\begin{document}\nHello, World!\n\\end{document}\n",
-        ) {
-            error!("write content failed, {}", we);
-        }
-    } else {
-        error!("create file failed");
-    }
+    initial_file_request(project_id, file_id).await;
 }
 
 fn create_directory_if_not_exists(path: &str) -> io::Result<()> {
