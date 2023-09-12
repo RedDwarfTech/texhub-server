@@ -15,7 +15,7 @@ pub async fn initial_file_request(proj_id: &String, file_id: &String) {
     let initial_req: FileInitialReq = FileInitialReq {
         project_id: proj_id.to_string(),
         doc_id: file_id.to_string(),
-        file_content: "hello world".to_string(),
+        file_content: "\\documentclass{article}\n\n\\begin{document}\nHello, World!\n\\end{document}".to_string(),
     };
     let response = client
         .post(url)
