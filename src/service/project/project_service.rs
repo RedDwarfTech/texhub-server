@@ -1,5 +1,4 @@
 use crate::common::proj::proj_util::get_proj_compile_req;
-use crate::controller::project::project_controller::{EditPrjReq, GetPrjParams, ProjQueryParams};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
@@ -7,6 +6,9 @@ use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject};
+use crate::model::request::project::edit::edit_proj_req::EditProjReq;
+use crate::model::request::project::query::get_proj_params::GetProjParams;
+use crate::model::request::project::query::proj_query_params::ProjQueryParams;
 use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
@@ -111,7 +113,7 @@ pub fn get_prj_by_id(proj_id: &String) -> TexProject {
     return cvs[0].clone();
 }
 
-pub fn edit_proj(edit_req: &EditPrjReq) -> TexProject {
+pub fn edit_proj(edit_req: &EditProjReq) -> TexProject {
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let predicate = crate::model::diesel::tex::tex_schema::tex_project::project_id
         .eq(edit_req.project_id.clone());
@@ -451,7 +453,7 @@ pub fn get_compiled_log(req: &TexCompileQueueLog) -> String {
     return contents;
 }
 
-pub async fn get_project_pdf(params: &GetPrjParams) -> String {
+pub async fn get_project_pdf(params: &GetProjParams) -> String {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let prj_dir = format!("{}/{}", base_compile_dir, params.project_id);
     if !fs::metadata(&prj_dir).is_ok() {

@@ -2,7 +2,7 @@ use crate::{
     model::{
         request::project::{
             tex_compile_project_req::TexCompileProjectReq, tex_del_project_req::TexDelProjectReq,
-            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq, queue::queue_status_req::QueueStatusReq, tex_compile_queue_status::TexCompileQueueStatus, tex_compile_queue_log::TexCompileQueueLog,
+            tex_join_project_req::TexJoinProjectReq, tex_project_req::TexProjectReq, tex_compile_queue_req::TexCompileQueueReq, queue::queue_status_req::QueueStatusReq, tex_compile_queue_status::TexCompileQueueStatus, tex_compile_queue_log::TexCompileQueueLog, query::{proj_query_params::ProjQueryParams, get_proj_params::GetProjParams}, edit::edit_proj_req::EditProjReq,
         },
         response::project::latest_compile::LatestCompile,
     },
@@ -30,23 +30,6 @@ use tokio::{
     task,
 };
 
-#[derive(serde::Deserialize)]
-pub struct ProjQueryParams {
-    pub tag: Option<String>,
-    pub role_id: Option<i32>,
-}
-
-#[derive(serde::Deserialize)]
-pub struct GetPrjParams {
-    pub project_id: String,
-}
-
-#[derive(serde::Deserialize)]
-pub struct EditPrjReq {
-    pub project_id: String,
-    pub proj_name: String,
-}
-
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
     login_user_info: LoginUserInfo,
@@ -59,7 +42,7 @@ pub async fn get_projects(
     HttpResponse::Ok().json(res)
 }
 
-pub async fn get_project(params: web::Query<GetPrjParams>) -> impl Responder {
+pub async fn get_project(params: web::Query<GetProjParams>) -> impl Responder {
     let prj = get_prj_by_id(&params.project_id);
     let res = ApiResponse {
         result: prj,
@@ -68,7 +51,7 @@ pub async fn get_project(params: web::Query<GetPrjParams>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn edit_project(params: web::Json<EditPrjReq>) -> impl Responder {
+pub async fn edit_project(params: web::Json<EditProjReq>) -> impl Responder {
     let prj = edit_proj(&params);
     let res = ApiResponse {
         result: prj,
@@ -156,7 +139,7 @@ pub async fn update_compile_status(
     return compile_status_update(&form.0).await;
 }
 
-pub async fn get_latest_pdf(params: web::Query<GetPrjParams>) -> impl Responder {
+pub async fn get_latest_pdf(params: web::Query<GetProjParams>) -> impl Responder {
     let version_no = get_project_pdf(&params.0).await;
     let pdf_result: LatestCompile = LatestCompile {
         path: version_no,
