@@ -19,7 +19,7 @@ use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
-use crate::service::file::file_service::get_main_file_list;
+use crate::service::file::file_service::{get_main_file_list, get_file_tree};
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -365,10 +365,10 @@ pub async fn add_compile_to_queue(
     if !queue_list.is_empty() {
         // return box_error_actix_rest_response("", "QUEUE_BUSY".to_string(),"queue busy".to_string());
     }
-    let new_proj = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
+    let new_compile = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
     let queue_result = diesel::insert_into(tex_comp_queue)
-        .values(&new_proj)
+        .values(&new_compile)
         .get_result::<TexCompQueue>(&mut connection);
     if let Err(e) = queue_result {
         error!("add compile queue failed, error info:{}", e);
@@ -616,7 +616,8 @@ pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
     if cached_proj_info.is_none() {
         let proj = get_prj_by_id(proj_id);
         let file = get_main_file_list(proj_id);
-        let proj_info = TexProjectCache::from_db(&proj, file.unwrap());
+        let file_tree = get_file_tree(proj_id);
+        let proj_info = TexProjectCache::from_db(&proj, file.unwrap(), file_tree);
         let proj_cached_json = serde_json::to_string(&proj_info).unwrap();
         let cache_result = set_value(&cache_key.as_str(), &proj_cached_json.as_str(), 86400);
         if let Err(e) = cache_result {

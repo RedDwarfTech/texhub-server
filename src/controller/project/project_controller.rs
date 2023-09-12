@@ -8,8 +8,8 @@ use crate::{
     },
     service::project::project_service::{
             add_compile_to_queue, compile_project, create_empty_project, del_project, edit_proj,
-            get_compiled_log, get_prj_by_id, get_proj_by_type, get_project_pdf, join_project,
-            send_render_req, get_cached_queue_status, compile_status_update, get_comp_log_stream,
+            get_compiled_log, get_proj_by_type, get_project_pdf, join_project,
+            send_render_req, get_cached_queue_status, compile_status_update, get_comp_log_stream, get_cached_proj_info,
         },
 };
 use actix_web::{
@@ -43,12 +43,8 @@ pub async fn get_projects(
 }
 
 pub async fn get_project(params: web::Query<GetProjParams>) -> impl Responder {
-    let prj = get_prj_by_id(&params.project_id);
-    let res = ApiResponse {
-        result: prj,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    let proj = get_cached_proj_info(&params.project_id).await;
+    return box_actix_rest_response(proj.unwrap());
 }
 
 pub async fn edit_project(params: web::Json<EditProjReq>) -> impl Responder {
@@ -216,6 +212,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_projects))
+            .route("/info", web::get().to(get_project))
             .route("/add", web::post().to(create_project))
             .route("/del", web::delete().to(del_proj))
             .route("/pdf", web::get().to(get_latest_pdf))

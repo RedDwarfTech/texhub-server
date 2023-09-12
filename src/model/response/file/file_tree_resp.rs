@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::model::diesel::tex::custom_tex_models::TexFile;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct FileTreeResp {
     pub id: i64,
