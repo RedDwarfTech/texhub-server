@@ -22,6 +22,8 @@ pub struct TexFileAdd {
     pub file_id: String,
     pub parent: String,
     pub main_flag: i16,
+    pub sort: i32,
+    pub yjs_initial: i16,
     pub file_path: String
 }
 
@@ -41,6 +43,8 @@ impl TexFileAdd {
             parent: prj_id.to_string(),
             main_flag: 1,
             file_path: "/".to_owned(),
+            sort: 0,
+            yjs_initial: 0,
         }
     }
 
@@ -58,7 +62,9 @@ impl TexFileAdd {
             file_id: uuid_string,
             parent: add_file.parent.clone(),
             main_flag: 0,
-            file_path: f_path.to_string()
+            file_path: f_path.to_string(),
+            sort: 0,
+            yjs_initial: 0,
         }
     }
 }

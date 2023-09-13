@@ -5,8 +5,9 @@ use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueu
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
-use crate::model::diesel::tex;
-use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject, TexTemplate};
+use crate::model::diesel::tex::custom_tex_models::{
+    TexCompQueue, TexProjEditor, TexProject, TexTemplate,
+};
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::query::get_proj_params::GetProjParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
@@ -20,7 +21,7 @@ use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
-use crate::service::file::file_service::{get_main_file_list, get_file_tree};
+use crate::service::file::file_service::{get_file_tree, get_main_file_list};
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -34,8 +35,8 @@ use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
-use rust_wheel::common::util::rd_file_util::get_filename_without_ext;
 use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
+use rust_wheel::common::util::rd_file_util::{get_filename_without_ext, join_paths};
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
@@ -132,9 +133,7 @@ pub async fn create_empty_project(
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection
-        .transaction(|connection| {
-            do_create_proj_trans(proj_name, &user_info, connection)
-        });
+        .transaction(|connection| do_create_proj_trans(proj_name, &user_info, connection));
     return trans_result;
 }
 
@@ -145,9 +144,7 @@ pub async fn create_tpl_project(
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection
-        .transaction(|connection| {
-            do_create_tpl_proj_trans(&tex_tpl.name, &user_info, connection)
-        });
+        .transaction(|connection| do_create_tpl_proj_trans(&tex_tpl, &user_info, connection));
     return trans_result;
 }
 
@@ -186,45 +183,128 @@ fn do_create_proj_trans(
 }
 
 fn do_create_tpl_proj_trans(
-    proj_name: &String,
+    tpl: &TexTemplate,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
 ) -> Result<TexProject, Error> {
-    let create_result = create_proj(proj_name, connection, rd_user_info);
+    let create_result = create_proj(&tpl.name, connection, rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let result = create_main_file(&proj.project_id, connection, &uid);
-    match result {
-        Ok(file) => {
-            let file_create_proj_id = proj.project_id.clone();
-            task::spawn(async move {
-                create_main_file_on_disk(&file_create_proj_id, &file.file_id).await;
-            });
-            let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
-            match editor_result {
-                Ok(_) => {}
-                Err(error) => {
-                    error!("create editor error: {}", error);
-                }
-            }
-        }
-        Err(e) => {
-            error!("create file failed,{}", e)
+    let file_create_proj_id = proj.project_id.clone();
+    create_proj_files(&tpl.template_id, &file_create_proj_id, connection, &uid);
+    let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
+    match editor_result {
+        Ok(_) => {}
+        Err(error) => {
+            error!("create editor error: {}", error);
         }
     }
     return Ok(proj);
 }
 
-pub async fn create_proj_files(){
-
+pub fn create_proj_files(tpl_id: &i64, proj_id: &String, connection: &mut PgConnection, uid: &i64) {
+    let tpl_base_files_dir = get_app_config("texhub.compile_base_dir");
+    let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl_id.to_string()]);
+    let proj_base_dir = get_app_config("texhub.compile_base_dir");
+    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_string()]);
+    let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
+    if let Err(e) = result {
+        error!("copy file failed,{}", e);
+    }
+    create_files_into_db(connection, &proj_dir, proj_id, uid);
 }
 
-pub async fn init_project_into_yjs(){
+fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
+    if !fs::metadata(src)?.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{} is not a directory", src),
+        ));
+    }
 
+    if fs::metadata(dst).is_err() {
+        fs::create_dir(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_name = entry.file_name();
+
+        if path.is_file() {
+            let dst_file = format!("{}/{}", dst, file_name.to_str().unwrap());
+            fs::copy(&path, &dst_file)?;
+        } else if path.is_dir() {
+            let dst_dir = format!("{}/{}", dst, file_name.to_str().unwrap());
+            copy_dir_recursive(&path.to_str().unwrap(), &dst_dir)?;
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn init_project_into_yjs() {}
+
+pub fn create_files_into_db(
+    connection: &mut PgConnection,
+    project_path: &String,
+    proj_id: &String,
+    uid: &i64
+) {
+    let mut files: Vec<TexFileAdd> = Vec::new();
+    let read_result = read_directory(project_path, proj_id, &mut files, uid);
+    if let Err(err) = read_result { 
+        error!("read directory failed,{}",err);
+        return;
+    }
+    use crate::model::diesel::tex::tex_schema::tex_file as files_table;
+    let result = diesel::insert_into(files_table::dsl::tex_file)
+        .values(&files)
+        .get_result::<TexFile>(connection);
+    if let Err(err) = result {
+        error!("write files into db facing issue,{}", err);
+    }
+}
+
+fn read_directory(dir_path: &str, parent: &str, files: &mut Vec<TexFileAdd>, uid: &i64) -> io::Result<()> {
+    for entry in fs::read_dir(dir_path)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_name = entry.file_name();
+
+        if path.is_file() {
+            // 处理文件
+            let tex_file = TexFileAdd {
+                name: file_name.to_string_lossy().into_owned(),
+                created_time: 0,            // 设置创建时间
+                updated_time: 0,            // 设置更新时间
+                user_id: uid.to_owned(),                 // 设置用户ID
+                doc_status: 0,              // 设置文档状态
+                project_id: "".to_string(), // 设置项目ID
+                file_type: 0,               // 设置文件类型
+                file_id: "".to_string(),    // 设置文件ID
+                parent: parent.to_string(), // 设置父级目录
+                main_flag: 0,               // 设置主标志
+                yjs_initial: 0,
+                file_path: path.to_string_lossy().into_owned(),
+                sort: 0,
+            };
+
+            // 将 `tex_file` 存储到数据库中
+            files.push(tex_file)
+        } else if path.is_dir() {
+            // 处理子目录
+            let dir_name = file_name.to_string_lossy().into_owned();
+            let next_parent = format!("{}/{}", parent, dir_name);
+            read_directory(path.to_str().unwrap(), &next_parent, files, uid)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn create_proj_editor(
