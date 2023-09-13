@@ -5,7 +5,8 @@ use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueu
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
-use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject};
+use crate::model::diesel::tex;
+use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor, TexProject, TexTemplate};
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::query::get_proj_params::GetProjParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
@@ -137,6 +138,19 @@ pub async fn create_empty_project(
     return trans_result;
 }
 
+pub async fn create_tpl_project(
+    tex_tpl: &TexTemplate,
+    login_user_info: &LoginUserInfo,
+) -> Result<TexProject, Error> {
+    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let mut connection = get_connection();
+    let trans_result = connection
+        .transaction(|connection| {
+            do_create_tpl_proj_trans(&tex_tpl.name, &user_info, connection)
+        });
+    return trans_result;
+}
+
 fn do_create_proj_trans(
     proj_name: &String,
     rd_user_info: &RdUserInfo,
@@ -169,6 +183,48 @@ fn do_create_proj_trans(
         }
     }
     return Ok(proj);
+}
+
+fn do_create_tpl_proj_trans(
+    proj_name: &String,
+    rd_user_info: &RdUserInfo,
+    connection: &mut PgConnection,
+) -> Result<TexProject, Error> {
+    let create_result = create_proj(proj_name, connection, rd_user_info);
+    if let Err(ce) = create_result {
+        error!("Failed to create proj: {}", ce);
+        return Err(ce);
+    }
+    let proj = create_result.unwrap();
+    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let result = create_main_file(&proj.project_id, connection, &uid);
+    match result {
+        Ok(file) => {
+            let file_create_proj_id = proj.project_id.clone();
+            task::spawn(async move {
+                create_main_file_on_disk(&file_create_proj_id, &file.file_id).await;
+            });
+            let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
+            match editor_result {
+                Ok(_) => {}
+                Err(error) => {
+                    error!("create editor error: {}", error);
+                }
+            }
+        }
+        Err(e) => {
+            error!("create file failed,{}", e)
+        }
+    }
+    return Ok(proj);
+}
+
+pub async fn create_proj_files(){
+
+}
+
+pub async fn init_project_into_yjs(){
+
 }
 
 fn create_proj_editor(

@@ -8,3 +8,4 @@ pub mod tex_compile_queue_status;
 pub mod tex_compile_queue_log;
 pub mod query;
 pub mod edit;
+pub mod add;
