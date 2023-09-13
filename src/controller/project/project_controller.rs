@@ -15,11 +15,15 @@ use crate::{
         },
         response::project::latest_compile::LatestCompile,
     },
-    service::{project::project_service::{
-        add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
-        del_project, edit_proj, get_cached_proj_info, get_cached_queue_status, get_comp_log_stream,
-        get_compiled_log, get_proj_by_type, get_project_pdf, join_project, send_render_req, create_tpl_project,
-    }, tpl::template_service::get_tempalte_by_id},
+    service::{
+        project::project_service::{
+            add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
+            create_tpl_project, del_project, edit_proj, get_cached_proj_info,
+            get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_proj_by_type,
+            get_project_pdf, join_project, send_render_req,
+        },
+        tpl::template_service::get_tempalte_by_id,
+    },
 };
 use actix_web::{
     http::header::{CacheControl, CacheDirective},
@@ -30,7 +34,7 @@ use log::error;
 use rust_wheel::{
     common::{
         util::net::{sse_message::SSEMessage, sse_stream::SseStream},
-        wrapper::actix_http_resp::box_actix_rest_response,
+        wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     },
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
@@ -93,24 +97,28 @@ pub async fn create_project(
 pub async fn create_project_by_tpl(
     form: actix_web_validator::Json<TexProjectTplReq>,
     login_user_info: LoginUserInfo,
-) -> impl Responder {
+) -> HttpResponse {
     let tpl = get_tempalte_by_id(&form.0.template_id);
     let projects = create_tpl_project(&tpl, &login_user_info).await;
     match projects {
         Ok(project) => {
-            let res = ApiResponse {
-                result: project,
-                ..Default::default()
-            };
-            HttpResponse::Ok().json(res)
+            if project.is_some() {
+                box_actix_rest_response(project.unwrap())
+            }else{
+                box_error_actix_rest_response(
+                    "failed with none",
+                    "CREATE_TPL_PROJ_FAILED".to_owned(),
+                    "failed".to_owned(),
+                )
+            }
         }
         Err(e) => {
-            let err = format!("create project failed,{}", e);
-            let res = ApiResponse {
-                result: err,
-                ..Default::default()
-            };
-            HttpResponse::Ok().json(res)
+            error!("Error creating project,{}", e);
+            box_error_actix_rest_response(
+                "failed",
+                "CREATE_TPL_PROJ_FAILED".to_owned(),
+                "failed".to_owned(),
+            )
         }
     }
 }

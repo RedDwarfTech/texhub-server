@@ -140,7 +140,7 @@ pub async fn create_empty_project(
 pub async fn create_tpl_project(
     tex_tpl: &TexTemplate,
     login_user_info: &LoginUserInfo,
-) -> Result<TexProject, Error> {
+) -> Result<Option<TexProject>, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection
@@ -186,7 +186,7 @@ fn do_create_tpl_proj_trans(
     tpl: &TexTemplate,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
-) -> Result<TexProject, Error> {
+) -> Result<Option<TexProject>, Error> {
     let create_result = create_proj(&tpl.name, connection, rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
@@ -195,7 +195,10 @@ fn do_create_tpl_proj_trans(
     let proj = create_result.unwrap();
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let file_create_proj_id = proj.project_id.clone();
-    create_proj_files(&tpl.template_id, &file_create_proj_id, connection, &uid);
+    let create_res = create_proj_files(&tpl.template_id, &file_create_proj_id, connection, &uid);
+    if !create_res {
+       return Ok(None); 
+    }
     let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
     match editor_result {
         Ok(_) => {}
@@ -203,10 +206,10 @@ fn do_create_tpl_proj_trans(
             error!("create editor error: {}", error);
         }
     }
-    return Ok(proj);
+    return Ok(Some(proj));
 }
 
-pub fn create_proj_files(tpl_id: &i64, proj_id: &String, connection: &mut PgConnection, uid: &i64) {
+pub fn create_proj_files(tpl_id: &i64, proj_id: &String, connection: &mut PgConnection, uid: &i64) -> bool{
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl_id.to_string()]);
     let proj_base_dir = get_app_config("texhub.compile_base_dir");
@@ -217,9 +220,9 @@ pub fn create_proj_files(tpl_id: &i64, proj_id: &String, connection: &mut PgConn
             "copy file failed,{}, tpl dir: {}, project dir: {}",
             e, tpl_files_dir, proj_dir
         );
-        return;
+        return false;
     }
-    create_files_into_db(connection, &proj_dir, proj_id, uid);
+    return create_files_into_db(connection, &proj_dir, proj_id, uid);
 }
 
 fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
@@ -258,12 +261,12 @@ pub fn create_files_into_db(
     project_path: &String,
     proj_id: &String,
     uid: &i64,
-) {
+) -> bool {
     let mut files: Vec<TexFileAdd> = Vec::new();
     let read_result = read_directory(project_path, proj_id, &mut files, uid);
     if let Err(err) = read_result {
         error!("read directory failed,{}", err);
-        return;
+        return false;
     }
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
     let result = diesel::insert_into(files_table::dsl::tex_file)
@@ -271,7 +274,9 @@ pub fn create_files_into_db(
         .get_result::<TexFile>(connection);
     if let Err(err) = result {
         error!("write files into db facing issue,{}", err);
+        return false;
     }
+    return true;
 }
 
 fn read_directory(
