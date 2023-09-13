@@ -46,6 +46,7 @@ use rust_wheel::config::cache::redis_util::{get_str_default, push_to_stream, set
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
+use uuid::Uuid;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
@@ -263,7 +264,7 @@ pub fn create_files_into_db(
     uid: &i64,
 ) -> bool {
     let mut files: Vec<TexFileAdd> = Vec::new();
-    let read_result = read_directory(project_path, proj_id, &mut files, uid);
+    let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id);
     if let Err(err) = read_result {
         error!("read directory failed,{}", err);
         return false;
@@ -284,6 +285,7 @@ fn read_directory(
     parent: &str,
     files: &mut Vec<TexFileAdd>,
     uid: &i64,
+    proj_id: &String,
 ) -> io::Result<()> {
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
@@ -291,16 +293,17 @@ fn read_directory(
         let file_name = entry.file_name();
 
         if path.is_file() {
-            // 处理文件
+            let uuid = Uuid::new_v4();
+            let uuid_string = uuid.to_string().replace("-", "");
             let tex_file = TexFileAdd {
                 name: file_name.to_string_lossy().into_owned(),
                 created_time: 0,            // 设置创建时间
                 updated_time: 0,            // 设置更新时间
                 user_id: uid.to_owned(),    // 设置用户ID
                 doc_status: 0,              // 设置文档状态
-                project_id: "".to_string(), // 设置项目ID
+                project_id: proj_id.to_string(), // 设置项目ID
                 file_type: 0,               // 设置文件类型
-                file_id: "".to_string(),    // 设置文件ID
+                file_id: uuid_string,    // 设置文件ID
                 parent: parent.to_string(), // 设置父级目录
                 main_flag: 0,               // 设置主标志
                 yjs_initial: 0,
@@ -314,7 +317,7 @@ fn read_directory(
             // 处理子目录
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", parent, dir_name);
-            read_directory(path.to_str().unwrap(), &next_parent, files, uid)?;
+            read_directory(path.to_str().unwrap(), &next_parent, files, uid, proj_id)?;
         }
     }
 
