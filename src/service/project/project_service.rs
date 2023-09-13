@@ -207,13 +207,17 @@ fn do_create_tpl_proj_trans(
 }
 
 pub fn create_proj_files(tpl_id: &i64, proj_id: &String, connection: &mut PgConnection, uid: &i64) {
-    let tpl_base_files_dir = get_app_config("texhub.compile_base_dir");
+    let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl_id.to_string()]);
     let proj_base_dir = get_app_config("texhub.compile_base_dir");
     let proj_dir = join_paths(&[proj_base_dir, proj_id.to_string()]);
     let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
     if let Err(e) = result {
-        error!("copy file failed,{}", e);
+        error!(
+            "copy file failed,{}, tpl dir: {}, project dir: {}",
+            e, tpl_files_dir, proj_dir
+        );
+        return;
     }
     create_files_into_db(connection, &proj_dir, proj_id, uid);
 }
@@ -253,12 +257,12 @@ pub fn create_files_into_db(
     connection: &mut PgConnection,
     project_path: &String,
     proj_id: &String,
-    uid: &i64
+    uid: &i64,
 ) {
     let mut files: Vec<TexFileAdd> = Vec::new();
     let read_result = read_directory(project_path, proj_id, &mut files, uid);
-    if let Err(err) = read_result { 
-        error!("read directory failed,{}",err);
+    if let Err(err) = read_result {
+        error!("read directory failed,{}", err);
         return;
     }
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
@@ -270,7 +274,12 @@ pub fn create_files_into_db(
     }
 }
 
-fn read_directory(dir_path: &str, parent: &str, files: &mut Vec<TexFileAdd>, uid: &i64) -> io::Result<()> {
+fn read_directory(
+    dir_path: &str,
+    parent: &str,
+    files: &mut Vec<TexFileAdd>,
+    uid: &i64,
+) -> io::Result<()> {
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
         let path = entry.path();
@@ -282,7 +291,7 @@ fn read_directory(dir_path: &str, parent: &str, files: &mut Vec<TexFileAdd>, uid
                 name: file_name.to_string_lossy().into_owned(),
                 created_time: 0,            // 设置创建时间
                 updated_time: 0,            // 设置更新时间
-                user_id: uid.to_owned(),                 // 设置用户ID
+                user_id: uid.to_owned(),    // 设置用户ID
                 doc_status: 0,              // 设置文档状态
                 project_id: "".to_string(), // 设置项目ID
                 file_type: 0,               // 设置文件类型
