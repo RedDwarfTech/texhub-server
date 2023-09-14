@@ -582,12 +582,15 @@ pub async fn add_compile_to_queue(
     }
     let proj_cache = get_cached_proj_info(&params.project_id).await;
     let main_file_name = proj_cache.unwrap().main_file.name;
+    let log_file_name = format!("{}{}", get_filename_without_ext(&main_file_name), ".log");
+    let proj_base_dir = get_app_config("texhub.compile_base_dir");
     let stream_key = get_app_config("texhub.compile_stream_redis_key");
-    let file_path = format!(
-        "/opt/data/project/{}/{}",
-        &params.project_id, &main_file_name
-    );
-    let out_path = format!("/opt/data/project/{}", &params.project_id);
+    let file_path = join_paths(&[
+        proj_base_dir.clone(),
+        params.project_id.clone(),
+        main_file_name.clone(),
+    ]);
+    let out_path = join_paths(&[proj_base_dir, params.project_id.clone()]);
     let rt = get_current_millisecond().to_string();
     let qid = queue_result.as_ref().unwrap().id.to_string();
     let s_params = [
@@ -600,6 +603,7 @@ pub async fn add_compile_to_queue(
             "version_no",
             queue_result.as_ref().unwrap().version_no.as_str(),
         ),
+        ("log_file_name", log_file_name.as_str()),
     ];
     let p_result = push_to_stream(&stream_key.as_str(), &s_params);
     if let Err(pe) = p_result {
