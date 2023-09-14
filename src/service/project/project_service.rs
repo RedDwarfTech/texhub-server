@@ -325,7 +325,8 @@ fn read_directory(
         let entry = entry?;
         let path = entry.path();
         let file_name = entry.file_name();
-        let relative_path = path.strip_prefix(dir_path);
+        let relative_path = path.parent().unwrap().strip_prefix(dir_path);
+        let stored_path = relative_path.unwrap().to_string_lossy().into_owned();
 
         if path.is_file() {
             let uuid = Uuid::new_v4();
@@ -346,7 +347,11 @@ fn read_directory(
                     0
                 },
                 yjs_initial: 0,
-                file_path: relative_path.unwrap().to_string_lossy().into_owned(),
+                file_path: if stored_path.is_empty() {
+                    "/".to_string()
+                } else {
+                    stored_path
+                },
                 sort: 0,
             };
             files.push(tex_file)
