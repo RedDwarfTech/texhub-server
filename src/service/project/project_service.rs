@@ -304,7 +304,7 @@ fn read_directory(
                 user_id: uid.to_owned(),    
                 doc_status: 1,              
                 project_id: proj_id.to_string(),
-                file_type: 0,               
+                file_type: 1,               
                 file_id: uuid_string,   
                 parent: parent.to_string(), 
                 main_flag: if file_name.to_string_lossy().into_owned() == tpl.main_file_name {1} else {0}, 
