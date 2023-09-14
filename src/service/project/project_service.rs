@@ -46,7 +46,6 @@ use rust_wheel::config::cache::redis_util::{get_str_default, push_to_stream, set
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
-use uuid::Uuid;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
@@ -55,6 +54,7 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+use uuid::Uuid;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -198,7 +198,7 @@ fn do_create_tpl_proj_trans(
     let file_create_proj_id = proj.project_id.clone();
     let create_res = create_proj_files(tpl, &file_create_proj_id, connection, &uid);
     if !create_res {
-       return Ok(None); 
+        return Ok(None);
     }
     let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
     match editor_result {
@@ -210,7 +210,14 @@ fn do_create_tpl_proj_trans(
     return Ok(Some(proj));
 }
 
-pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, connection: &mut PgConnection, uid: &i64) -> bool{
+pub fn initial_collar_editor() {}
+
+pub fn create_proj_files(
+    tpl: &TexTemplate,
+    proj_id: &String,
+    connection: &mut PgConnection,
+    uid: &i64,
+) -> bool {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
     let proj_base_dir = get_app_config("texhub.compile_base_dir");
@@ -255,7 +262,13 @@ fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub async fn init_project_into_yjs() {}
+pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
+    for file in files {
+        if file.file_type == 1 {
+            initial_file_request(&file.project_id, &file.file_id).await;
+        }
+    }
+}
 
 pub fn create_files_into_db(
     connection: &mut PgConnection,
@@ -278,6 +291,12 @@ pub fn create_files_into_db(
         error!("write files into db facing issue,{}", err);
         return false;
     }
+    task::spawn_blocking({
+        move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(init_project_into_yjs(&files));
+        }
+    });
     return true;
 }
 
@@ -301,25 +320,33 @@ fn read_directory(
                 name: file_name.to_string_lossy().into_owned(),
                 created_time: get_current_millisecond(),
                 updated_time: get_current_millisecond(),
-                user_id: uid.to_owned(),    
-                doc_status: 1,              
+                user_id: uid.to_owned(),
+                doc_status: 1,
                 project_id: proj_id.to_string(),
-                file_type: 1,               
-                file_id: uuid_string,   
-                parent: parent.to_string(), 
-                main_flag: if file_name.to_string_lossy().into_owned() == tpl.main_file_name {1} else {0}, 
+                file_type: 1,
+                file_id: uuid_string,
+                parent: parent.to_string(),
+                main_flag: if file_name.to_string_lossy().into_owned() == tpl.main_file_name {
+                    1
+                } else {
+                    0
+                },
                 yjs_initial: 0,
                 file_path: path.to_string_lossy().into_owned(),
                 sort: 0,
             };
-
-            // 将 `tex_file` 存储到数据库中
             files.push(tex_file)
         } else if path.is_dir() {
-            // 处理子目录
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", parent, dir_name);
-            read_directory(path.to_str().unwrap(), &next_parent, files, uid, proj_id, tpl)?;
+            read_directory(
+                path.to_str().unwrap(),
+                &next_parent,
+                files,
+                uid,
+                proj_id,
+                tpl,
+            )?;
         }
     }
 
