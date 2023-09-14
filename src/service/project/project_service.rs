@@ -210,8 +210,6 @@ fn do_create_tpl_proj_trans(
     return Ok(Some(proj));
 }
 
-pub fn initial_collar_editor() {}
-
 pub fn create_proj_files(
     tpl: &TexTemplate,
     proj_id: &String,
@@ -327,6 +325,7 @@ fn read_directory(
         let entry = entry?;
         let path = entry.path();
         let file_name = entry.file_name();
+        let relative_path = path.strip_prefix(dir_path);
 
         if path.is_file() {
             let uuid = Uuid::new_v4();
@@ -347,7 +346,7 @@ fn read_directory(
                     0
                 },
                 yjs_initial: 0,
-                file_path: path.to_string_lossy().into_owned(),
+                file_path: relative_path.unwrap().to_string_lossy().into_owned(),
                 sort: 0,
             };
             files.push(tex_file)
