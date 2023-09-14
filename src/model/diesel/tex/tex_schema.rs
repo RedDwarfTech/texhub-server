@@ -76,6 +76,7 @@ table! {
         intro -> Varchar,
         template_type -> Int4,
         pdf_name -> Varchar,
+        main_file_name -> Varchar,
     }
 }
 

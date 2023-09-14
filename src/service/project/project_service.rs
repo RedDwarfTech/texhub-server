@@ -196,7 +196,7 @@ fn do_create_tpl_proj_trans(
     let proj = create_result.unwrap();
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let file_create_proj_id = proj.project_id.clone();
-    let create_res = create_proj_files(&tpl.template_id, &file_create_proj_id, connection, &uid);
+    let create_res = create_proj_files(tpl, &file_create_proj_id, connection, &uid);
     if !create_res {
        return Ok(None); 
     }
@@ -210,9 +210,9 @@ fn do_create_tpl_proj_trans(
     return Ok(Some(proj));
 }
 
-pub fn create_proj_files(tpl_id: &i64, proj_id: &String, connection: &mut PgConnection, uid: &i64) -> bool{
+pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, connection: &mut PgConnection, uid: &i64) -> bool{
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
-    let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl_id.to_string()]);
+    let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
     let proj_base_dir = get_app_config("texhub.compile_base_dir");
     let proj_dir = join_paths(&[proj_base_dir, proj_id.to_string()]);
     let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
@@ -223,7 +223,7 @@ pub fn create_proj_files(tpl_id: &i64, proj_id: &String, connection: &mut PgConn
         );
         return false;
     }
-    return create_files_into_db(connection, &proj_dir, proj_id, uid);
+    return create_files_into_db(connection, &proj_dir, proj_id, uid, tpl);
 }
 
 fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
@@ -262,9 +262,10 @@ pub fn create_files_into_db(
     project_path: &String,
     proj_id: &String,
     uid: &i64,
+    tpl: &TexTemplate,
 ) -> bool {
     let mut files: Vec<TexFileAdd> = Vec::new();
-    let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id);
+    let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, tpl);
     if let Err(err) = read_result {
         error!("read directory failed,{}", err);
         return false;
@@ -286,6 +287,7 @@ fn read_directory(
     files: &mut Vec<TexFileAdd>,
     uid: &i64,
     proj_id: &String,
+    tpl: &TexTemplate,
 ) -> io::Result<()> {
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
@@ -297,15 +299,15 @@ fn read_directory(
             let uuid_string = uuid.to_string().replace("-", "");
             let tex_file = TexFileAdd {
                 name: file_name.to_string_lossy().into_owned(),
-                created_time: 0,            // 设置创建时间
-                updated_time: 0,            // 设置更新时间
-                user_id: uid.to_owned(),    // 设置用户ID
-                doc_status: 0,              // 设置文档状态
-                project_id: proj_id.to_string(), // 设置项目ID
-                file_type: 0,               // 设置文件类型
-                file_id: uuid_string,    // 设置文件ID
-                parent: parent.to_string(), // 设置父级目录
-                main_flag: 0,               // 设置主标志
+                created_time: get_current_millisecond(),
+                updated_time: get_current_millisecond(),
+                user_id: uid.to_owned(),    
+                doc_status: 1,              
+                project_id: proj_id.to_string(),
+                file_type: 0,               
+                file_id: uuid_string,   
+                parent: parent.to_string(), 
+                main_flag: if file_name.to_string_lossy().into_owned() == tpl.main_file_name {1} else {0}, 
                 yjs_initial: 0,
                 file_path: path.to_string_lossy().into_owned(),
                 sort: 0,
@@ -317,7 +319,7 @@ fn read_directory(
             // 处理子目录
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", parent, dir_name);
-            read_directory(path.to_str().unwrap(), &next_parent, files, uid, proj_id)?;
+            read_directory(path.to_str().unwrap(), &next_parent, files, uid, proj_id, tpl)?;
         }
     }
 
