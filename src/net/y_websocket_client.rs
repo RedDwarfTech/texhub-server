@@ -4,7 +4,7 @@ use log::error;
 use reqwest::Client;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
-pub async fn initial_file_request(proj_id: &String, file_id: &String) {
+pub async fn initial_file_request(proj_id: &String, file_id: &String, file_content: &String) {
     let client = Client::new();
     let url_path = format!("{}", "/y-websocket/file/initial");
     let url = format!(
@@ -15,7 +15,7 @@ pub async fn initial_file_request(proj_id: &String, file_id: &String) {
     let initial_req: FileInitialReq = FileInitialReq {
         project_id: proj_id.to_string(),
         doc_id: file_id.to_string(),
-        file_content: "\\documentclass{article}\n\n\\begin{document}\nHello, World!\n\\end{document}".to_string(),
+        file_content: file_content.to_string(),
     };
     let response = client
         .post(url)

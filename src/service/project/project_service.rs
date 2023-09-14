@@ -265,7 +265,22 @@ fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
 pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
     for file in files {
         if file.file_type == 1 {
-            initial_file_request(&file.project_id, &file.file_id).await;
+            let proj_base_dir = get_app_config("texhub.compile_base_dir");
+            let file_full_path = join_paths(&[
+                proj_base_dir,
+                file.project_id.to_owned(),
+                file.file_path.to_owned(),
+                file.name.to_owned(),
+            ]);
+            let file_content = fs::read_to_string(&file_full_path);
+            if let Err(e) = file_content {
+                error!(
+                    "Failed to read file,{}, file full path: {}",
+                    e, file_full_path
+                );
+                return;
+            }
+            initial_file_request(&file.project_id, &file.file_id, &file_content.unwrap()).await;
         }
     }
 }
@@ -374,7 +389,8 @@ async fn create_main_file_on_disk(project_id: &String, file_id: &String) {
         Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
     }
-    initial_file_request(project_id, file_id).await;
+    let default_tex = get_app_config("texhub.default_tex_document");
+    initial_file_request(project_id, file_id, &default_tex).await;
 }
 
 fn create_directory_if_not_exists(path: &str) -> io::Result<()> {
