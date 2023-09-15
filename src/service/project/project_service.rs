@@ -293,6 +293,9 @@ pub fn support_sync(file_full_path: &String) -> bool {
             "cls" => {
                 return true;
             },
+            "bib" => {
+                return true;
+            },
             _ => {
                 return false;
             },
