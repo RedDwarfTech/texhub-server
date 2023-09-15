@@ -1,11 +1,12 @@
 use crate::{
-    model::request::file::{
+    model::{request::file::{
         file_add_req::TexFileAddReq, file_del::TexFileDelReq, file_rename::TexFileRenameReq,
-    },
-    service::file::file_service::{
+        query::file_query_params::FileQueryParams,
+    }, response::file::ws_file_detail::WsFileDetail},
+    service::{file::file_service::{
         create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
         get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl,
-    },
+    }, project::project_service::get_cached_proj_info},
 };
 use actix_web::{web, HttpResponse, Responder};
 use rust_wheel::{
@@ -28,11 +29,6 @@ pub struct FileCodeParams {
     pub file_id: String,
 }
 
-#[derive(serde::Deserialize)]
-pub struct FileQueryParams {
-    file_id: String,
-}
-
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
     let docs = get_file_by_fid(&params.file_id).unwrap();
     let res = ApiResponse {
@@ -40,6 +36,18 @@ pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
+}
+
+pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {
+    let docs = get_file_by_fid(&params.file_id).unwrap();
+    let proj = get_cached_proj_info(&docs.project_id).await;
+    let file_detail = WsFileDetail{ 
+        file_path: docs.file_path, 
+        project_id: docs.project_id, 
+        name: docs.name, 
+        project_created_time: proj.unwrap().main.created_time 
+    };
+    box_actix_rest_response(file_detail)
 }
 
 pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
@@ -112,7 +120,10 @@ pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
     HttpResponse::Ok().json(res)
 }
 
-pub async fn rename_file(form: actix_web_validator::Json<TexFileRenameReq>, login_user_info: LoginUserInfo) -> impl Responder {
+pub async fn rename_file(
+    form: actix_web_validator::Json<TexFileRenameReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
     let db_file = rename_file_impl(&form.0, &login_user_info);
     box_actix_rest_response(db_file)
 }
@@ -128,6 +139,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/code", web::get().to(get_file_code))
             .route("/inited", web::put().to(update_file_init))
             .route("/rename", web::get().to(rename_file))
-            .route("/detail", web::get().to(get_file)),
+            .route("/detail", web::get().to(get_file))
+            .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }
