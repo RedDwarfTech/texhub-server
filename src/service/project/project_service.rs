@@ -259,23 +259,6 @@ fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn is_text(file_path: &str) -> bool {
-    let file = File::open(file_path).expect("Failed to open file");
-    let reader = BufReader::new(file);
-
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            for byte in line.bytes() {
-                if byte.is_ascii_control() && !byte.is_ascii_whitespace() {
-                    return false;
-                }
-            }
-        }
-    }
-
-    true
-}
-
 pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
     let proj_base_dir = get_app_config("texhub.compile_base_dir");
     for file in files {
@@ -285,7 +268,7 @@ pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
             file.file_path.to_owned(),
             file.name.to_owned(),
         ]);
-        if file.file_type == 1 && is_text(file_full_path.as_str()) {
+        if file.file_type == 1 && support_sync(&file_full_path) {
             let file_content = fs::read_to_string(&file_full_path);
             if let Err(e) = file_content {
                 error!(
@@ -296,6 +279,26 @@ pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
             }
             initial_file_request(&file.project_id, &file.file_id, &file_content.unwrap()).await;
         }
+    }
+}
+
+pub fn support_sync(file_full_path: &String) -> bool {
+    let path = Path::new(file_full_path);
+    let extension = path.extension();
+    if let Some(ext) = extension {
+        match ext.to_str().unwrap() {
+            "tex" => {
+                return true;
+            },
+            "cls" => {
+                return true;
+            },
+            _ => {
+                return false;
+            },
+        }
+    } else {
+        return false;
     }
 }
 
