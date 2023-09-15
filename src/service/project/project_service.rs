@@ -607,7 +607,8 @@ pub async fn add_compile_to_queue(
     let proj_cache = get_cached_proj_info(&params.project_id).await;
     let main_file_name = proj_cache.unwrap().main_file.name;
     let log_file_name = format!("{}{}", get_filename_without_ext(&main_file_name), ".log");
-    let proj_base_dir = get_app_config("texhub.compile_base_dir");
+    let compile_base_dir = get_app_config("texhub.compile_base_dir");
+    let proj_base_dir = get_proj_path(&compile_base_dir, proj_cache.unwrap().main.created_time);
     let stream_key = get_app_config("texhub.compile_stream_redis_key");
     let file_path = join_paths(&[
         proj_base_dir.clone(),
