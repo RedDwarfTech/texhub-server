@@ -77,19 +77,11 @@ pub async fn create_project(
     let projects = create_empty_project(&d_name, &login_user_info).await;
     match projects {
         Ok(project) => {
-            let res = ApiResponse {
-                result: project,
-                ..Default::default()
-            };
-            HttpResponse::Ok().json(res)
+            box_actix_rest_response(project)
         }
         Err(e) => {
             let err = format!("create project failed,{}", e);
-            let res = ApiResponse {
-                result: err,
-                ..Default::default()
-            };
-            HttpResponse::Ok().json(res)
+            box_error_actix_rest_response(err.clone(), "CREATE_PROJ_FAILED".to_owned(), err)
         }
     }
 }
@@ -181,11 +173,7 @@ pub async fn get_latest_pdf(params: web::Query<GetProjParams>) -> impl Responder
         path: version_no,
         project_id: params.0.project_id,
     };
-    let res = ApiResponse {
-        result: pdf_result,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(pdf_result)
 }
 
 /**

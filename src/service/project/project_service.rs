@@ -35,7 +35,7 @@ use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
-use rust_wheel::common::util::rd_file_util::{get_filename_without_ext, join_paths};
+use rust_wheel::common::util::rd_file_util::{get_filename_without_ext, join_paths, create_directory_if_not_exists};
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
@@ -45,6 +45,7 @@ use rust_wheel::config::cache::redis_util::{get_str_default, push_to_stream, set
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
+use rust_wheel::texhub::project::get_proj_path;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
@@ -163,9 +164,9 @@ fn do_create_proj_trans(
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
         Ok(file) => {
-            let file_create_proj_id = proj.project_id.clone();
+            let file_create_proj = proj.clone();
             task::spawn(async move {
-                create_main_file_on_disk(&file_create_proj_id, &file.file_id).await;
+                create_main_file_on_disk(&file_create_proj, &file.file_id).await;
             });
             let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
             match editor_result {
@@ -289,19 +290,19 @@ pub fn support_sync(file_full_path: &String) -> bool {
         match ext.to_str().unwrap() {
             "tex" => {
                 return true;
-            },
+            }
             "cls" => {
                 return true;
-            },
+            }
             "bib" => {
                 return true;
-            },
+            }
             "bbl" => {
                 return true;
-            },
+            }
             _ => {
                 return false;
-            },
+            }
         }
     } else {
         return false;
@@ -411,22 +412,16 @@ fn create_proj_editor(
     return result;
 }
 
-async fn create_main_file_on_disk(project_id: &String, file_id: &String) {
+async fn create_main_file_on_disk(proj: &TexProject, file_id: &String) {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let file_folder = format!("{}/{}", base_compile_dir, project_id);
+    let proj_base_dir = get_proj_path(&base_compile_dir, proj.created_time);
+    let file_folder = join_paths(&[proj_base_dir, proj.project_id.clone()]);
     match create_directory_if_not_exists(&file_folder) {
         Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
     }
     let default_tex = get_app_config("texhub.default_tex_document");
-    initial_file_request(project_id, file_id, &default_tex).await;
-}
-
-fn create_directory_if_not_exists(path: &str) -> io::Result<()> {
-    if !fs::metadata(path).is_ok() {
-        fs::create_dir_all(path)?;
-    }
-    Ok(())
+    initial_file_request(&proj.project_id, file_id, &default_tex).await;
 }
 
 fn create_main_file(
@@ -690,12 +685,12 @@ pub fn get_compiled_log(req: &TexCompileQueueLog) -> String {
 
 pub async fn get_project_pdf(params: &GetProjParams) -> String {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let prj_dir = format!("{}/{}", base_compile_dir, params.project_id);
-    if !fs::metadata(&prj_dir).is_ok() {
-        error!("folder did not exists, dir: {}", prj_dir);
+    let proj_dir = join_paths(&[base_compile_dir, params.project_id.clone()]);
+    if !fs::metadata(&proj_dir).is_ok() {
+        error!("folder did not exists, dir: {}", proj_dir);
         return "".to_owned();
     }
-    let subdirectories = fs::read_dir(prj_dir)
+    let subdirectories = fs::read_dir(proj_dir)
         .unwrap()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().unwrap().is_dir())
