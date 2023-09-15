@@ -35,7 +35,6 @@ use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
-use rust_wheel::common::util::rd_file_util::remove_dir_recursive;
 use rust_wheel::common::util::rd_file_util::{get_filename_without_ext, join_paths};
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::common::wrapper::actix_http_resp::{
@@ -260,16 +259,33 @@ fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
     Ok(())
 }
 
+fn is_text(file_path: &str) -> bool {
+    let file = File::open(file_path).expect("Failed to open file");
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            for byte in line.bytes() {
+                if byte.is_ascii_control() && !byte.is_ascii_whitespace() {
+                    return false;
+                }
+            }
+        }
+    }
+
+    true
+}
+
 pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
+    let proj_base_dir = get_app_config("texhub.compile_base_dir");
     for file in files {
-        if file.file_type == 1 {
-            let proj_base_dir = get_app_config("texhub.compile_base_dir");
-            let file_full_path = join_paths(&[
-                proj_base_dir,
-                file.project_id.to_owned(),
-                file.file_path.to_owned(),
-                file.name.to_owned(),
-            ]);
+        let file_full_path = join_paths(&[
+            proj_base_dir.clone(),
+            file.project_id.to_owned(),
+            file.file_path.to_owned(),
+            file.name.to_owned(),
+        ]);
+        if file.file_type == 1 && is_text(file_full_path.as_str()) {
             let file_content = fs::read_to_string(&file_full_path);
             if let Err(e) = file_content {
                 error!(
@@ -477,8 +493,12 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
 
 pub fn del_project_disk_file(proj_id: &String) {
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    if proj_id.is_empty() {
+        error!("delete project id is null");
+        return;
+    }
     let proj_dir = format!("{}/{}", base_compile_dir, proj_id);
-    let result = remove_dir_recursive(Path::new(&proj_dir));
+    let result = fs::remove_dir_all(Path::new(&proj_dir));
     match result {
         Ok(_) => {}
         Err(e) => {
