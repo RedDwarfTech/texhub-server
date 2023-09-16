@@ -33,10 +33,10 @@ use actix_web::{
 use log::error;
 use rust_wheel::{
     common::{
-        util::net::{sse_message::SSEMessage, sse_stream::SseStream},
+        util::{net::{sse_message::SSEMessage, sse_stream::SseStream}, rd_file_util::{join_paths, get_filename_without_ext}},
         wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     },
-    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
+    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo}, texhub::project::get_proj_relative_path,
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -169,8 +169,13 @@ pub async fn update_compile_status(form: web::Json<TexCompileQueueStatus>) -> im
 
 pub async fn get_latest_pdf(params: web::Query<GetProjParams>) -> impl Responder {
     let version_no = get_project_pdf(&params.0).await;
+    let proj_info = get_cached_proj_info(&params.0.project_id).await.unwrap();
+    let ct = proj_info.main.created_time;
+    let main_file = proj_info.main_file;
+    let pdf_name = get_filename_without_ext(&main_file.name);
+    let relative_path = get_proj_relative_path(&params.0.project_id,ct,&version_no);
     let pdf_result: LatestCompile = LatestCompile {
-        path: version_no,
+        path: join_paths(&[relative_path,pdf_name.to_string()]),
         project_id: params.0.project_id,
     };
     box_actix_rest_response(pdf_result)
