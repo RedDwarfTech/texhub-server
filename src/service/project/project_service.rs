@@ -475,8 +475,13 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
                 }
                 if rows == 1 {
                     del_project_file(del_project_id, connection);
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(del_project_disk_file(del_project_id));
+                    let async_proj_id = del_project_id.clone();
+                    task::spawn_blocking({
+                        move || {
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            rt.block_on(del_project_disk_file(&async_proj_id));
+                        }
+                    });
                 }
                 Ok("")
             }
