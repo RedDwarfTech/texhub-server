@@ -1,4 +1,4 @@
-use crate::common::proj::proj_util::get_proj_compile_req;
+use crate::common::proj::proj_util::{get_proj_compile_req, get_proj_base_dir};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
@@ -413,9 +413,7 @@ fn create_proj_editor(
 }
 
 async fn create_main_file_on_disk(proj: &TexProject, file_id: &String) {
-    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let proj_base_dir = get_proj_path(&base_compile_dir, proj.created_time);
-    let file_folder = join_paths(&[proj_base_dir, proj.project_id.clone()]);
+    let file_folder = get_proj_base_dir(&proj.project_id).await;
     match create_directory_if_not_exists(&file_folder) {
         Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
@@ -688,8 +686,7 @@ pub fn get_compiled_log(req: &TexCompileQueueLog) -> String {
 }
 
 pub async fn get_project_pdf(params: &GetProjParams) -> String {
-    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let proj_dir = join_paths(&[base_compile_dir, params.project_id.clone()]);
+    let proj_dir = get_proj_base_dir(&params.project_id).await;
     if !fs::metadata(&proj_dir).is_ok() {
         error!("folder did not exists, dir: {}", proj_dir);
         return "".to_owned();
