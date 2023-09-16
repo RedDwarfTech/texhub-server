@@ -168,7 +168,7 @@ fn do_create_proj_trans(
         Ok(file) => {
             let file_create_proj = proj.clone();
             task::spawn(async move {
-                create_main_file_on_disk(&file_create_proj, &file.file_id).await;
+                sync_file_to_yjs(&file_create_proj, &file.file_id).await;
             });
             let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
             match editor_result {
@@ -414,7 +414,7 @@ fn create_proj_editor(
     return result;
 }
 
-async fn create_main_file_on_disk(proj: &TexProject, file_id: &String) {
+async fn sync_file_to_yjs(proj: &TexProject, file_id: &String) {
     let file_folder = get_proj_base_dir(&proj.project_id).await;
     match create_directory_if_not_exists(&file_folder) {
         Ok(()) => {}
