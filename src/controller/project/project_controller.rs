@@ -172,7 +172,7 @@ pub async fn get_latest_pdf(params: web::Query<GetProjParams>) -> impl Responder
     let proj_info = get_cached_proj_info(&params.0.project_id).await.unwrap();
     let ct = proj_info.main.created_time;
     let main_file = proj_info.main_file;
-    let pdf_name = get_filename_without_ext(&main_file.name);
+    let pdf_name = format!("{}{}",get_filename_without_ext(&main_file.name),".pdf");
     let relative_path = get_proj_relative_path(&params.0.project_id,ct,&version_no);
     let pdf_result: LatestCompile = LatestCompile {
         path: join_paths(&[relative_path,pdf_name.to_string()]),
