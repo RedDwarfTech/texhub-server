@@ -1,4 +1,4 @@
-use crate::common::proj::proj_util::{get_proj_compile_req, get_proj_base_dir};
+use crate::common::proj::proj_util::{get_proj_base_dir, get_proj_compile_req, get_proj_log_name};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
@@ -35,7 +35,9 @@ use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
-use rust_wheel::common::util::rd_file_util::{get_filename_without_ext, join_paths, create_directory_if_not_exists};
+use rust_wheel::common::util::rd_file_util::{
+    create_directory_if_not_exists, get_filename_without_ext, join_paths,
+};
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
@@ -611,7 +613,10 @@ pub async fn add_compile_to_queue(
     let main_file_name = proj_cache.clone().unwrap().main_file.name;
     let log_file_name = format!("{}{}", get_filename_without_ext(&main_file_name), ".log");
     let compile_base_dir = get_app_config("texhub.compile_base_dir");
-    let proj_base_dir = get_proj_path(&compile_base_dir, proj_cache.clone().unwrap().main.created_time);
+    let proj_base_dir = get_proj_path(
+        &compile_base_dir,
+        proj_cache.clone().unwrap().main.created_time,
+    );
     let stream_key = get_app_config("texhub.compile_stream_redis_key");
     let file_path = join_paths(&[
         proj_base_dir.clone(),
@@ -668,16 +673,14 @@ pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
 }
 
 pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
-    let file_folder = get_proj_base_dir(&req.project_id).await;
-    let file_name_without_ext = get_filename_without_ext(&req.file_name);
-    let log_full_path = format!(
-        "{}/{}/{}.log",
-        file_folder, req.version_no, file_name_without_ext
-    );
-    let mut file = match File::open(log_full_path) {
+    let log_full_path = get_proj_log_name(&req.project_id, &req.version_no).await;
+    let mut file = match File::open(&log_full_path) {
         Ok(file) => file,
         Err(error) => {
-            error!("Error opening project log file: {:?}", error);
+            error!(
+                "Error opening project log file: {:?}, full path: {}",
+                error, log_full_path
+            );
             return "".to_string();
         }
     };
