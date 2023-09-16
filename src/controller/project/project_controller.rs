@@ -119,13 +119,8 @@ pub async fn del_proj(
     form: web::Json<TexDelProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let d_name = form.project_id.clone();
-    del_project(&d_name, &login_user_info);
-    let res = ApiResponse {
-        result: "ok",
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    del_project(&form.project_id.clone(), &login_user_info);
+    box_actix_rest_response("ok")
 }
 
 pub async fn join_proj(

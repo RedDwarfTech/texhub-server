@@ -475,7 +475,8 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
                 }
                 if rows == 1 {
                     del_project_file(del_project_id, connection);
-                    del_project_disk_file(del_project_id);
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    rt.block_on(del_project_disk_file(del_project_id));
                 }
                 Ok("")
             }
@@ -493,13 +494,12 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
     }
 }
 
-pub fn del_project_disk_file(proj_id: &String) {
-    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+pub async fn del_project_disk_file(proj_id: &String) {
     if proj_id.is_empty() {
         error!("delete project id is null");
         return;
     }
-    let proj_dir = format!("{}/{}", base_compile_dir, proj_id);
+    let proj_dir = get_proj_base_dir(proj_id).await;
     let result = fs::remove_dir_all(Path::new(&proj_dir));
     match result {
         Ok(_) => {}
