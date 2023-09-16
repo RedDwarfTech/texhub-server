@@ -667,9 +667,8 @@ pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
     return None;
 }
 
-pub fn get_compiled_log(req: &TexCompileQueueLog) -> String {
-    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let file_folder = format!("{}/{}", base_compile_dir, req.project_id);
+pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
+    let file_folder = get_proj_base_dir(&req.project_id).await;
     let file_name_without_ext = get_filename_without_ext(&req.file_name);
     let log_full_path = format!(
         "{}/{}/{}.log",
