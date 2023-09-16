@@ -722,10 +722,10 @@ pub async fn get_comp_log_stream(
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
-    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    let base_compile_dir: String = get_proj_base_dir(&params.project_id).await;
     let file_path = format!(
-        "{}/{}/{}/{}.log",
-        base_compile_dir, params.project_id, params.version_no, file_name_without_ext
+        "{}/{}/{}.log",
+        base_compile_dir, params.version_no, file_name_without_ext
     );
     let mut cmd = Command::new("tail")
         .arg("-n")
