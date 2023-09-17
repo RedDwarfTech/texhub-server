@@ -454,7 +454,7 @@ pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &Log
         ]);
         let save_result = tmp_file.file.persist(file_path.as_str());
         if let Err(e) = save_result {
-            error!("Failed to save,{}, file path: {}", e, file_path);
+            error!("Failed to save upload file to disk,{}, file path: {}", e, file_path);
             return;
         }
         let create_result = create_proj_file_impl(
