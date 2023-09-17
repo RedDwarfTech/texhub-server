@@ -36,7 +36,7 @@ impl TexFileAdd {
             name: "main.tex".to_owned(),
             created_time: get_current_millisecond(),
             updated_time: get_current_millisecond(),
-            user_id: 1,
+            user_id: uid.to_owned(),
             doc_status:1,
             project_id: prj_id.to_string(),
             file_type: 1,
