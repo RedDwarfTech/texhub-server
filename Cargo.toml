@@ -43,3 +43,4 @@ reqwest = { version = "0.11.18", features = ["json", "stream"] }
 actix-web-validator = "5.0.1"
 futures = "0.3"
 actix-rt = "2.9.0"
+actix-multipart = "0.6.1"

@@ -1,5 +1,6 @@
 use crate::{
     model::{
+        diesel::custom::project::upload::proj_upload_file::ProjUploadFile,
         request::project::{
             add::tex_project_tpl_req::TexProjectTplReq,
             edit::edit_proj_req::EditProjReq,
@@ -25,18 +26,22 @@ use crate::{
         tpl::template_service::get_tempalte_by_id,
     },
 };
+use actix_multipart::form::MultipartForm;
 use actix_web::{
     http::header::{CacheControl, CacheDirective},
-    web::{self},
-    HttpResponse, Responder,
+    Error, HttpResponse, Responder, web,
 };
-use log::error;
+use log::{error, warn};
 use rust_wheel::{
     common::{
-        util::{net::{sse_message::SSEMessage, sse_stream::SseStream}, rd_file_util::{join_paths, get_filename_without_ext}},
+        util::{
+            net::{sse_message::SSEMessage, sse_stream::SseStream},
+            rd_file_util::{get_filename_without_ext, join_paths},
+        },
         wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     },
-    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo}, texhub::project::get_proj_relative_path,
+    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
+    texhub::project::get_proj_relative_path,
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -76,9 +81,7 @@ pub async fn create_project(
     let d_name = form.name.clone();
     let projects = create_empty_project(&d_name, &login_user_info).await;
     match projects {
-        Ok(project) => {
-            box_actix_rest_response(project)
-        }
+        Ok(project) => box_actix_rest_response(project),
         Err(e) => {
             let err = format!("create project failed,{}", e);
             box_error_actix_rest_response(err.clone(), "CREATE_PROJ_FAILED".to_owned(), err)
@@ -96,7 +99,7 @@ pub async fn create_project_by_tpl(
         Ok(project) => {
             if project.is_some() {
                 box_actix_rest_response(project.unwrap())
-            }else{
+            } else {
                 box_error_actix_rest_response(
                     "failed with none",
                     "CREATE_TPL_PROJ_FAILED".to_owned(),
@@ -167,10 +170,10 @@ pub async fn get_latest_pdf(params: web::Query<GetProjParams>) -> impl Responder
     let proj_info = get_cached_proj_info(&params.0.project_id).await.unwrap();
     let ct = proj_info.main.created_time;
     let main_file = proj_info.main_file;
-    let pdf_name = format!("{}{}",get_filename_without_ext(&main_file.name),".pdf");
-    let relative_path = get_proj_relative_path(&params.0.project_id,ct,&version_no);
+    let pdf_name = format!("{}{}", get_filename_without_ext(&main_file.name), ".pdf");
+    let relative_path = get_proj_relative_path(&params.0.project_id, ct, &version_no);
     let pdf_result: LatestCompile = LatestCompile {
-        path: join_paths(&[relative_path,pdf_name.to_string()]),
+        path: join_paths(&[relative_path, pdf_name.to_string()]),
         project_id: params.0.project_id,
     };
     box_actix_rest_response(pdf_result)
@@ -236,6 +239,18 @@ pub async fn get_queue_status(form: web::Query<QueueStatusReq>) -> HttpResponse 
     return box_actix_rest_response(result.unwrap_or_default());
 }
 
+async fn upload_proj_file(
+    MultipartForm(form): MultipartForm<ProjUploadFile>,
+) -> Result<impl Responder, Error> {
+    for f in form.files {
+        let path = format!("./tmp/{}", f.file_name.unwrap());
+        warn!("saving to {}", path);
+        f.file.persist(path).unwrap();
+    }
+
+    Ok(HttpResponse::Ok())
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -247,6 +262,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/pdf", web::get().to(get_latest_pdf))
             .route("/edit", web::put().to(edit_project))
             .route("/join", web::post().to(join_proj))
+            .route("/file/upload", web::post().to(upload_proj_file))
             .route("/log/stream", web::get().to(sse_handler))
             .route("/temp/code", web::get().to(get_temp_auth_code))
             .route("/compile", web::put().to(compile_proj))
