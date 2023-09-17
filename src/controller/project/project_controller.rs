@@ -243,7 +243,7 @@ async fn upload_proj_file(
     MultipartForm(form): MultipartForm<ProjUploadFile>,
 ) -> Result<impl Responder, Error> {
     for f in form.files {
-        let path = format!("./tmp/{}", f.file_name.unwrap());
+        let path = format!("/app/{}", f.file_name.unwrap());
         warn!("saving to {}", path);
         f.file.persist(path).unwrap();
     }
