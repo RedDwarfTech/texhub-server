@@ -440,9 +440,10 @@ fn create_main_file(
     return result;
 }
 
-pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &LoginUserInfo) {
+pub async fn save_proj_file(proj_upload: ProjUploadFile, login_user_info: &LoginUserInfo) -> Vec<TexFile> {
     let proj_id = proj_upload.project_id.clone();
     let parent = proj_upload.parent.clone();
+    let mut files:Vec<TexFile> = Vec::new();
     for tmp_file in proj_upload.files {
         let db_file = get_file_by_fid(&proj_upload.parent).unwrap();
         let store_file_path = get_proj_base_dir(&proj_upload.project_id).await;
@@ -460,12 +461,12 @@ pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &Log
                 "Failed to save upload file to disk,{}, file path: {}",
                 e, file_path
             );
-            return;
+            return files;
         }
         let copy_result = fs::copy(&temp_path, &file_path.as_str());
         if let Err(e) = copy_result {
             error!("copy file failed, {}", e);
-            return;
+            return files;
         } else {
             fs::remove_file(temp_path).expect("remove file failed");
         }
@@ -478,10 +479,12 @@ pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &Log
         );
         if let Err(e) = create_result {
             error!("create project file failed,{}", e);
-            return;
+            return files;
         }
         del_project_cache(&proj_id).await;
+        files.push(create_result.unwrap());
     }
+    return files;
 }
 
 fn create_proj_file_impl(
