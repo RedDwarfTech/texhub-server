@@ -452,10 +452,22 @@ pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &Log
             db_file.file_path.clone(),
             f_name.as_ref().unwrap().to_string(),
         ]);
-        let save_result = tmp_file.file.persist(file_path.as_str());
+        // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
+        let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap().to_string());
+        let save_result = tmp_file.file.persist(temp_path.as_str());
         if let Err(e) = save_result {
-            error!("Failed to save upload file to disk,{}, file path: {}", e, file_path);
+            error!(
+                "Failed to save upload file to disk,{}, file path: {}",
+                e, file_path
+            );
             return;
+        }
+        let copy_result = fs::copy(&temp_path, &file_path.as_str());
+        if let Err(e) = copy_result {
+            error!("copy file failed, {}", e);
+            return;
+        } else {
+            fs::remove_file(temp_path).expect("remove file failed");
         }
         let create_result = create_proj_file_impl(
             &f_name.unwrap().to_string(),
