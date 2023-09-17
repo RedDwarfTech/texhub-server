@@ -19,7 +19,7 @@ use crate::{
     service::{
         project::project_service::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
-            create_tpl_project, del_project, edit_proj, get_cached_proj_info,
+            create_proj_file, create_tpl_project, del_project, edit_proj, get_cached_proj_info,
             get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_proj_by_type,
             get_project_pdf, join_project, send_render_req,
         },
@@ -29,9 +29,9 @@ use crate::{
 use actix_multipart::form::MultipartForm;
 use actix_web::{
     http::header::{CacheControl, CacheDirective},
-    Error, HttpResponse, Responder, web,
+    web, HttpResponse, Responder,
 };
-use log::{error, warn};
+use log::error;
 use rust_wheel::{
     common::{
         util::{
@@ -241,14 +241,10 @@ pub async fn get_queue_status(form: web::Query<QueueStatusReq>) -> HttpResponse 
 
 async fn upload_proj_file(
     MultipartForm(form): MultipartForm<ProjUploadFile>,
-) -> Result<impl Responder, Error> {
-    for f in form.files {
-        let path = format!("/app/{}", f.file_name.unwrap());
-        warn!("saving to {}", path);
-        f.file.persist(path).unwrap();
-    }
-
-    Ok(HttpResponse::Ok())
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    create_proj_file(form, &login_user_info).await;
+    box_actix_rest_response("ok")
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {

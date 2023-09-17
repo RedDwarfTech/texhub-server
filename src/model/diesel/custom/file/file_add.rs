@@ -1,6 +1,7 @@
 #![allow(unused)]
 #![allow(clippy::all)]
 
+use actix_multipart::form::tempfile::TempFile;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use serde::Serialize;
@@ -61,6 +62,30 @@ impl TexFileAdd {
             file_type: add_file.file_type,
             file_id: uuid_string,
             parent: add_file.parent.clone(),
+            main_flag: 0,
+            file_path: f_path.to_string(),
+            sort: 0,
+            yjs_initial: 0,
+        }
+    }
+
+    pub(crate) fn gen_upload_tex_file(file_name: &String, 
+        login_user_info: &LoginUserInfo, 
+        proj_id: &String,
+        parent: &String,
+        f_path: &String) ->Self {
+        let uuid = Uuid::new_v4();
+        let uuid_string = uuid.to_string().replace("-", "");
+        Self {
+            name: file_name.clone(),
+            created_time: get_current_millisecond(),
+            updated_time: get_current_millisecond(),
+            user_id: login_user_info.userId,
+            doc_status:1,
+            project_id: proj_id.to_string(),
+            file_type: 1,
+            file_id: uuid_string,
+            parent: parent.to_string(),
             main_flag: 0,
             file_path: f_path.to_string(),
             sort: 0,

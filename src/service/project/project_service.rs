@@ -5,6 +5,7 @@ use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueu
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
+use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
@@ -21,7 +22,7 @@ use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
-use crate::service::file::file_service::{get_file_tree, get_main_file_list};
+use crate::service::file::file_service::{get_file_by_fid, get_file_tree, get_main_file_list};
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -437,6 +438,49 @@ fn create_main_file(
     return result;
 }
 
+pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &LoginUserInfo) {
+    let proj_id = proj_upload.project_id.clone();
+    let parent = proj_upload.parent.clone();
+    for tmp_file in proj_upload.files {
+        let db_file = get_file_by_fid(&proj_upload.parent).unwrap();
+        let store_file_path = get_proj_base_dir(&proj_upload.project_id).await;
+        let f_name = tmp_file.file_name;
+        let file_path = join_paths(&[
+            store_file_path,
+            db_file.file_path.clone(),
+            f_name.as_ref().unwrap().to_string(),
+        ]);
+        tmp_file.file.persist(file_path.as_str()).unwrap();
+        create_proj_file_impl(
+            &f_name.unwrap().to_string(),
+            login_user_info,
+            &proj_id,
+            &parent,
+            &db_file.file_path
+        );
+    }
+}
+
+fn create_proj_file_impl(
+    file_name: &String,
+    login_user_info: &LoginUserInfo,
+    proj_id: &String,
+    parent_id: &String,
+    relative_file_path: &String
+) {
+    let new_proj = TexFileAdd::gen_upload_tex_file(
+        &file_name,
+        login_user_info,
+        proj_id,
+        parent_id,
+        relative_file_path,
+    );
+    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let _result = diesel::insert_into(tex_file)
+        .values(&new_proj)
+        .get_result::<TexFile>(&mut get_connection());
+}
+
 fn create_proj(
     name: &String,
     connection: &mut PgConnection,
@@ -828,6 +872,22 @@ pub async fn send_render_req(
 }
 
 pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueue> {
+    let queue_status_key = get_app_config("texhub.compile_status_cached_key");
+    let full_cached_key = format!("{}:{}", queue_status_key, req.id);
+    let cached_queue_result = get_str_default(&full_cached_key.as_str());
+    if let Err(e) = cached_queue_result {
+        error!("get cached queue failed,{}", e);
+        return None;
+    }
+    if cached_queue_result.as_ref().unwrap().is_none() {
+        return None;
+    }
+    let queue: Result<TexCompQueue, serde_json::Error> =
+        serde_json::from_str(cached_queue_result.unwrap().unwrap().as_str());
+    return Some(queue.unwrap());
+}
+
+pub async fn save_upload_file(req: &QueueStatusReq) -> Option<TexCompQueue> {
     let queue_status_key = get_app_config("texhub.compile_status_cached_key");
     let full_cached_key = format!("{}:{}", queue_status_key, req.id);
     let cached_queue_result = get_str_default(&full_cached_key.as_str());
