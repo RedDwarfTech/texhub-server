@@ -90,7 +90,7 @@ pub async fn add_file(
     form: actix_web_validator::Json<TexFileAddReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    return create_file(&form.0, &login_user_info);
+    return create_file(&form.0, &login_user_info).await;
 }
 
 pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder {

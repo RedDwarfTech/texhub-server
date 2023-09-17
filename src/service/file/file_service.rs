@@ -10,7 +10,7 @@ use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
-use crate::service::project::project_service::del_project_file;
+use crate::service::project::project_service::{del_project_file, del_project_cache};
 use actix_web::HttpResponse;
 use chrono::Duration;
 use diesel::result::Error;
@@ -112,7 +112,7 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     return contents;
 }
 
-pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
+pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
@@ -137,6 +137,7 @@ pub fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> 
         .get_result::<TexFile>(&mut get_connection())
         .expect("failed to add new tex file or folder");
     create_file_on_disk(&result);
+    del_project_cache(&add_req.project_id).await;
     let resp = box_actix_rest_response(result);
     return resp;
 }

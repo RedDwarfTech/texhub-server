@@ -44,7 +44,9 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::{get_str_default, push_to_stream, set_value};
+use rust_wheel::config::cache::redis_util::{
+    del_redis_key, get_str_default, push_to_stream, set_value,
+};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
@@ -460,8 +462,9 @@ pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &Log
             login_user_info,
             &proj_id,
             &parent,
-            &db_file.file_path
+            &db_file.file_path,
         );
+        del_project_cache(&proj_id).await;
     }
 }
 
@@ -470,7 +473,7 @@ fn create_proj_file_impl(
     login_user_info: &LoginUserInfo,
     proj_id: &String,
     parent_id: &String,
-    relative_file_path: &String
+    relative_file_path: &String,
 ) {
     let new_proj = TexFileAdd::gen_upload_tex_file(
         &file_name,
@@ -509,6 +512,18 @@ pub fn join_project(
         .values(&new_proj_editor)
         .get_result::<TexProjEditor>(&mut get_connection());
     return result;
+}
+
+pub async fn del_project_cache(del_project_id: &String) {
+    let cache_key = format!(
+        "{}:{}",
+        get_app_config("texhub.proj_cache_key"),
+        del_project_id
+    );
+    let del_result = del_redis_key(cache_key.as_str()).await;
+    if let Err(e) = del_result {
+        error!("delete project cache failed,{},cached key:{}", e, cache_key);
+    }
 }
 
 pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
@@ -908,7 +923,7 @@ pub async fn save_upload_file(req: &QueueStatusReq) -> Option<TexCompQueue> {
 }
 
 pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
-    let cache_key = format!("{}:{}", "texhub-server:proj:info", proj_id);
+    let cache_key = format!("{}:{}", get_app_config("texhub.proj_cache_key"), proj_id);
     let proj_info_result = get_str_default(&cache_key.as_str());
     if let Err(e) = proj_info_result.as_ref() {
         error!("get cached project info failed,{}", e);
