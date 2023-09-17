@@ -450,7 +450,11 @@ pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &Log
             db_file.file_path.clone(),
             f_name.as_ref().unwrap().to_string(),
         ]);
-        tmp_file.file.persist(file_path.as_str()).unwrap();
+        let save_result = tmp_file.file.persist(file_path.as_str());
+        if let Err(e) = save_result {
+            error!("Failed to save,{}, file path: {}", e, file_path);
+            return;
+        }
         create_proj_file_impl(
             &f_name.unwrap().to_string(),
             login_user_info,
