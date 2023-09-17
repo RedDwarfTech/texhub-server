@@ -457,13 +457,17 @@ pub async fn create_proj_file(proj_upload: ProjUploadFile, login_user_info: &Log
             error!("Failed to save,{}, file path: {}", e, file_path);
             return;
         }
-        create_proj_file_impl(
+        let create_result = create_proj_file_impl(
             &f_name.unwrap().to_string(),
             login_user_info,
             &proj_id,
             &parent,
             &db_file.file_path,
         );
+        if let Err(e) = create_result {
+            error!("create project file failed,{}", e);
+            return;
+        }
         del_project_cache(&proj_id).await;
     }
 }
@@ -474,7 +478,7 @@ fn create_proj_file_impl(
     proj_id: &String,
     parent_id: &String,
     relative_file_path: &String,
-) {
+) -> Result<TexFile, Error> {
     let new_proj = TexFileAdd::gen_upload_tex_file(
         &file_name,
         login_user_info,
@@ -483,9 +487,10 @@ fn create_proj_file_impl(
         relative_file_path,
     );
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
-    let _result = diesel::insert_into(tex_file)
+    let result = diesel::insert_into(tex_file)
         .values(&new_proj)
         .get_result::<TexFile>(&mut get_connection());
+    return result;
 }
 
 fn create_proj(
