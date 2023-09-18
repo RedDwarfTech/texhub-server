@@ -11,7 +11,6 @@ pub struct WsFileDetail {
     pub project_created_time: i64
 }
 
-
 impl From<(&TexFile,i64)> for WsFileDetail {
     fn from(items:(&TexFile,i64)) -> Self {
         Self {

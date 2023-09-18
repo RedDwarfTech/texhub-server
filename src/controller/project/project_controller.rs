@@ -14,14 +14,13 @@ use crate::{
             tex_join_project_req::TexJoinProjectReq,
             tex_project_req::TexProjectReq,
         },
-        response::project::latest_compile::LatestCompile,
     },
     service::{
         project::project_service::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
-            save_proj_file, create_tpl_project, del_project, edit_proj, get_cached_proj_info,
+            create_tpl_project, del_project, edit_proj, get_cached_proj_info,
             get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_proj_by_type,
-            get_project_pdf, join_project, send_render_req,
+            get_proj_latest_pdf, join_project, save_proj_file, send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -34,14 +33,10 @@ use actix_web::{
 use log::error;
 use rust_wheel::{
     common::{
-        util::{
-            net::{sse_message::SSEMessage, sse_stream::SseStream},
-            rd_file_util::{get_filename_without_ext, join_paths},
-        },
+        util::net::{sse_message::SSEMessage, sse_stream::SseStream},
         wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     },
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
-    texhub::project::get_proj_relative_path,
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -166,17 +161,8 @@ pub async fn update_compile_status(form: web::Json<TexCompileQueueStatus>) -> im
 }
 
 pub async fn get_latest_pdf(params: web::Query<GetProjParams>) -> impl Responder {
-    let version_no = get_project_pdf(&params.0).await;
-    let proj_info = get_cached_proj_info(&params.0.project_id).await.unwrap();
-    let ct = proj_info.main.created_time;
-    let main_file = proj_info.main_file;
-    let pdf_name = format!("{}{}", get_filename_without_ext(&main_file.name), ".pdf");
-    let relative_path = get_proj_relative_path(&params.0.project_id, ct, &version_no);
-    let pdf_result: LatestCompile = LatestCompile {
-        path: join_paths(&[relative_path, pdf_name.to_string()]),
-        project_id: params.0.project_id,
-    };
-    box_actix_rest_response(pdf_result)
+    let pdf_info = get_proj_latest_pdf(&params.0.project_id).await;
+    box_actix_rest_response(pdf_info)
 }
 
 /**
@@ -235,7 +221,7 @@ pub async fn get_proj_compile_log(form: web::Query<TexCompileQueueLog>) -> HttpR
 }
 
 pub async fn get_queue_status(form: web::Query<QueueStatusReq>) -> HttpResponse {
-    let result = get_cached_queue_status(&form.0).await;
+    let result = get_cached_queue_status(form.0.id).await;
     return box_actix_rest_response(result.unwrap_or_default());
 }
 

@@ -10,7 +10,6 @@ use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
-use crate::model::request::project::query::get_proj_params::GetProjParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
 use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
@@ -19,6 +18,8 @@ use crate::model::request::project::tex_compile_queue_log::TexCompileQueueLog;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_compile_queue_status::TexCompileQueueStatus;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
+use crate::model::response::project::compile_resp::CompileResp;
+use crate::model::response::project::latest_compile::LatestCompile;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
@@ -50,7 +51,7 @@ use rust_wheel::config::cache::redis_util::{
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
-use rust_wheel::texhub::project::get_proj_path;
+use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
@@ -787,8 +788,22 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
     return contents;
 }
 
-pub async fn get_project_pdf(params: &GetProjParams) -> String {
-    let proj_dir = get_proj_base_dir(&params.project_id).await;
+pub async fn get_proj_latest_pdf(proj_id: &String) -> LatestCompile {
+    let version_no = get_project_pdf(proj_id).await;
+    let proj_info = get_cached_proj_info(proj_id).await.unwrap();
+    let ct = proj_info.main.created_time;
+    let main_file = proj_info.main_file;
+    let pdf_name = format!("{}{}", get_filename_without_ext(&main_file.name), ".pdf");
+    let relative_path = get_proj_relative_path(proj_id, ct, &version_no);
+    let pdf_result: LatestCompile = LatestCompile {
+        path: join_paths(&[relative_path, pdf_name.to_string()]),
+        project_id: proj_id.clone(),
+    };
+    return pdf_result;
+}
+
+pub async fn get_project_pdf(proj_id: &String) -> String {
+    let proj_dir = get_proj_base_dir(proj_id).await;
     if !fs::metadata(&proj_dir).is_ok() {
         error!("folder did not exists, dir: {}", proj_dir);
         return "".to_owned();
@@ -836,29 +851,36 @@ pub async fn get_comp_log_stream(
     let log_stdout = cmd.stdout.take().unwrap();
     let reader = std::io::BufReader::new(log_stdout);
     task::spawn_blocking({
+        let queue_log_params = params.clone();
         move || {
-            comp_log_file_read(reader, &tx);
-            drop(tx);
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(comp_log_file_read(reader, &tx, &queue_log_params));
         }
     });
     Ok("".to_owned())
 }
 
-pub fn comp_log_file_read(
+pub async fn comp_log_file_read(
     reader: BufReader<ChildStdout>,
     tx: &UnboundedSender<SSEMessage<String>>,
+    params: &TexCompileQueueLog
 ) {
     for line in reader.lines() {
         if let Ok(line) = line {
             let msg_content = format!("{}\n", line.to_owned());
             if msg_content.contains("====END====") {
-                do_msg_send_sync(&"end".to_string(), &tx, &"TEX_COMP_END".to_string());
+                let cr = get_proj_latest_pdf(&params.project_id).await;
+                let queue = get_cached_queue_status(params.qid).await;
+                let comp_resp = CompileResp::from((cr,queue.unwrap()));
+                let end_json = serde_json::to_string(&comp_resp).unwrap();
+                do_msg_send_sync(&end_json, &tx, &"TEX_COMP_END".to_string());
                 break;
             } else {
                 do_msg_send_sync(&msg_content.to_string(), &tx, &"TEX_COMP_LOG".to_string());
             }
         }
     }
+    drop(tx);
 }
 
 pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {
@@ -922,9 +944,9 @@ pub async fn send_render_req(
     Ok(String::new())
 }
 
-pub async fn get_cached_queue_status(req: &QueueStatusReq) -> Option<TexCompQueue> {
+pub async fn get_cached_queue_status(qid: i64) -> Option<TexCompQueue> {
     let queue_status_key = get_app_config("texhub.compile_status_cached_key");
-    let full_cached_key = format!("{}:{}", queue_status_key, req.id);
+    let full_cached_key = format!("{}:{}", queue_status_key, qid);
     let cached_queue_result = get_str_default(&full_cached_key.as_str());
     if let Err(e) = cached_queue_result {
         error!("get cached queue failed,{}", e);
