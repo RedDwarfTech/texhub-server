@@ -440,10 +440,13 @@ fn create_main_file(
     return result;
 }
 
-pub async fn save_proj_file(proj_upload: ProjUploadFile, login_user_info: &LoginUserInfo) -> Vec<TexFile> {
+pub async fn save_proj_file(
+    proj_upload: ProjUploadFile,
+    login_user_info: &LoginUserInfo,
+) -> Vec<TexFile> {
     let proj_id = proj_upload.project_id.clone();
     let parent = proj_upload.parent.clone();
-    let mut files:Vec<TexFile> = Vec::new();
+    let mut files: Vec<TexFile> = Vec::new();
     for tmp_file in proj_upload.files {
         let db_file = get_file_by_fid(&proj_upload.parent).unwrap();
         let store_file_path = get_proj_base_dir(&proj_upload.project_id).await;
@@ -650,7 +653,10 @@ pub async fn compile_status_update(params: &TexCompileQueueStatus) -> HttpRespon
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
     let predicate = crate::model::diesel::tex::tex_schema::tex_comp_queue::id.eq(params.id.clone());
     let update_result = diesel::update(tex_comp_queue.filter(predicate))
-        .set(comp_status.eq(params.comp_status))
+        .set((
+            comp_status.eq(params.comp_status),
+            comp_result.eq(params.comp_result),
+        ))
         .get_result::<TexCompQueue>(&mut get_connection());
     if let Err(e) = update_result {
         error!("update compile queue failed, error info:{}", e);

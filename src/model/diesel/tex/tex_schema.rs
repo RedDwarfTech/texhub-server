@@ -7,6 +7,7 @@ table! {
         comp_status -> Int4,
         project_id -> Varchar,
         version_no -> Varchar,
+        comp_result -> Int4,
     }
 }
 
