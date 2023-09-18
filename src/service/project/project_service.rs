@@ -656,6 +656,7 @@ pub async fn compile_status_update(params: &TexCompileQueueStatus) -> HttpRespon
         2 => get_current_millisecond(),
         _ => 0,
     };
+    warn!("get the update params: {:?}", params);
     let update_result = diesel::update(tex_comp_queue.filter(predicate))
         .set((
             comp_status.eq(params.comp_status),
