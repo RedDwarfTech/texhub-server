@@ -8,6 +8,7 @@ table! {
         project_id -> Varchar,
         version_no -> Varchar,
         comp_result -> Int4,
+        complete_time -> Int8,
     }
 }
 

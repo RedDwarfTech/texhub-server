@@ -652,10 +652,15 @@ pub async fn compile_project(params: &TexCompileProjectReq) -> Option<serde_json
 pub async fn compile_status_update(params: &TexCompileQueueStatus) -> HttpResponse {
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
     let predicate = crate::model::diesel::tex::tex_schema::tex_comp_queue::id.eq(params.id.clone());
+    let completed = match params.comp_status {
+        2 => get_current_millisecond(),
+        _ => 0,
+    };
     let update_result = diesel::update(tex_comp_queue.filter(predicate))
         .set((
             comp_status.eq(params.comp_status),
             comp_result.eq(params.comp_result),
+            complete_time.eq(completed),
         ))
         .get_result::<TexCompQueue>(&mut get_connection());
     if let Err(e) = update_result {
