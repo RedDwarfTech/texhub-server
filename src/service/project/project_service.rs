@@ -863,7 +863,7 @@ pub async fn get_comp_log_stream(
 pub async fn comp_log_file_read(
     reader: BufReader<ChildStdout>,
     tx: &UnboundedSender<SSEMessage<String>>,
-    params: &TexCompileQueueLog
+    params: &TexCompileQueueLog,
 ) {
     for line in reader.lines() {
         if let Ok(line) = line {
@@ -871,7 +871,7 @@ pub async fn comp_log_file_read(
             if msg_content.contains("====END====") {
                 let cr = get_proj_latest_pdf(&params.project_id).await;
                 let queue = get_cached_queue_status(params.qid).await;
-                let comp_resp = CompileResp::from((cr,queue.unwrap()));
+                let comp_resp = CompileResp::from((cr, queue.unwrap()));
                 let end_json = serde_json::to_string(&comp_resp).unwrap();
                 do_msg_send_sync(&end_json, &tx, &"TEX_COMP_END".to_string());
                 break;
