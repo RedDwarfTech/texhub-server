@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{Read, Write};
 
 use crate::common::database::get_connection;
@@ -11,7 +11,7 @@ use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
-use crate::service::project::project_service::{del_project_file, del_project_cache};
+use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_web::HttpResponse;
 use chrono::Duration;
 use diesel::result::Error;
@@ -28,10 +28,12 @@ use rust_wheel::common::wrapper::actix_http_resp::{
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
+use rust_wheel::texhub::th_file_type::ThFileType;
+use tokio::task;
 
 pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
-    let file_cached_key = format!("{}:{}",file_cached_key_prev,&filter_id);
+    let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
     let cached_file = sync_get_str(&file_cached_key).unwrap();
     if cached_file.is_some() {
         let tf: TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
@@ -212,19 +214,48 @@ pub fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &LoginUser
     return update_result;
 }
 
-pub fn delete_file_recursive(del_req: &TexFileDelReq) -> Result<usize, Error> {
+pub fn delete_file_recursive(del_req: &TexFileDelReq, tex_file: &TexFile) -> Result<usize, Error> {
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
         let delete_result = del_single_file(&del_req.file_id, connection);
         match delete_result {
             Ok(proj) => {
                 del_project_file(&del_req.file_id, connection);
+                task::spawn_blocking({
+                    let del_tex_file = tex_file.clone();
+                    move || {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(del_disk_file(&del_tex_file));
+                    }
+                });
                 return Ok(proj);
             }
             Err(e) => diesel::result::QueryResult::Err(e),
         }
     });
     return trans_result;
+}
+
+pub async fn del_disk_file(tex_file: &TexFile) {
+    let proj_base_dir = get_proj_base_dir(&tex_file.project_id).await;
+    if tex_file.file_type == (ThFileType::Folder as i32) {
+        let folder_path = join_paths(&[proj_base_dir, tex_file.file_path.clone()]);
+        let del_result = fs::remove_dir_all(&folder_path);
+        if let Err(e) = del_result {
+            error!("delete folder failed, {}, path: {}", e, folder_path);
+        }
+    } else {
+        let proj_base_dir = get_proj_base_dir(&tex_file.project_id).await;
+        let file_path = join_paths(&[
+            proj_base_dir,
+            tex_file.file_path.clone(),
+            tex_file.name.clone(),
+        ]);
+        let del_result = fs::remove_file(&file_path);
+        if let Err(e) = del_result {
+            error!("delete file failed, e:{}, path: {}", e, file_path)
+        }
+    }
 }
 
 pub fn del_single_file(

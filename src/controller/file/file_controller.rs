@@ -112,7 +112,7 @@ pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
         };
         return HttpResponse::Ok().json(res);
     }
-    let new_file = delete_file_recursive(&form.0).unwrap();
+    let new_file = delete_file_recursive(&form.0, &db_file).unwrap();
     let res = ApiResponse {
         result: new_file,
         ..Default::default()
