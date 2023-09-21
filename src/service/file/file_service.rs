@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 
 use crate::common::database::get_connection;
+use crate::common::proj::proj_util::get_proj_base_dir;
 use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -136,14 +137,14 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
         .values(&new_file)
         .get_result::<TexFile>(&mut get_connection())
         .expect("failed to add new tex file or folder");
-    create_file_on_disk(&result);
+    create_file_on_disk(&result).await;
     del_project_cache(&add_req.project_id).await;
     let resp = box_actix_rest_response(result);
     return resp;
 }
 
-pub fn create_file_on_disk(file: &TexFile) {
-    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+pub async fn create_file_on_disk(file: &TexFile) {
+    let base_compile_dir: String = get_proj_base_dir(&file.project_id).await;
     let split_path = &[
         base_compile_dir,
         file.project_id.clone(),
