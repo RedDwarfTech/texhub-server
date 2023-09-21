@@ -31,11 +31,7 @@ pub struct FileCodeParams {
 
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
     let docs = get_file_by_fid(&params.file_id).unwrap();
-    let res = ApiResponse {
-        result: docs,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(docs)
 }
 
 pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {
@@ -52,38 +48,22 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
 
 pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
     let docs = get_file_list(&params.parent);
-    let res = ApiResponse {
-        result: docs,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(docs)
 }
 
 pub async fn get_main_file(params: web::Query<MainFileParams>) -> impl Responder {
     let docs = get_main_file_list(&params.project_id);
-    let res = ApiResponse {
-        result: docs.unwrap(),
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(docs)
 }
 
 pub async fn get_file_code(params: web::Query<FileCodeParams>) -> impl Responder {
     let file_text = get_text_file_code(&params.file_id);
-    let res = ApiResponse {
-        result: file_text,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(file_text)
 }
 
 pub async fn get_files_tree(params: web::Query<AppParams>) -> impl Responder {
     let docs = get_file_tree(&params.parent);
-    let res = ApiResponse {
-        result: docs,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(docs)
 }
 
 pub async fn add_file(
@@ -95,11 +75,7 @@ pub async fn add_file(
 
 pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder {
     let new_file = file_init_complete(&form.0);
-    let res = ApiResponse {
-        result: new_file,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(new_file)
 }
 
 pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
@@ -113,11 +89,7 @@ pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
         return HttpResponse::Ok().json(res);
     }
     let new_file = delete_file_recursive(&form.0, &db_file).unwrap();
-    let res = ApiResponse {
-        result: new_file,
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(new_file)
 }
 
 pub async fn rename_file(
