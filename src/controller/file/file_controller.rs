@@ -110,7 +110,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))
             .route("/inited", web::put().to(update_file_init))
-            .route("/rename", web::get().to(rename_file))
+            .route("/rename", web::patch().to(rename_file))
             .route("/detail", web::get().to(get_file))
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
