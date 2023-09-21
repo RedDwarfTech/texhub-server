@@ -241,7 +241,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/add", web::post().to(create_project))
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
             .route("/del", web::delete().to(del_proj))
-            .route("/pdf", web::get().to(get_latest_pdf))
+            .route("/latest/pdf", web::get().to(get_latest_pdf))
             .route("/edit", web::put().to(edit_project))
             .route("/join", web::post().to(join_proj))
             .route("/file/upload", web::post().to(upload_proj_file))

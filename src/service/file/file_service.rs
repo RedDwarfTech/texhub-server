@@ -18,7 +18,7 @@ use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
-use log::error;
+use log::{error, warn};
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
@@ -154,7 +154,8 @@ pub async fn create_file_on_disk(file: &TexFile) {
         file.name.clone(),
     ];
     let file_full_path = join_paths(split_path);
-    if file.file_type == 0 {
+    if file.file_type == (ThFileType::Folder as i32) {
+        warn!("create folder: {}", file_full_path);
         create_folder_not_exists(&file_full_path);
     } else {
         let create_result = create_disk_file(&file_full_path);
