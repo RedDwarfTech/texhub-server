@@ -203,7 +203,7 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
     return update_result;
 }
 
-pub fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &LoginUserInfo) -> TexFile {
+pub async fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &LoginUserInfo) -> TexFile {
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
         .eq(edit_req.file_id.clone())
@@ -212,6 +212,7 @@ pub fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &LoginUser
         .set(name.eq(edit_req.name.clone()))
         .get_result::<TexFile>(&mut get_connection())
         .expect("unable to update tex file name");
+    del_project_cache(&update_result.project_id).await;
     return update_result;
 }
 

@@ -1,12 +1,18 @@
 use crate::{
-    model::{request::file::{
-        file_add_req::TexFileAddReq, file_del::TexFileDelReq, file_rename::TexFileRenameReq,
-        query::file_query_params::FileQueryParams,
-    }, response::file::ws_file_detail::WsFileDetail},
-    service::{file::file_service::{
-        create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
-        get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl,
-    }, project::project_service::get_cached_proj_info},
+    model::{
+        request::file::{
+            file_add_req::TexFileAddReq, file_del::TexFileDelReq, file_rename::TexFileRenameReq,
+            query::file_query_params::FileQueryParams,
+        },
+        response::file::ws_file_detail::WsFileDetail,
+    },
+    service::{
+        file::file_service::{
+            create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
+            get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl,
+        },
+        project::project_service::get_cached_proj_info,
+    },
 };
 use actix_web::{web, HttpResponse, Responder};
 use rust_wheel::{
@@ -37,11 +43,11 @@ pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
 pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {
     let docs = get_file_by_fid(&params.file_id).unwrap();
     let proj = get_cached_proj_info(&docs.project_id).await;
-    let file_detail = WsFileDetail{ 
-        file_path: docs.file_path, 
-        project_id: docs.project_id, 
-        name: docs.name, 
-        project_created_time: proj.unwrap().main.created_time 
+    let file_detail = WsFileDetail {
+        file_path: docs.file_path,
+        project_id: docs.project_id,
+        name: docs.name,
+        project_created_time: proj.unwrap().main.created_time,
     };
     box_actix_rest_response(file_detail)
 }
@@ -96,7 +102,7 @@ pub async fn rename_file(
     form: actix_web_validator::Json<TexFileRenameReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let db_file = rename_file_impl(&form.0, &login_user_info);
+    let db_file = rename_file_impl(&form.0, &login_user_info).await;
     box_actix_rest_response(db_file)
 }
 
