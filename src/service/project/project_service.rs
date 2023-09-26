@@ -150,8 +150,10 @@ pub async fn create_tpl_project(
 ) -> Result<Option<TexProject>, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result = connection
-        .transaction(|connection| do_create_tpl_proj_trans(&tex_tpl, &user_info, connection));
+    let trans_result = connection.transaction(|connection| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(do_create_tpl_proj_trans(&tex_tpl, &user_info, connection))
+    });
     return trans_result;
 }
 
@@ -189,7 +191,7 @@ fn do_create_proj_trans(
     return Ok(proj);
 }
 
-fn do_create_tpl_proj_trans(
+async fn do_create_tpl_proj_trans(
     tpl: &TexTemplate,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
@@ -202,7 +204,7 @@ fn do_create_tpl_proj_trans(
     let proj = create_result.unwrap();
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let file_create_proj_id = proj.project_id.clone();
-    let create_res = create_proj_files(tpl, &file_create_proj_id, connection, &uid);
+    let create_res = create_proj_files(tpl, &file_create_proj_id, connection, &uid).await;
     if !create_res {
         return Ok(None);
     }
@@ -216,7 +218,7 @@ fn do_create_tpl_proj_trans(
     return Ok(Some(proj));
 }
 
-pub fn create_proj_files(
+pub async fn create_proj_files(
     tpl: &TexTemplate,
     proj_id: &String,
     connection: &mut PgConnection,
@@ -224,8 +226,7 @@ pub fn create_proj_files(
 ) -> bool {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
-    let proj_base_dir = get_app_config("texhub.compile_base_dir");
-    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_string()]);
+    let proj_dir = get_proj_base_dir(&proj_id).await;
     let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
     if let Err(e) = result {
         error!(

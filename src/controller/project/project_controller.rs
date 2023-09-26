@@ -135,11 +135,7 @@ pub async fn join_proj(
 
 pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Responder {
     let compile_result = compile_project(&form.0).await;
-    let res = ApiResponse {
-        result: compile_result.unwrap(),
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    box_actix_rest_response(compile_result)
 }
 
 pub async fn add_compile_req_to_queue(
