@@ -114,12 +114,20 @@ pub fn get_proj_by_type(
     return proj_resp;
 }
 
-pub fn get_prj_by_id(proj_id: &String) -> TexProject {
+pub fn get_prj_by_id(proj_id: &String) -> Option<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::project_id.eq(proj_id));
-    let cvs = query.load::<TexProject>(&mut get_connection()).unwrap();
-    return cvs[0].clone();
+    let cvs: Vec<TexProject> = query.load::<TexProject>(&mut get_connection()).unwrap();
+    if cvs.len() > 1 {
+        error!("wrong project count, project id: {}", proj_id);
+        return None;
+    }
+    return if cvs.len() == 1 {
+        Some(cvs[0].clone())
+    } else {
+        None
+    };
 }
 
 pub fn edit_proj(edit_req: &EditProjReq) -> TexProject {
@@ -204,15 +212,14 @@ fn do_create_tpl_proj_trans(
     return Ok(Some(proj));
 }
 
-pub fn do_create_proj_on_disk(
-    tpl: &TexTemplate,
-    proj: &TexProject,
-    rd_user_info: &RdUserInfo,
-) {
+pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info: &RdUserInfo) {
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let create_res = create_proj_files(tpl, &proj.project_id, &uid);
     if !create_res {
-        error!("create project files failed,tpl: {:?}, project: {:?}", tpl, proj);
+        error!(
+            "create project files failed,tpl: {:?}, project: {:?}",
+            tpl, proj
+        );
         return;
     }
     let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
@@ -994,9 +1001,13 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
     let cached_proj_info = proj_info_result.unwrap();
     if cached_proj_info.is_none() {
         let proj = get_prj_by_id(proj_id);
+        if proj.is_none() {
+            error!("do not found project info: {}", proj_id);
+            return None;
+        }
         let file = get_main_file_list(proj_id);
         let file_tree = get_file_tree(proj_id);
-        let proj_info = TexProjectCache::from_db(&proj, file.unwrap(), file_tree);
+        let proj_info = TexProjectCache::from_db(&proj.unwrap(), file.unwrap(), file_tree);
         let proj_cached_json = serde_json::to_string(&proj_info).unwrap();
         let cache_result = set_value(&cache_key.as_str(), &proj_cached_json.as_str(), 86400);
         if let Err(e) = cache_result {
