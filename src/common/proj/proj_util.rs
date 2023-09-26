@@ -18,9 +18,9 @@ pub fn get_proj_compile_req(proj_id: &String, file_name: &String) -> Value {
     return json_data;
 }
 
-pub async fn get_proj_base_dir(proj_id: &String) -> String{
+pub fn get_proj_base_dir(proj_id: &String) -> String{
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let proj_info = get_cached_proj_info(&proj_id).await.unwrap();
+    let proj_info = get_cached_proj_info(&proj_id).unwrap();
     let ct = proj_info.main.created_time;
     let proj_base_dir = get_proj_path(&base_compile_dir, ct);
     let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned()]);
@@ -29,7 +29,7 @@ pub async fn get_proj_base_dir(proj_id: &String) -> String{
 
 pub async fn get_proj_log_name(proj_id: &String, version: &String) -> String{
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
-    let proj_info = get_cached_proj_info(&proj_id).await.unwrap();
+    let proj_info = get_cached_proj_info(&proj_id).unwrap();
     let ct = proj_info.main.created_time;
     let proj_base_dir = get_proj_path(&base_compile_dir, ct);
     let log_name = format!("{}.log", get_filename_without_ext(&proj_info.main_file.name));

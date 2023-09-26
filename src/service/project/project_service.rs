@@ -200,26 +200,17 @@ fn do_create_tpl_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    task::spawn_blocking({
-        let tpl_copy = tpl.clone();
-        let u_copy = rd_user_info.clone();
-        let proj_copy = proj.clone();
-        move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(do_create_proj_on_disk(&tpl_copy, &proj_copy, &u_copy));
-        }
-    });
+    do_create_proj_on_disk(&tpl, &proj, rd_user_info);
     return Ok(Some(proj));
 }
 
-pub async fn do_create_proj_on_disk(
+pub fn do_create_proj_on_disk(
     tpl: &TexTemplate,
     proj: &TexProject,
     rd_user_info: &RdUserInfo,
 ) {
-    warn!("start creeate project files...");
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let create_res = create_proj_files(tpl, &proj.project_id, &uid).await;
+    let create_res = create_proj_files(tpl, &proj.project_id, &uid);
     if !create_res {
         error!("create project files failed,tpl: {:?}, project: {:?}", tpl, proj);
         return;
@@ -233,10 +224,10 @@ pub async fn do_create_proj_on_disk(
     }
 }
 
-pub async fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool {
+pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
-    let proj_dir = get_proj_base_dir(&proj_id).await;
+    let proj_dir = get_proj_base_dir(&proj_id);
     let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
     if let Err(e) = result {
         error!(
@@ -436,7 +427,7 @@ fn create_proj_editor(
 }
 
 async fn sync_file_to_yjs(proj: &TexProject, file_id: &String) {
-    let file_folder = get_proj_base_dir(&proj.project_id).await;
+    let file_folder = get_proj_base_dir(&proj.project_id);
     match create_directory_if_not_exists(&file_folder) {
         Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
@@ -467,7 +458,7 @@ pub async fn save_proj_file(
     let mut files: Vec<TexFile> = Vec::new();
     for tmp_file in proj_upload.files {
         let db_file = get_file_by_fid(&proj_upload.parent).unwrap();
-        let store_file_path = get_proj_base_dir(&proj_upload.project_id).await;
+        let store_file_path = get_proj_base_dir(&proj_upload.project_id);
         let f_name = tmp_file.file_name;
         let file_path = join_paths(&[
             store_file_path,
@@ -610,7 +601,7 @@ pub async fn del_project_disk_file(proj_id: &String) {
         error!("delete project id is null");
         return;
     }
-    let proj_dir = get_proj_base_dir(proj_id).await;
+    let proj_dir = get_proj_base_dir(proj_id);
     let result = tokio::fs::remove_dir_all(Path::new(&proj_dir)).await;
     match result {
         Ok(_) => {}
@@ -722,7 +713,7 @@ pub async fn add_compile_to_queue(
             "queue add failed".to_string(),
         );
     }
-    let proj_cache = get_cached_proj_info(&params.project_id).await;
+    let proj_cache = get_cached_proj_info(&params.project_id);
     let main_file_name = proj_cache.clone().unwrap().main_file.name;
     let log_file_name = format!("{}{}", get_filename_without_ext(&main_file_name), ".log");
     let compile_base_dir = get_app_config("texhub.compile_base_dir");
@@ -807,7 +798,7 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
 
 pub async fn get_proj_latest_pdf(proj_id: &String) -> LatestCompile {
     let version_no = get_project_pdf(proj_id).await;
-    let proj_info = get_cached_proj_info(proj_id).await.unwrap();
+    let proj_info = get_cached_proj_info(proj_id).unwrap();
     let ct = proj_info.main.created_time;
     let main_file = proj_info.main_file;
     let pdf_name = format!("{}{}", get_filename_without_ext(&main_file.name), ".pdf");
@@ -820,7 +811,7 @@ pub async fn get_proj_latest_pdf(proj_id: &String) -> LatestCompile {
 }
 
 pub async fn get_project_pdf(proj_id: &String) -> String {
-    let proj_dir = get_proj_base_dir(proj_id).await;
+    let proj_dir = get_proj_base_dir(proj_id);
     if !fs::metadata(&proj_dir).is_ok() {
         error!("folder did not exists, dir: {}", proj_dir);
         return "".to_owned();
@@ -852,7 +843,7 @@ pub async fn get_comp_log_stream(
     tx: UnboundedSender<SSEMessage<String>>,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
-    let base_compile_dir: String = get_proj_base_dir(&params.project_id).await;
+    let base_compile_dir: String = get_proj_base_dir(&params.project_id);
     let file_path = format!(
         "{}/{}/{}.log",
         base_compile_dir, params.version_no, file_name_without_ext
@@ -993,7 +984,7 @@ pub async fn save_upload_file(req: &QueueStatusReq) -> Option<TexCompQueue> {
     return Some(queue.unwrap());
 }
 
-pub async fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
+pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
     let cache_key = format!("{}:{}", get_app_config("texhub.proj_cache_key"), proj_id);
     let proj_info_result = get_str_default(&cache_key.as_str());
     if let Err(e) = proj_info_result.as_ref() {

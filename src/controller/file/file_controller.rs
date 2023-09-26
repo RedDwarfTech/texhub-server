@@ -42,7 +42,7 @@ pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
 
 pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {
     let docs = get_file_by_fid(&params.file_id).unwrap();
-    let proj = get_cached_proj_info(&docs.project_id).await;
+    let proj = get_cached_proj_info(&docs.project_id);
     let file_detail = WsFileDetail {
         file_path: docs.file_path,
         project_id: docs.project_id,

@@ -56,7 +56,7 @@ pub async fn get_projects(
 }
 
 pub async fn get_project(params: web::Query<GetProjParams>) -> impl Responder {
-    let proj = get_cached_proj_info(&params.project_id).await;
+    let proj = get_cached_proj_info(&params.project_id);
     return box_actix_rest_response(proj.unwrap());
 }
 

@@ -146,7 +146,7 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
 }
 
 pub async fn create_file_on_disk(file: &TexFile) {
-    let base_compile_dir: String = get_proj_base_dir(&file.project_id).await;
+    let base_compile_dir: String = get_proj_base_dir(&file.project_id);
     let split_path = &[
         base_compile_dir,
         file.project_id.clone(),
@@ -239,7 +239,7 @@ pub fn delete_file_recursive(del_req: &TexFileDelReq, tex_file: &TexFile) -> Res
 }
 
 pub async fn del_disk_file(tex_file: &TexFile) {
-    let proj_base_dir = get_proj_base_dir(&tex_file.project_id).await;
+    let proj_base_dir = get_proj_base_dir(&tex_file.project_id);
     if tex_file.file_type == (ThFileType::Folder as i32) {
         let folder_path = join_paths(&[proj_base_dir, tex_file.file_path.clone()]);
         let del_result = fs::remove_dir_all(&folder_path);
@@ -247,7 +247,7 @@ pub async fn del_disk_file(tex_file: &TexFile) {
             error!("delete folder failed, {}, path: {}", e, folder_path);
         }
     } else {
-        let proj_base_dir = get_proj_base_dir(&tex_file.project_id).await;
+        let proj_base_dir = get_proj_base_dir(&tex_file.project_id);
         let file_path = join_paths(&[
             proj_base_dir,
             tex_file.file_path.clone(),
