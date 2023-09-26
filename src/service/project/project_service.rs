@@ -151,8 +151,7 @@ pub async fn create_tpl_project(
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(do_create_tpl_proj_trans(&tex_tpl, &user_info, connection))
+        do_create_tpl_proj_trans(&tex_tpl, &user_info, connection)
     });
     return trans_result;
 }
@@ -191,7 +190,7 @@ fn do_create_proj_trans(
     return Ok(proj);
 }
 
-async fn do_create_tpl_proj_trans(
+fn do_create_tpl_proj_trans(
     tpl: &TexTemplate,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
@@ -202,11 +201,27 @@ async fn do_create_tpl_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
+    task::spawn_blocking({
+        let tpl_copy = tpl.clone();
+        let u_copy = rd_user_info.clone();
+        let proj_copy = proj.clone();
+        move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(do_create_proj_on_disk(&tpl_copy,&proj_copy,&u_copy))
+        }
+    });
+    return Ok(Some(proj));
+}
+
+pub async fn do_create_proj_on_disk(
+    tpl: &TexTemplate,
+    proj: &TexProject,
+    rd_user_info: &RdUserInfo
+){
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let file_create_proj_id = proj.project_id.clone();
-    let create_res = create_proj_files(tpl, &file_create_proj_id, connection, &uid).await;
+    let create_res = create_proj_files(tpl, &proj.project_id, &uid).await;
     if !create_res {
-        return Ok(None);
+        return;
     }
     let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
     match editor_result {
@@ -215,13 +230,11 @@ async fn do_create_tpl_proj_trans(
             error!("create editor error: {}", error);
         }
     }
-    return Ok(Some(proj));
 }
 
 pub async fn create_proj_files(
     tpl: &TexTemplate,
     proj_id: &String,
-    connection: &mut PgConnection,
     uid: &i64,
 ) -> bool {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
@@ -235,7 +248,7 @@ pub async fn create_proj_files(
         );
         return false;
     }
-    return create_files_into_db(connection, &proj_dir, proj_id, uid, tpl);
+    return create_files_into_db( &proj_dir, proj_id, uid, tpl);
 }
 
 fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
@@ -317,7 +330,6 @@ pub fn support_sync(file_full_path: &String) -> bool {
 }
 
 pub fn create_files_into_db(
-    connection: &mut PgConnection,
     project_path: &String,
     proj_id: &String,
     uid: &i64,
@@ -332,7 +344,7 @@ pub fn create_files_into_db(
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
     let result = diesel::insert_into(files_table::dsl::tex_file)
         .values(&files)
-        .get_result::<TexFile>(connection);
+        .get_result::<TexFile>(&mut get_connection());
     if let Err(err) = result {
         error!("write files into db facing issue,{}", err);
         return false;
