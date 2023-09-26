@@ -1,4 +1,4 @@
-use crate::common::proj::proj_util::{get_proj_base_dir, get_proj_compile_req, get_proj_log_name};
+use crate::common::proj::proj_util::{get_proj_base_dir, get_proj_compile_req, get_proj_log_name, get_proj_base_dir_instant};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
@@ -234,7 +234,7 @@ pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info
 pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
-    let proj_dir = get_proj_base_dir(&proj_id);
+    let proj_dir = get_proj_base_dir_instant(&proj_id);
     let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
     if let Err(e) = result {
         error!(
