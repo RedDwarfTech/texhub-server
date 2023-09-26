@@ -276,11 +276,10 @@ fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
 }
 
 pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
-    let proj_base_dir = get_app_config("texhub.compile_base_dir");
     for file in files {
+        let proj_base_dir = get_proj_base_dir_instant(&file.project_id);
         let file_full_path = join_paths(&[
-            proj_base_dir.clone(),
-            file.project_id.to_owned(),
+            proj_base_dir,
             file.file_path.to_owned(),
             file.name.to_owned(),
         ]);
