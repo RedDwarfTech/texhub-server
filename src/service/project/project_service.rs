@@ -300,6 +300,11 @@ pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
 pub fn support_sync(file_full_path: &String) -> bool {
     let path = Path::new(file_full_path);
     let extension = path.extension();
+    let file_name = path.file_name().unwrap().to_string_lossy().into_owned();
+    let name_without_ext = get_filename_without_ext(&file_name);
+    if name_without_ext == "LICENSE" {
+        return true;
+    }
     if let Some(ext) = extension {
         match ext.to_str().unwrap() {
             "tex" => {
@@ -312,6 +317,9 @@ pub fn support_sync(file_full_path: &String) -> bool {
                 return true;
             }
             "bbl" => {
+                return true;
+            }
+            "md" => {
                 return true;
             }
             _ => {
