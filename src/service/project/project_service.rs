@@ -206,7 +206,7 @@ fn do_create_tpl_proj_trans(
         let proj_copy = proj.clone();
         move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(do_create_proj_on_disk(&tpl_copy, &proj_copy, &u_copy))
+            rt.block_on(do_create_proj_on_disk(&tpl_copy, &proj_copy, &u_copy));
         }
     });
     return Ok(Some(proj));
@@ -217,9 +217,11 @@ pub async fn do_create_proj_on_disk(
     proj: &TexProject,
     rd_user_info: &RdUserInfo,
 ) {
+    warn!("start creeate project files...");
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let create_res = create_proj_files(tpl, &proj.project_id, &uid).await;
     if !create_res {
+        error!("create project files failed,tpl: {:?}, project: {:?}", tpl, proj);
         return;
     }
     let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
@@ -338,7 +340,10 @@ pub fn create_files_into_db(
     }
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
     if files.len() == 0 {
-        error!("read 0 files from disk, project path: {}, template: {:?}", project_path, tpl);
+        error!(
+            "read 0 files from disk, project path: {}, template: {:?}",
+            project_path, tpl
+        );
         return false;
     }
     let result = diesel::insert_into(files_table::dsl::tex_file)
