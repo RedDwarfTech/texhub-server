@@ -594,7 +594,7 @@ pub async fn del_project_disk_file(proj_id: &String) {
         return;
     }
     let proj_dir = get_proj_base_dir(proj_id).await;
-    let result = fs::remove_dir_all(Path::new(&proj_dir));
+    let result = tokio::fs::remove_dir_all(Path::new(&proj_dir)).await;
     match result {
         Ok(_) => {}
         Err(e) => {
