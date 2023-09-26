@@ -302,7 +302,7 @@ pub fn support_sync(file_full_path: &String) -> bool {
     let extension = path.extension();
     let file_name = path.file_name().unwrap().to_string_lossy().into_owned();
     let name_without_ext = get_filename_without_ext(&file_name);
-    if name_without_ext == "LICENSE" {
+    if name_without_ext == "LICENSE" || name_without_ext == "Makefile" {
         return true;
     }
     if let Some(ext) = extension {
@@ -320,6 +320,9 @@ pub fn support_sync(file_full_path: &String) -> bool {
                 return true;
             }
             "md" => {
+                return true;
+            }
+            "txt" => {
                 return true;
             }
             _ => {
