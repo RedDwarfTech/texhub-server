@@ -84,7 +84,7 @@ pub fn get_main_file_list(project_id: &String) -> Option<TexFile> {
             return Some(result[0].to_owned());
         }
         Err(err) => {
-            error!("get files failed, {}", err);
+            error!("get main files failed, {}", err);
             return None;
         }
     }

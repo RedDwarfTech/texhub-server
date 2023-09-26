@@ -150,9 +150,8 @@ pub async fn create_tpl_project(
 ) -> Result<Option<TexProject>, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result = connection.transaction(|connection| {
-        do_create_tpl_proj_trans(&tex_tpl, &user_info, connection)
-    });
+    let trans_result = connection
+        .transaction(|connection| do_create_tpl_proj_trans(&tex_tpl, &user_info, connection));
     return trans_result;
 }
 
@@ -207,7 +206,7 @@ fn do_create_tpl_proj_trans(
         let proj_copy = proj.clone();
         move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(do_create_proj_on_disk(&tpl_copy,&proj_copy,&u_copy))
+            rt.block_on(do_create_proj_on_disk(&tpl_copy, &proj_copy, &u_copy))
         }
     });
     return Ok(Some(proj));
@@ -216,8 +215,8 @@ fn do_create_tpl_proj_trans(
 pub async fn do_create_proj_on_disk(
     tpl: &TexTemplate,
     proj: &TexProject,
-    rd_user_info: &RdUserInfo
-){
+    rd_user_info: &RdUserInfo,
+) {
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let create_res = create_proj_files(tpl, &proj.project_id, &uid).await;
     if !create_res {
@@ -232,11 +231,7 @@ pub async fn do_create_proj_on_disk(
     }
 }
 
-pub async fn create_proj_files(
-    tpl: &TexTemplate,
-    proj_id: &String,
-    uid: &i64,
-) -> bool {
+pub async fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
     let proj_dir = get_proj_base_dir(&proj_id).await;
@@ -248,7 +243,7 @@ pub async fn create_proj_files(
         );
         return false;
     }
-    return create_files_into_db( &proj_dir, proj_id, uid, tpl);
+    return create_files_into_db(&proj_dir, proj_id, uid, tpl);
 }
 
 fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
@@ -342,6 +337,10 @@ pub fn create_files_into_db(
         return false;
     }
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
+    if files.len() == 0 {
+        error!("read 0 files from disk, project path: {}, template: {:?}", project_path, tpl);
+        return false;
+    }
     let result = diesel::insert_into(files_table::dsl::tex_file)
         .values(&files)
         .get_result::<TexFile>(&mut get_connection());
