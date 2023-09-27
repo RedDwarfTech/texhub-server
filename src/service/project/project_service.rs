@@ -397,7 +397,8 @@ fn read_directory(
         let entry = entry?;
         let path = entry.path();
         let file_name = entry.file_name();
-        let relative_path = path.parent().unwrap().strip_prefix(dir_path);
+        let proj_path = get_proj_base_dir_instant(proj_id);
+        let relative_path = path.parent().unwrap().strip_prefix(proj_path);
         let stored_path = relative_path.unwrap().to_string_lossy().into_owned();
         if path.is_file() {
             let tex_file = TexFileAdd::gen_tex_file_from_disk(
