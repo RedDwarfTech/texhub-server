@@ -1,4 +1,6 @@
-use crate::common::proj::proj_util::{get_proj_base_dir, get_proj_compile_req, get_proj_log_name, get_proj_base_dir_instant};
+use crate::common::proj::proj_util::{
+    get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
+};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
@@ -302,7 +304,10 @@ pub fn support_sync(file_full_path: &String) -> bool {
     let extension = path.extension();
     let file_name = path.file_name().unwrap().to_string_lossy().into_owned();
     let name_without_ext = get_filename_without_ext(&file_name);
-    if name_without_ext == "LICENSE" || name_without_ext == "Makefile" || name_without_ext == "README" {
+    if name_without_ext == "LICENSE"
+        || name_without_ext == "Makefile"
+        || name_without_ext == "README"
+    {
         return true;
     }
     if let Some(ext) = extension {
@@ -343,7 +348,7 @@ pub fn create_files_into_db(
     let mut files: Vec<TexFileAdd> = Vec::new();
     let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, tpl);
     if let Err(err) = read_result {
-        error!("read directory failed,{}", err);
+        error!("read directory failed,{}, project path: {}", err, project_path);
         return false;
     }
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
@@ -379,6 +384,13 @@ fn read_directory(
     tpl: &TexTemplate,
 ) -> io::Result<()> {
     for entry in fs::read_dir(dir_path)? {
+        if let Err(err) = entry {
+            error!(
+                "read directory entry failed, {}, dir path: {}, parent: {}",
+                err, dir_path, parent
+            );
+            return Err(err);
+        }
         let entry = entry?;
         let path = entry.path();
         let file_name = entry.file_name();
@@ -415,14 +427,7 @@ fn read_directory(
         } else if path.is_dir() {
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", parent, dir_name);
-            read_directory(
-                &next_parent,
-                dir_path,
-                files,
-                uid,
-                proj_id,
-                tpl,
-            )?;
+            read_directory(&next_parent, dir_path, files, uid, proj_id, tpl)?;
         }
     }
 
