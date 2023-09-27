@@ -348,7 +348,10 @@ pub fn create_files_into_db(
     let mut files: Vec<TexFileAdd> = Vec::new();
     let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, tpl);
     if let Err(err) = read_result {
-        error!("read directory failed,{}, project path: {}", err, project_path);
+        error!(
+            "read directory failed,{}, project path: {}",
+            err, project_path
+        );
         return false;
     }
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
@@ -427,7 +430,13 @@ fn read_directory(
         } else if path.is_dir() {
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", parent, dir_name);
-            read_directory(&next_parent, dir_path, files, uid, proj_id, tpl)?;
+            let recur_result = read_directory(&next_parent, dir_path, files, uid, proj_id, tpl);
+            if let Err(err) = recur_result {
+                error!(
+                    "read file failed, {}, next parant: {}, dir path: {}",
+                    err, next_parent, dir_path
+                );
+            }
         }
     }
 
