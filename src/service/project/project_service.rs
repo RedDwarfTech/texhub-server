@@ -287,7 +287,7 @@ pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
             let file_content = fs::read_to_string(&file_full_path);
             if let Err(e) = file_content {
                 error!(
-                    "Failed to read file,{}, file full path: {}",
+                    "Failed to read file when initial yjs,{}, file full path: {}",
                     e, file_full_path
                 );
                 return;
@@ -416,8 +416,8 @@ fn read_directory(
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", parent, dir_name);
             read_directory(
-                path.to_str().unwrap(),
                 &next_parent,
+                dir_path,
                 files,
                 uid,
                 proj_id,
