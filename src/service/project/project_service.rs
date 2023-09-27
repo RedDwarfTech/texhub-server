@@ -53,7 +53,7 @@ use rust_wheel::config::cache::redis_util::{
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
-use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
+use rust_wheel::texhub::project::get_proj_path;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -425,7 +425,8 @@ fn read_directory(
             files.push(tex_file);
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", dir_path, dir_name);
-            let recur_result = read_directory(&next_parent, &parent_folder_id, files, uid, proj_id, tpl);
+            let recur_result =
+                read_directory(&next_parent, &parent_folder_id, files, uid, proj_id, tpl);
             if let Err(err) = recur_result {
                 error!(
                     "read file failed, {}, next parant: {}, dir path: {}",
@@ -823,14 +824,11 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
 }
 
 pub async fn get_proj_latest_pdf(proj_id: &String) -> LatestCompile {
-    let version_no = get_project_pdf(proj_id).await;
     let proj_info = get_cached_proj_info(proj_id).unwrap();
-    let ct = proj_info.main.created_time;
     let main_file = proj_info.main_file;
     let pdf_name = format!("{}{}", get_filename_without_ext(&main_file.name), ".pdf");
-    let relative_path = get_proj_relative_path(proj_id, ct, &version_no);
     let pdf_result: LatestCompile = LatestCompile {
-        path: join_paths(&[relative_path, pdf_name.to_string()]),
+        path: join_paths(&[pdf_name.to_string()]),
         project_id: proj_id.clone(),
     };
     return pdf_result;
@@ -870,10 +868,7 @@ pub async fn get_comp_log_stream(
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let base_compile_dir: String = get_proj_base_dir(&params.project_id);
-    let file_path = format!(
-        "{}/{}.log",
-        base_compile_dir, file_name_without_ext
-    );
+    let file_path = format!("{}/{}.log", base_compile_dir, file_name_without_ext);
     let mut cmd = Command::new("tail")
         .arg("-n")
         .arg("+1")
