@@ -54,6 +54,7 @@ use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
+use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
@@ -62,7 +63,6 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
-use uuid::Uuid;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -380,7 +380,7 @@ pub fn create_files_into_db(
 
 fn read_directory(
     dir_path: &str,
-    parent: &str,
+    parent_id: &str,
     files: &mut Vec<TexFileAdd>,
     uid: &i64,
     proj_id: &String,
@@ -390,7 +390,7 @@ fn read_directory(
         if let Err(err) = entry {
             error!(
                 "read directory entry failed, {}, dir path: {}, parent: {}",
-                err, dir_path, parent
+                err, dir_path, parent_id
             );
             return Err(err);
         }
@@ -399,38 +399,32 @@ fn read_directory(
         let file_name = entry.file_name();
         let relative_path = path.parent().unwrap().strip_prefix(dir_path);
         let stored_path = relative_path.unwrap().to_string_lossy().into_owned();
-
         if path.is_file() {
-            let uuid = Uuid::new_v4();
-            let uuid_string = uuid.to_string().replace("-", "");
-            let tex_file = TexFileAdd {
-                name: file_name.to_string_lossy().into_owned(),
-                created_time: get_current_millisecond(),
-                updated_time: get_current_millisecond(),
-                user_id: uid.to_owned(),
-                doc_status: 1,
-                project_id: proj_id.to_string(),
-                file_type: 1,
-                file_id: uuid_string,
-                parent: parent.to_string(),
-                main_flag: if file_name.to_string_lossy().into_owned() == tpl.main_file_name {
-                    1
-                } else {
-                    0
-                },
-                yjs_initial: 0,
-                file_path: if stored_path.is_empty() {
-                    "/".to_string()
-                } else {
-                    stored_path
-                },
-                sort: 0,
-            };
+            let tex_file = TexFileAdd::gen_tex_file_from_disk(
+                stored_path,
+                uid,
+                proj_id,
+                &file_name,
+                tpl,
+                parent_id,
+                1,
+            );
             files.push(tex_file)
         } else if path.is_dir() {
+            let tex_file = TexFileAdd::gen_tex_file_from_disk(
+                stored_path,
+                uid,
+                proj_id,
+                &file_name,
+                tpl,
+                parent_id,
+                ThFileType::Folder as i32,
+            );
+            let parent_folder_id = tex_file.file_id.clone();
+            files.push(tex_file);
             let dir_name = file_name.to_string_lossy().into_owned();
-            let next_parent = format!("{}/{}", parent, dir_name);
-            let recur_result = read_directory(&next_parent, dir_path, files, uid, proj_id, tpl);
+            let next_parent = format!("{}/{}", dir_path, dir_name);
+            let recur_result = read_directory(&next_parent, &parent_folder_id, files, uid, proj_id, tpl);
             if let Err(err) = recur_result {
                 error!(
                     "read file failed, {}, next parant: {}, dir path: {}",

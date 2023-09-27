@@ -1,12 +1,15 @@
 #![allow(unused)]
 #![allow(clippy::all)]
 
+use std::ffi::OsString;
+
 use actix_multipart::form::tempfile::TempFile;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use serde::Serialize;
 use serde::Deserialize;
 use uuid::Uuid;
+use crate::model::diesel::tex::custom_tex_models::TexTemplate;
 use crate::model::diesel::tex::tex_schema::*;
 use crate::model::request::file::file_add_req::TexFileAddReq;
 
@@ -50,6 +53,62 @@ impl TexFileAdd {
     }
 
     pub(crate) fn gen_tex_file(add_file: &TexFileAddReq, login_user_info: &LoginUserInfo, f_path: &String) ->Self {
+        let uuid = Uuid::new_v4();
+        let uuid_string = uuid.to_string().replace("-", "");
+        Self {
+            name: add_file.name.clone(),
+            created_time: get_current_millisecond(),
+            updated_time: get_current_millisecond(),
+            user_id: login_user_info.userId,
+            doc_status:1,
+            project_id: add_file.project_id.clone(),
+            file_type: add_file.file_type,
+            file_id: uuid_string,
+            parent: add_file.parent.clone(),
+            main_flag: 0,
+            file_path: f_path.to_string(),
+            sort: 0,
+            yjs_initial: 0,
+        }
+    }
+
+    pub(crate) fn gen_tex_file_from_disk(
+        stored_path: String, 
+        uid: &i64, 
+        proj_id: &String, 
+        file_name: &OsString,
+        tpl: &TexTemplate,
+        parent_id: &str,
+        file_type: i32
+    ) ->Self {
+        let uuid = Uuid::new_v4();
+        let uuid_string = uuid.to_string().replace("-", "");
+        Self {
+            name: file_name.to_string_lossy().into_owned(),
+            created_time: get_current_millisecond(),
+            updated_time: get_current_millisecond(),
+            user_id: uid.to_owned(),
+            doc_status: 1,
+            project_id: proj_id.to_string(),
+            file_type: file_type,
+            file_id: uuid_string,
+            parent: parent_id.to_string(),
+            main_flag: if file_name.to_string_lossy().into_owned() == tpl.main_file_name {
+                1
+            } else {
+                0
+            },
+            yjs_initial: 0,
+            file_path: if stored_path.is_empty() {
+                "/".to_string()
+            } else {
+                stored_path
+            },
+            sort: 0,
+        }
+    }
+
+    pub(crate) fn gen_tex_folder(add_file: &TexFileAddReq, login_user_info: &LoginUserInfo, f_path: &String) ->Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
         Self {
