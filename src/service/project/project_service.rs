@@ -53,7 +53,7 @@ use rust_wheel::config::cache::redis_util::{
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
-use rust_wheel::texhub::project::get_proj_path;
+use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -827,8 +827,9 @@ pub async fn get_proj_latest_pdf(proj_id: &String) -> LatestCompile {
     let proj_info = get_cached_proj_info(proj_id).unwrap();
     let main_file = proj_info.main_file;
     let pdf_name = format!("{}{}", get_filename_without_ext(&main_file.name), ".pdf");
+    let proj_relative_path = get_proj_relative_path(proj_id, proj_info.main.created_time);
     let pdf_result: LatestCompile = LatestCompile {
-        path: join_paths(&[pdf_name.to_string()]),
+        path: join_paths(&[proj_relative_path, pdf_name.to_string()]),
         project_id: proj_id.clone(),
     };
     return pdf_result;
