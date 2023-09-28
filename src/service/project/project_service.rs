@@ -826,7 +826,12 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
 pub async fn get_proj_latest_pdf(proj_id: &String) -> LatestCompile {
     let proj_info = get_cached_proj_info(proj_id).unwrap();
     let main_file = proj_info.main_file;
-    let pdf_name = format!("{}{}", get_filename_without_ext(&main_file.name), ".pdf");
+    let pdf_name = format!(
+        "{}{}{}",
+        get_filename_without_ext(&main_file.name),
+        ".pdf?v=",
+        get_current_millisecond()
+    );
     let proj_relative_path = get_proj_relative_path(proj_id, proj_info.main.created_time);
     let pdf_result: LatestCompile = LatestCompile {
         path: join_paths(&[proj_relative_path, pdf_name.to_string()]),
