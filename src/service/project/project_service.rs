@@ -804,7 +804,7 @@ pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
 }
 
 pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
-    let log_full_path = get_proj_log_name(&req.project_id, &req.version_no).await;
+    let log_full_path = get_proj_log_name(&req.project_id).await;
     let mut file = match File::open(&log_full_path) {
         Ok(file) => file,
         Err(error) => {
