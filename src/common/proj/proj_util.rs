@@ -40,12 +40,12 @@ pub fn get_proj_base_dir_instant(proj_id: &String) -> String {
     return proj_dir;
 }
 
-pub async fn get_proj_log_name(proj_id: &String, version: &String) -> String{
+pub async fn get_proj_log_name(proj_id: &String) -> String{
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let proj_info = get_cached_proj_info(&proj_id).unwrap();
     let ct = proj_info.main.created_time;
     let proj_base_dir = get_proj_path(&base_compile_dir, ct);
     let log_name = format!("{}.log", get_filename_without_ext(&proj_info.main_file.name));
-    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned(), version.to_owned(), log_name]);
+    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned(), log_name]);
     return proj_dir;
 }
