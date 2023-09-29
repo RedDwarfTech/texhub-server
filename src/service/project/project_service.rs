@@ -572,9 +572,10 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
         file_without_ext.to_string(),
         ".synctex.gz".to_owned(),
     ]);
-    let file = File::open(file_path);
+    let file = File::open(&file_path);
     if let Err(e) = &file {
-        error!("read file failed,{}", e);
+        error!("read file failed,{}, file path: {}", e, &file_path);
+        return;
     }
     let gz_decoder = GzDecoder::new(file.unwrap());
     let reader = BufReader::new(gz_decoder);
