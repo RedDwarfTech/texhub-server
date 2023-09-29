@@ -4,7 +4,10 @@ use crate::{
         request::project::{
             add::tex_project_tpl_req::TexProjectTplReq,
             edit::edit_proj_req::EditProjReq,
-            query::{get_proj_params::GetProjParams, proj_query_params::ProjQueryParams},
+            query::{
+                get_pdf_pos_params::GetPdfPosParams, get_proj_params::GetProjParams,
+                proj_query_params::ProjQueryParams,
+            },
             queue::queue_status_req::QueueStatusReq,
             tex_compile_project_req::TexCompileProjectReq,
             tex_compile_queue_log::TexCompileQueueLog,
@@ -19,8 +22,8 @@ use crate::{
         project::project_service::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
             create_tpl_project, del_project, edit_proj, get_cached_proj_info,
-            get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_proj_by_type,
-            get_proj_latest_pdf, join_project, save_proj_file, send_render_req,
+            get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_pdf_pos,
+            get_proj_by_type, get_proj_latest_pdf, join_project, save_proj_file, send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -229,6 +232,11 @@ async fn upload_proj_file(
     box_actix_rest_response(files)
 }
 
+async fn get_pdf_position(form: web::Query<GetPdfPosParams>) -> HttpResponse {
+    get_pdf_pos(&form.0);
+    box_actix_rest_response("ok")
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -238,6 +246,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
             .route("/del", web::delete().to(del_proj))
             .route("/latest/pdf", web::get().to(get_latest_pdf))
+            .route("/pos/pdf",web::get().to(get_pdf_position))
             .route("/edit", web::put().to(edit_project))
             .route("/join", web::post().to(join_proj))
             .route("/file/upload", web::post().to(upload_proj_file))

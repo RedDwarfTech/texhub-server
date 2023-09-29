@@ -12,6 +12,7 @@ use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
+use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
 use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
@@ -33,8 +34,10 @@ use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
+use flate2::read::GzDecoder;
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
+use regex::Regex;
 use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
@@ -559,6 +562,55 @@ fn create_proj(
         .values(&new_proj)
         .get_result::<TexProject>(connection);
     return result;
+}
+
+pub fn get_pdf_pos(params: &GetPdfPosParams) {
+    let proj_dir = get_proj_base_dir(&params.project_id);
+    let file_without_ext = get_filename_without_ext(&params.file);
+    let file_path = join_paths(&[
+        proj_dir,
+        file_without_ext.to_string(),
+        ".synctex.gz".to_owned(),
+    ]);
+    let file = File::open(file_path);
+    if let Err(e) = &file {
+        error!("read file failed,{}", e);
+    }
+    let gz_decoder = GzDecoder::new(file.unwrap());
+    let reader = BufReader::new(gz_decoder);
+    let input_regex = Regex::new(r#"Input:\d+:[^:]+:[^:]+:([^"]+)"#).unwrap();
+    let pos_regex = Regex::new(r#"Position:([\d ]+)"#).unwrap();
+    let mut prev_line = 0;
+    let mut prev_path = "";
+    let mut line_cp = String::new();
+    for line in reader.lines() {
+        line_cp = line.unwrap().clone();
+        if let Some(captures) = input_regex.captures(line_cp.as_str()) {
+            // Retrieve the file path
+            let path = &captures[1];
+            // Update previous line and path
+            prev_line = 0;
+            prev_path = path;
+        } else if let Some(captures) = pos_regex.captures(line_cp.as_str()) {
+            let positions = &captures[1];
+            let mut pos_iter = positions.split_whitespace();
+            // Retrieve position information
+            let line_pos: u32 = pos_iter.next().unwrap().parse().unwrap();
+            let column_pos: u32 = pos_iter.next().unwrap().parse().unwrap();
+            let page_pos: u32 = pos_iter.next().unwrap().parse().unwrap();
+            let x_pos: i32 = pos_iter.next().unwrap().parse().unwrap();
+            let y_pos: i32 = pos_iter.next().unwrap().parse().unwrap();
+            // Check if the current position matches the desired line and column numbers
+            //  && prev_path == file_path
+            if prev_line < params.line && params.line <= line_pos {
+                if params.column <= column_pos {
+                    // Print the PDF position information
+                    println!("Page: {}, X: {}, Y: {}", page_pos, x_pos, y_pos);
+                }
+                prev_line = line_pos;
+            }
+        }
+    }
 }
 
 pub fn join_project(
