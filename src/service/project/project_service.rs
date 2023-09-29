@@ -566,11 +566,11 @@ fn create_proj(
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let file_without_ext = get_filename_without_ext(&params.file);
+    let file_without_ext = format!("{}{}",get_filename_without_ext(&params.file),".synctex.gz".to_owned());
     let file_path = join_paths(&[
         proj_dir,
         file_without_ext.to_string(),
-        ".synctex.gz".to_owned(),
+        file_without_ext,
     ]);
     let file = File::open(&file_path);
     if let Err(e) = &file {
