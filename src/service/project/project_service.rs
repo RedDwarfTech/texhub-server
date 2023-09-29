@@ -569,8 +569,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
     let file_without_ext = format!("{}{}",get_filename_without_ext(&params.file),".synctex.gz".to_owned());
     let file_path = join_paths(&[
         proj_dir,
-        file_without_ext.to_string(),
-        file_without_ext,
+        file_without_ext.to_string()
     ]);
     let file = File::open(&file_path);
     if let Err(e) = &file {
