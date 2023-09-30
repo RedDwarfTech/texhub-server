@@ -62,6 +62,8 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{ChildStdout, Command, Stdio};
+use std::str::FromStr;
+use std::string::ParseError;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
@@ -565,16 +567,26 @@ fn create_proj(
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let file_without_ext = format!("{}{}",get_filename_without_ext(&params.file),".synctex.gz".to_owned());
-    let file_path = join_paths(&[
-        &proj_dir,
-        &file_without_ext.to_string()
-    ]);
+    let file_without_ext = format!(
+        "{}{}",
+        get_filename_without_ext(&params.file),
+        ".synctex.gz".to_owned()
+    );
+    let file_path = join_paths(&[&proj_dir, &file_without_ext.to_string()]);
     unsafe {
-        let c_out_path: Result<i8, _> = file_path.parse();
-        let c_build_path: Result<i8, _> = proj_dir.parse();
-        let result = synctex_scanner_new_with_output_file(c_out_path.unwrap(),c_build_path.unwrap(),0);
-        warn!("c result: {:?}",result);
+        let c_out_path: Result<i8, <i8 as FromStr>::Err> = file_path.parse();
+        if let Err(e) = c_out_path {
+            error!("parse out path error,{},{}", e, file_path);
+            return;
+        }
+        let c_build_path: Result<i8, <i8 as FromStr>::Err> = proj_dir.parse();
+        if let Err(e) = c_build_path {
+            error!("parse build path error,{},{}", e, proj_dir);
+            return;
+        }
+        let result =
+            synctex_scanner_new_with_output_file(c_out_path.unwrap(), c_build_path.unwrap(), 0);
+        warn!("c result: {:?}", result);
     }
 }
 
