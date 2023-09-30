@@ -1,9 +1,9 @@
-ARG BASE_IMAGE=dolphinjiang/rust-musl-builder:latest
+ARG BASE_IMAGE=rust:1.54-bullseye
 FROM ${BASE_IMAGE} AS builder
 ADD --chown=rust:rust . ./
 RUN RUSTFLAGS='-L ./src/so' cargo build --release
 
-FROM alpine:3.18.2
+FROM debian:bullseye-slim
 LABEL maintainer="jiangtingqiang@gmail.com"
 WORKDIR /app
 ENV ROCKET_ADDRESS=0.0.0.0
