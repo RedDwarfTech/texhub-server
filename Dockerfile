@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=dolphinjiang/rust-musl-builder:latest
 FROM ${BASE_IMAGE} AS builder
 ADD --chown=rust:rust . ./
-RUN cargo build --release
+RUN RUSTFLAGS='-L ./src/so' cargo build --release
 
 FROM alpine:3.18.2
 LABEL maintainer="jiangtingqiang@gmail.com"

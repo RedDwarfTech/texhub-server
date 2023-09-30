@@ -1,3 +1,4 @@
+use crate::common::interop::synctex::synctex_scanner_new_with_output_file;
 use crate::common::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
@@ -34,10 +35,8 @@ use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
-use flate2::read::GzDecoder;
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
-use regex::Regex;
 use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
@@ -568,48 +567,14 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
     let proj_dir = get_proj_base_dir(&params.project_id);
     let file_without_ext = format!("{}{}",get_filename_without_ext(&params.file),".synctex.gz".to_owned());
     let file_path = join_paths(&[
-        proj_dir,
-        file_without_ext.to_string()
+        &proj_dir,
+        &file_without_ext.to_string()
     ]);
-    let file = File::open(&file_path);
-    if let Err(e) = &file {
-        error!("read file failed,{}, file path: {}", e, &file_path);
-        return;
-    }
-    let gz_decoder = GzDecoder::new(file.unwrap());
-    let reader = BufReader::new(gz_decoder);
-    let input_regex = Regex::new(r#"Input:\d+:[^:]+:[^:]+:([^"]+)"#).unwrap();
-    let pos_regex = Regex::new(r#"Position:([\d ]+)"#).unwrap();
-    let mut prev_line = 0;
-    let mut prev_path = "";
-    let mut line_cp = String::new();
-    for line in reader.lines() {
-        line_cp = line.unwrap().clone();
-        if let Some(captures) = input_regex.captures(line_cp.as_str()) {
-            // Retrieve the file path
-            let path = &captures[1];
-            // Update previous line and path
-            prev_line = 0;
-            prev_path = path;
-        } else if let Some(captures) = pos_regex.captures(line_cp.as_str()) {
-            let positions = &captures[1];
-            let mut pos_iter = positions.split_whitespace();
-            // Retrieve position information
-            let line_pos: u32 = pos_iter.next().unwrap().parse().unwrap();
-            let column_pos: u32 = pos_iter.next().unwrap().parse().unwrap();
-            let page_pos: u32 = pos_iter.next().unwrap().parse().unwrap();
-            let x_pos: i32 = pos_iter.next().unwrap().parse().unwrap();
-            let y_pos: i32 = pos_iter.next().unwrap().parse().unwrap();
-            // Check if the current position matches the desired line and column numbers
-            //  && prev_path == file_path
-            if prev_line < params.line && params.line <= line_pos {
-                if params.column <= column_pos {
-                    // Print the PDF position information
-                    println!("Page: {}, X: {}, Y: {}", page_pos, x_pos, y_pos);
-                }
-                prev_line = line_pos;
-            }
-        }
+    unsafe {
+        let c_out_path: Result<i8, _> = file_path.parse();
+        let c_build_path: Result<i8, _> = proj_dir.parse();
+        let result = synctex_scanner_new_with_output_file(c_out_path.unwrap(),c_build_path.unwrap(),0);
+        warn!("c result: {:?}",result);
     }
 }
 
