@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=rust:1.69-bullseye
 FROM ${BASE_IMAGE} AS builder
-RUN apt-get update && apt-get install zlib -y
+RUN apt-get update && apt-get install zlib1g -y
 ADD --chown=rust:rust . ./
 RUN RUSTFLAGS='-L ./src/so' cargo build --release
 
