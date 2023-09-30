@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=rust:1.54-bullseye
+ARG BASE_IMAGE=rust:1.69-bullseye
 FROM ${BASE_IMAGE} AS builder
 ADD --chown=rust:rust . ./
 RUN RUSTFLAGS='-L ./src/so' cargo build --release
