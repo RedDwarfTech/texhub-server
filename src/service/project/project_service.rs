@@ -58,6 +58,7 @@ use rust_wheel::texhub::compile_status::CompileStatus;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
+use std::ffi::CString;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
 use std::path::Path;
@@ -574,18 +575,18 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
     );
     let file_path = join_paths(&[&proj_dir, &file_without_ext.to_string()]);
     unsafe {
-        let c_out_path: Result<i8, <i8 as FromStr>::Err> = file_path.parse();
-        if let Err(e) = c_out_path {
-            error!("parse out path error,{},{}", e, file_path);
+        let c_file_path = CString::new(file_path.clone());
+        if let Err(e) = c_file_path {
+            error!("parse out path error,{},{}", e, file_path.clone());
             return;
         }
-        let c_build_path: Result<i8, <i8 as FromStr>::Err> = proj_dir.parse();
+        let c_build_path = CString::new(proj_dir.clone());
         if let Err(e) = c_build_path {
-            error!("parse build path error,{},{}", e, proj_dir);
+            error!("parse build path error,{},{}", e, proj_dir.clone());
             return;
         }
         let result =
-            synctex_scanner_new_with_output_file(c_out_path.unwrap(), c_build_path.unwrap(), 0);
+            synctex_scanner_new_with_output_file(c_file_path.unwrap().as_ptr(), c_build_path.unwrap().as_ptr(), 0);
         warn!("c result: {:?}", result);
     }
 }
