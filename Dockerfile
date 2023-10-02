@@ -12,5 +12,5 @@ COPY --from=builder /home/rust/src/settings.toml /app
 COPY --from=builder /home/rust/src/src/so/libsynctex_parser.so /app
 COPY --from=builder /home/rust/src/log4rs.yaml /app
 COPY --from=builder /home/rust/src/target/x86_64-unknown-linux-musl/release/texhub-server /app/
-RUN apk update && apk add curl websocat zlib git gcc build-base zlib-dev rust-gdb
+RUN apk update && apk add curl websocat zlib git gcc build-base zlib-dev rust-gdb rust cargo
 CMD ["./texhub-server"]
