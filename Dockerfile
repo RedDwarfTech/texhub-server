@@ -1,6 +1,9 @@
 ARG BASE_IMAGE=dolphinjiang/rust-musl-builder:latest
 FROM ${BASE_IMAGE} AS builder
 ADD --chown=rust:rust . ./
+RUN apk update && apk add gcc curl git file
+RUN git clone https://github.com/jlaurens/synctex.git && cd synctex && gcc -c -fPIC *.c && gcc -shared *.o -o libsynctex_parser.so -lz
+RUN cp libsynctex_parser.so ../src/so
 RUN RUSTFLAGS='-L ./src/so' cargo build --release
 
 FROM alpine:3.18.2
