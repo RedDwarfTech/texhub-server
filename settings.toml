@@ -1,4 +1,5 @@
 [texhub]
+port=8000
 compile_base_dir = "/opt/data/project"
 tpl_files_base_dir = "/opt/data/tpl-files"
 # cv_api_url = "http://10.98.93.22:11015"
