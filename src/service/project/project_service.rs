@@ -1,4 +1,7 @@
-use crate::common::interop::synctex::synctex_scanner_new_with_output_file;
+use crate::common::interop::synctex::{
+    synctex_display_query, synctex_node_p, synctex_scanner_new_with_output_file,
+    synctex_scanner_next_result, synctex_node_page, synctex_node_visible_h, synctex_node_visible_v, synctex_node_visible_height, synctex_node_visible_width,
+};
 use crate::common::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
@@ -574,6 +577,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
         ".pdf".to_owned()
     );
     let file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
+    warn!("pdf file path: {}", file_path);
     unsafe {
         let c_file_path = CString::new(file_path.clone());
         if let Err(e) = c_file_path {
@@ -585,9 +589,34 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
             error!("parse build path error,{},{}", e, proj_dir.clone());
             return;
         }
-        let result =
-            synctex_scanner_new_with_output_file(c_file_path.unwrap().as_ptr(), c_build_path.unwrap().as_ptr(), 1);
-        warn!("c result: {:?}", result);
+        warn!("start to get canner, file path: {}", file_path.clone());
+        let scanner = synctex_scanner_new_with_output_file(
+            c_file_path.unwrap().as_ptr(),
+            c_build_path.unwrap().as_ptr(),
+            1,
+        );
+        warn!("c scanner: {:?}", scanner);
+        let tex_file_path = join_paths(&[proj_dir, params.file.clone()]);
+        let c_tex_file_path = CString::new(tex_file_path);
+        let node_number =
+            synctex_display_query(scanner, c_tex_file_path.unwrap().as_ptr(), 1, 1, 0);
+        if node_number > 0 {
+            for i in 0..node_number {
+                let node: synctex_node_p = synctex_scanner_next_result(scanner);
+                println!("node...{:?}", node);
+                let page = synctex_node_page(node);
+                println!("page: {:?}", page);
+                let h = synctex_node_visible_h(node);
+                println!("h: {:?}", h);
+                let v = synctex_node_visible_v(node);
+                println!("v: {:?}", v);
+                let height = synctex_node_visible_height(node);
+                println!("height: {:?}", height);
+                let width = synctex_node_visible_width(node);
+                println!("width: {:?}", width);
+            }
+        }
+        warn!("node_number result: {:?}", node_number);
     }
 }
 
