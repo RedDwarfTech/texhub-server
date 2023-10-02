@@ -568,12 +568,12 @@ fn create_proj(
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let file_without_ext = format!(
+    let pdf_file_name = format!(
         "{}{}",
         get_filename_without_ext(&params.file),
-        ".synctex.gz".to_owned()
+        ".pdf".to_owned()
     );
-    let file_path = join_paths(&[&proj_dir, &file_without_ext.to_string()]);
+    let file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
     unsafe {
         let c_file_path = CString::new(file_path.clone());
         if let Err(e) = c_file_path {
@@ -586,7 +586,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
             return;
         }
         let result =
-            synctex_scanner_new_with_output_file(c_file_path.unwrap().as_ptr(), c_build_path.unwrap().as_ptr(), 0);
+            synctex_scanner_new_with_output_file(c_file_path.unwrap().as_ptr(), c_build_path.unwrap().as_ptr(), 1);
         warn!("c result: {:?}", result);
     }
 }
