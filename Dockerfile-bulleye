@@ -12,5 +12,7 @@ ENV ROCKET_ADDRESS=0.0.0.0
 COPY --from=builder /app/settings.toml /app
 COPY --from=builder /app/log4rs.yaml /app
 COPY --from=builder /app/target/release/texhub-server /app/
+COPY --from=builder /app/src/so/libsynctex_parser.so /app/
+COPY --from=builder /app/src/so/libsynctex_parser.so /usr/lib/
 RUN apt-get update -y && apt-get install curl -y
 CMD ["./texhub-server"]
