@@ -1,37 +1,50 @@
-extern crate openssl;
-#[macro_use]
-extern crate diesel;
-
-use actix_web::{App, HttpServer};
-use controller::{
-    collar::collar_controller, file::file_controller, project::project_controller,
-    template::template_controller,
+use common::interop::synctex::{
+    synctex_display_query, synctex_node_page,
+    synctex_scanner_new_with_output_file, synctex_scanner_next_result, synctex_node_visible_h, synctex_node_visible_v, synctex_node_visible_height, synctex_node_visible_width, synctex_node_p,
 };
-use monitor::health_controller;
-use rust_wheel::config::app::app_conf_reader::get_app_config;
+use std::{ffi::CString, fs};
 
-pub mod common;
-pub mod controller;
-pub mod model;
-pub mod monitor;
-pub mod net;
-pub mod service;
-pub mod tests;
+mod common;
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
-    let port: u16 = get_app_config("texhub.port").parse().unwrap();
-    let address = ("0.0.0.0", port);
-    HttpServer::new(|| {
-        App::new()
-            .configure(collar_controller::config)
-            .configure(health_controller::config)
-            .configure(project_controller::config)
-            .configure(template_controller::config)
-            .configure(file_controller::config)
-    })
-    .bind(address)?
-    .run()
-    .await
+fn main() {
+    let proj_dir = "/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn";
+    let file_path = "/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn/tex/demo.pdf";
+    unsafe {
+        let c_file_path = CString::new(file_path.clone());
+        if let Err(e) = c_file_path {
+            println!("parse out path error,{},{}", e, file_path.clone());
+            return;
+        }
+        let c_build_path = CString::new(proj_dir.clone());
+        if let Err(e) = c_build_path {
+            println!("parse build path error,{},{}", e, proj_dir.clone());
+            return;
+        }
+        let scanner = synctex_scanner_new_with_output_file(
+            c_file_path.unwrap().as_ptr(),
+            c_build_path.unwrap().as_ptr(),
+            1,
+        );
+        println!("c result: {:?}", scanner);
+        let demo_tex =
+            CString::new("/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn/tex/demo.tex");
+        let node_number = synctex_display_query(scanner, demo_tex.unwrap().as_ptr(), 1, 1, 0);
+        if node_number > 0 {
+            for i in 0..node_number {
+                let node: synctex_node_p = synctex_scanner_next_result(scanner);
+                println!("node...{:?}", node);
+                let page = synctex_node_page(node);
+                println!("page: {:?}", page);
+                let h = synctex_node_visible_h(node);
+                println!("h: {:?}", h);
+                let v = synctex_node_visible_v(node);
+                println!("v: {:?}", v);
+                let height = synctex_node_visible_height(node);
+                println!("height: {:?}", height);
+                let width = synctex_node_visible_width(node);
+                println!("width: {:?}", width);
+            }
+        }
+        println!("node_number result: {:?}", node_number);
+    }
 }

@@ -1,7 +1,7 @@
 use rust_wheel::{common::util::{time_util::get_current_millisecond, rd_file_util::{join_paths, get_filename_without_ext}}, config::app::app_conf_reader::get_app_config, texhub::project::get_proj_path};
 use serde_json::Value;
 
-use crate::service::project::project_service::get_cached_proj_info;
+use service::project::project_service::get_cached_proj_info;
 
 pub fn get_proj_compile_req(proj_id: &String, file_name: &String) -> Value {
     let file_path = format!(
