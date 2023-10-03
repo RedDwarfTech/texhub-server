@@ -6,9 +6,9 @@ use reqwest::{
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
 use crate::{
-    common::proj::proj_util::get_proj_compile_req,
     model::request::project::tex_compile_project_req::TexCompileProjectReq,
 };
+use crate::service::global::proj::proj_util::get_proj_compile_req;
 
 pub async fn render_request(params: &TexCompileProjectReq) -> Option<serde_json::Value> {
     let client = Client::new();

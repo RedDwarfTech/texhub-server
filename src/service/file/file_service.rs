@@ -2,7 +2,6 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 
 use crate::common::database::get_connection;
-use crate::common::proj::proj_util::get_proj_base_dir;
 use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -30,6 +29,7 @@ use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
+use crate::service::global::proj::proj_util::get_proj_base_dir;
 
 pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");

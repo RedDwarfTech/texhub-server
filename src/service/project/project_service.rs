@@ -2,9 +2,6 @@ use crate::common::interop::synctex::{
     synctex_display_query, synctex_node_p, synctex_scanner_new_with_output_file,
     synctex_scanner_next_result, synctex_node_page, synctex_node_visible_h, synctex_node_visible_v, synctex_node_visible_height, synctex_node_visible_width,
 };
-use crate::common::proj::proj_util::{
-    get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
-};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
@@ -71,6 +68,7 @@ use std::string::ParseError;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+use crate::service::global::proj::proj_util::{get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name};
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -570,36 +568,28 @@ fn create_proj(
 }
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) {
-    let proj_dir = get_proj_base_dir(&params.project_id);
-    let pdf_file_name = format!(
-        "{}{}",
-        get_filename_without_ext(&params.file),
-        ".pdf".to_owned()
-    );
-    let file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
-    warn!("pdf file path: {}", file_path);
+    let proj_dir = "/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn";
+    let file_path = "/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn/tex/demo.pdf";
     unsafe {
         let c_file_path = CString::new(file_path.clone());
         if let Err(e) = c_file_path {
-            error!("parse out path error,{},{}", e, file_path.clone());
+            println!("parse out path error,{},{}", e, file_path.clone());
             return;
         }
         let c_build_path = CString::new(proj_dir.clone());
         if let Err(e) = c_build_path {
-            error!("parse build path error,{},{}", e, proj_dir.clone());
+            println!("parse build path error,{},{}", e, proj_dir.clone());
             return;
         }
-        warn!("start to get canner, file path: {}", file_path.clone());
         let scanner = synctex_scanner_new_with_output_file(
             c_file_path.unwrap().as_ptr(),
             c_build_path.unwrap().as_ptr(),
             1,
         );
-        warn!("c scanner: {:?}", scanner);
-        let tex_file_path = join_paths(&[proj_dir, params.file.clone()]);
-        let c_tex_file_path = CString::new(tex_file_path);
-        let node_number =
-            synctex_display_query(scanner, c_tex_file_path.unwrap().as_ptr(), 1, 1, 0);
+        println!("c result: {:?}", scanner);
+        let demo_tex =
+            CString::new("/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn/tex/demo.tex");
+        let node_number = synctex_display_query(scanner, demo_tex.unwrap().as_ptr(), 1, 1, 0);
         if node_number > 0 {
             for i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
@@ -616,7 +606,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
                 println!("width: {:?}", width);
             }
         }
-        warn!("node_number result: {:?}", node_number);
+        println!("node_number result: {:?}", node_number);
     }
 }
 
