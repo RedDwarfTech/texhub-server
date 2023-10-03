@@ -39,7 +39,7 @@ jobs:
         context: .
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        file: Dockerfile
+        file: Dockerfile-bulleye
         push: true
         tags: ${{ secrets.ALI_DOCKER_HUB_REGISTRY }}/reddwarf-pro/texhub-server:${{ github.sha }} 
 
