@@ -12,5 +12,5 @@ ENV ROCKET_ADDRESS=0.0.0.0
 COPY --from=builder /app/settings.toml /app
 COPY --from=builder /app/log4rs.yaml /app
 COPY --from=builder /app/target/release/texhub-server /app/
-RUN apt-get update && apt-get install curl websocat
+RUN apt-get update && apt-get install curl 
 CMD ["./texhub-server"]
