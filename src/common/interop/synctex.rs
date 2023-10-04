@@ -58,4 +58,12 @@ extern "C" {
         h: f32,
         v: f32,
     ) -> synctex_status_t;
+
+    pub fn synctex_node_get_name(node: synctex_node_p) -> *const ::std::os::raw::c_char;
+
+    pub fn synctex_node_mean_line(node: synctex_node_p) -> ::std::os::raw::c_int;
+
+    pub fn synctex_node_column(node: synctex_node_p) -> ::std::os::raw::c_int;
+
+    pub fn synctex_node_line(node: synctex_node_p) -> ::std::os::raw::c_int;
 }

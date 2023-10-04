@@ -1,7 +1,7 @@
 use crate::common::interop::synctex::{
     synctex_display_query, synctex_edit_query, synctex_node_p, synctex_node_page,
     synctex_node_visible_h, synctex_node_visible_height, synctex_node_visible_v,
-    synctex_node_visible_width, synctex_scanner_new_with_output_file, synctex_scanner_next_result,
+    synctex_node_visible_width, synctex_scanner_new_with_output_file, synctex_scanner_next_result, synctex_node_get_name, synctex_node_line, synctex_node_column,
 };
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -65,7 +65,7 @@ use rust_wheel::texhub::compile_status::CompileStatus;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
 use std::os::raw::c_int;
@@ -595,12 +595,6 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             c_build_path.unwrap().as_ptr(),
             1,
         );
-        println!(
-            "c result: {:?}, scanner file path:{}, build path:{}",
-            scanner,
-            file_path.clone(),
-            proj_dir.clone()
-        );
         let tex_file_path = join_paths(&[proj_dir, params.path.clone(), params.file.clone()]);
         let demo_tex = CString::new(tex_file_path.clone());
         let mut position_list: Vec<PdfPosResp> = Vec::new();
@@ -614,33 +608,22 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
         if node_number > 0 {
             for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
-                warn!("node...{:?}", node);
                 let page = synctex_node_page(node);
-                warn!("page: {:?}", page);
                 let h = synctex_node_visible_h(node);
-                warn!("h: {:?}", h);
                 let v = synctex_node_visible_v(node);
-                warn!("v: {:?}", v);
                 let height = synctex_node_visible_height(node);
-                warn!("height: {:?}", height);
                 let width = synctex_node_visible_width(node);
-                warn!("width: {:?}", width);
                 let single_pos = PdfPosResp::from((page, h, v, height, width));
                 position_list.push(single_pos);
             }
         }
-        warn!(
-            "node_number result: {:?},demo tex:{}",
-            node_number,
-            tex_file_path.clone()
-        );
         return position_list;
     }
 }
 
 pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let file_name_without_ext = get_filename_without_ext(&params.file);
+    let file_name_without_ext = get_filename_without_ext(&params.main_file);
     let file_path = join_paths(&[
         &proj_dir,
         &file_name_without_ext.to_string(),
@@ -668,24 +651,22 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
             file_path.clone(),
             proj_dir.clone()
         );
-        let tex_file_path = join_paths(&[proj_dir, "demo.tex".to_string()]);
+        let tex_file_path = join_paths(&[proj_dir, params.path.clone(), "main.tex".to_string()]);
         let mut position_list: Vec<SrcPosResp> = Vec::new();
-        let node_number = synctex_edit_query(scanner, 1, 1.0, 1.0);
+        let node_number = synctex_edit_query(scanner, params.page as c_int, params.h , params.v);
         if node_number > 0 {
             for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
                 warn!("node...{:?}", node);
-                let page = synctex_node_page(node);
-                warn!("page: {:?}", page);
-                let h = synctex_node_visible_h(node);
-                warn!("h: {:?}", h);
-                let v = synctex_node_visible_v(node);
-                warn!("v: {:?}", v);
-                let height = synctex_node_visible_height(node);
-                warn!("height: {:?}", height);
-                let width = synctex_node_visible_width(node);
-                warn!("width: {:?}", width);
-                let single_pos = SrcPosResp::from(("1".to_string(), 1 as u32, 1 as u32));
+                let file = synctex_node_get_name(node);
+                warn!("page: {:?}", file);
+                let line = synctex_node_line(node);
+                warn!("line: {:?}", line);
+                let column = synctex_node_column(node);
+                warn!("column: {:?}", column);
+                let c_str = CStr::from_ptr(file);
+                let file_name: String = c_str.to_string_lossy().into_owned();
+                let single_pos = SrcPosResp::from((file_name, line, column));
                 position_list.push(single_pos);
             }
         }

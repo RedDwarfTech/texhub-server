@@ -6,7 +6,7 @@ use crate::{
             edit::edit_proj_req::EditProjReq,
             query::{
                 get_pdf_pos_params::GetPdfPosParams, get_proj_params::GetProjParams,
-                proj_query_params::ProjQueryParams,
+                proj_query_params::ProjQueryParams, get_src_pos_params::GetSrcPosParams,
             },
             queue::queue_status_req::QueueStatusReq,
             tex_compile_project_req::TexCompileProjectReq,
@@ -23,7 +23,7 @@ use crate::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
             create_tpl_project, del_project, edit_proj, get_cached_proj_info,
             get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_pdf_pos,
-            get_proj_by_type, get_proj_latest_pdf, join_project, save_proj_file, send_render_req,
+            get_proj_by_type, get_proj_latest_pdf, join_project, save_proj_file, send_render_req, get_src_pos,
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -237,8 +237,9 @@ async fn get_pdf_position(form: web::Query<GetPdfPosParams>) -> HttpResponse {
     box_actix_rest_response(pos)
 }
 
-async fn get_src_position() -> HttpResponse {
-    box_actix_rest_response("ok")
+async fn get_src_position(form: web::Query<GetSrcPosParams>) -> HttpResponse {
+    let pos = get_src_pos(&form.0);
+    box_actix_rest_response(pos)
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {

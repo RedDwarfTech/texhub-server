@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 #[allow(non_snake_case)]
 pub struct SrcPosResp {
     pub file: String,
-    pub line: u32,
-    pub column: u32,
+    pub line: i32,
+    pub column: i32,
 }
 
-impl From<(String, u32, u32)> for SrcPosResp {
-    fn from(items: (String, u32, u32)) -> Self {
+impl From<(String, i32, i32)> for SrcPosResp {
+    fn from(items: (String, i32, i32)) -> Self {
         Self {
             file: items.0,
             line: items.1,
