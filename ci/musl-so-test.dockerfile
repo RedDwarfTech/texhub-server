@@ -2,6 +2,5 @@
 ARG BASE_IMAGE=dolphinjiang/rust-musl-builder:latest
 FROM ${BASE_IMAGE} AS builder
 ADD --chown=rust:rust . ./
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY ../scripts/shell/entrypoint.sh /entrypoint.sh
 CMD ["/entrypoint.sh"]
