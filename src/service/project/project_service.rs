@@ -574,7 +574,7 @@ fn create_proj(
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let pdf_file_name = format!("{}{}",get_filename_without_ext(&params.file),".pdf");
+    let pdf_file_name = format!("{}{}",get_filename_without_ext(&params.main_file),".pdf");
     let file_path = join_paths(&[
         &proj_dir,
         &pdf_file_name.to_string(),
