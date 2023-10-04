@@ -1,6 +1,5 @@
 use rust_wheel::common::util::convert_to_tree_generic::IntoTree;
 use serde::{Serialize, Deserialize};
-
 use crate::model::diesel::tex::custom_tex_models::TexFile;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -14,6 +13,7 @@ pub struct FileTreeResp {
     pub doc_status: i32,
     pub project_id: String,
     pub file_type: i32,
+    pub file_path: String,
     pub file_id: String,
     pub parent: String,
     pub main_flag: i16,
@@ -35,6 +35,7 @@ impl Default for FileTreeResp {
             file_type: 1,
             file_id: "".to_owned(),
             parent: "".to_owned(),
+            file_path: "".to_owned(),
             main_flag: 0,
             yjs_initial: 0,
         }
@@ -53,6 +54,7 @@ impl From<&TexFile> for FileTreeResp {
             doc_status: p.doc_status,
             project_id: p.project_id.clone(),
             file_type: p.file_type,
+            file_path: p.file_path.clone(),
             file_id: p.file_id.clone(),
             parent: p.parent.clone(),
             main_flag: p.main_flag,
@@ -81,6 +83,7 @@ impl IntoTree<String> for &FileTreeResp {
             user_id: self.user_id,
             doc_status: self.doc_status,
             project_id: self.project_id.clone(),
+            file_path: self.file_path.clone(),
             file_type: self.file_type,
             file_id: self.file_id.clone(),
             parent: self.parent.clone(),
