@@ -1,4 +1,0 @@
-ARG BASE_IMAGE=dolphinjiang/rust-musl-builder:latest
-FROM ${BASE_IMAGE} AS builder
-ADD --chown=rust:rust . ./
-RUN RUSTFLAGS='-L ./src/so' cargo build --release
