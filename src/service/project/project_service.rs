@@ -71,8 +71,6 @@ use std::io::{self, BufRead, BufReader, Read};
 use std::os::raw::c_int;
 use std::path::Path;
 use std::process::{ChildStdout, Command, Stdio};
-use std::str::FromStr;
-use std::string::ParseError;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
@@ -603,7 +601,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             file_path.clone(),
             proj_dir.clone()
         );
-        let tex_file_path = join_paths(&[proj_dir, params.file]);
+        let tex_file_path = join_paths(&[proj_dir, params.file.clone()]);
         let demo_tex = CString::new(tex_file_path.clone());
         let mut position_list: Vec<PdfPosResp> = Vec::new();
         let node_number = synctex_display_query(
@@ -687,7 +685,7 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
                 warn!("height: {:?}", height);
                 let width = synctex_node_visible_width(node);
                 warn!("width: {:?}", width);
-                let single_pos = SrcPosResp::from(("1", 1, 1));
+                let single_pos = SrcPosResp::from(("1".to_string(), 1 as u32, 1 as u32));
                 position_list.push(single_pos);
             }
         }
