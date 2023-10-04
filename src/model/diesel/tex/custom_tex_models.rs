@@ -61,6 +61,7 @@ pub struct TexTemplate {
 
 #[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
 #[diesel(table_name = tex_file)]
+#[serde(default)]
 pub struct TexFile {
     pub id: i64,
     pub name: String,
