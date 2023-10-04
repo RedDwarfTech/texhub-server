@@ -601,7 +601,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             file_path.clone(),
             proj_dir.clone()
         );
-        let tex_file_path = join_paths(&[proj_dir, params.file.clone()]);
+        let tex_file_path = join_paths(&[proj_dir, params.path.clone(), params.file.clone()]);
         let demo_tex = CString::new(tex_file_path.clone());
         let mut position_list: Vec<PdfPosResp> = Vec::new();
         let node_number = synctex_display_query(
