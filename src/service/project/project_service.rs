@@ -1,6 +1,7 @@
 use crate::common::interop::synctex::{
-    synctex_display_query, synctex_node_p, synctex_scanner_new_with_output_file,
-    synctex_scanner_next_result, synctex_node_page, synctex_node_visible_h, synctex_node_visible_v, synctex_node_visible_height, synctex_node_visible_width,
+    synctex_display_query, synctex_node_p, synctex_node_page, synctex_node_visible_h,
+    synctex_node_visible_height, synctex_node_visible_v, synctex_node_visible_width,
+    synctex_scanner_new_with_output_file, synctex_scanner_next_result,
 };
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -24,10 +25,14 @@ use crate::model::request::project::tex_compile_queue_status::TexCompileQueueSta
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
 use crate::model::response::project::compile_resp::CompileResp;
 use crate::model::response::project::latest_compile::LatestCompile;
+use crate::model::response::project::pdf_pos_resp::PdfPosResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
 use crate::service::file::file_service::{get_file_by_fid, get_file_tree, get_main_file_list};
+use crate::service::global::proj::proj_util::{
+    get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
+};
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -68,7 +73,6 @@ use std::string::ParseError;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
-use crate::service::global::proj::proj_util::{get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name};
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -567,19 +571,24 @@ fn create_proj(
     return result;
 }
 
-pub fn get_pdf_pos(params: &GetPdfPosParams) {
-    let proj_dir = "/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn";
-    let file_path = "/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn/tex/demo.pdf";
+pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
+    let proj_dir = get_proj_base_dir(&params.project_id);
+    let file_name_without_ext = get_filename_without_ext(&params.file);
+    let file_path = join_paths(&[
+        &proj_dir,
+        &file_name_without_ext.to_string(),
+        &".pdf".to_string(),
+    ]);
     unsafe {
         let c_file_path = CString::new(file_path.clone());
         if let Err(e) = c_file_path {
-            println!("parse out path error,{},{}", e, file_path.clone());
-            return;
+            error!("parse out path error,{},{}", e, file_path.clone());
+            return Vec::new();
         }
         let c_build_path = CString::new(proj_dir.clone());
         if let Err(e) = c_build_path {
-            println!("parse build path error,{},{}", e, proj_dir.clone());
-            return;
+            error!("parse build path error,{},{}", e, proj_dir.clone());
+            return Vec::new();
         }
         let scanner = synctex_scanner_new_with_output_file(
             c_file_path.unwrap().as_ptr(),
@@ -587,26 +596,30 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) {
             1,
         );
         println!("c result: {:?}", scanner);
-        let demo_tex =
-            CString::new("/Users/xiaoqiangjiang/source/reddwarf/backend/rust-learn/tex/demo.tex");
+        let tex_file_path = join_paths(&[proj_dir, "demo.tex".to_string()]);
+        let demo_tex = CString::new(tex_file_path);
+        let mut position_list: Vec<PdfPosResp> = Vec::new();
         let node_number = synctex_display_query(scanner, demo_tex.unwrap().as_ptr(), 1, 1, 0);
         if node_number > 0 {
-            for i in 0..node_number {
+            for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
-                println!("node...{:?}", node);
+                warn!("node...{:?}", node);
                 let page = synctex_node_page(node);
-                println!("page: {:?}", page);
+                warn!("page: {:?}", page);
                 let h = synctex_node_visible_h(node);
-                println!("h: {:?}", h);
+                warn!("h: {:?}", h);
                 let v = synctex_node_visible_v(node);
-                println!("v: {:?}", v);
+                warn!("v: {:?}", v);
                 let height = synctex_node_visible_height(node);
-                println!("height: {:?}", height);
+                warn!("height: {:?}", height);
                 let width = synctex_node_visible_width(node);
-                println!("width: {:?}", width);
+                warn!("width: {:?}", width);
+                let single_pos = PdfPosResp::from((page, h, v, height, width));
+                position_list.push(single_pos);
             }
         }
-        println!("node_number result: {:?}", node_number);
+        warn!("node_number result: {:?}", node_number);
+        return position_list;
     }
 }
 
