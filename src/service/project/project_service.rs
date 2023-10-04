@@ -576,11 +576,10 @@ fn create_proj(
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let file_name_without_ext = get_filename_without_ext(&params.file);
+    let pdf_file_name = format!("{}{}",get_filename_without_ext(&params.file),".pdf");
     let file_path = join_paths(&[
         &proj_dir,
-        &file_name_without_ext.to_string(),
-        &".pdf".to_string(),
+        &pdf_file_name.to_string(),
     ]);
     unsafe {
         let c_file_path = CString::new(file_path.clone());
@@ -604,7 +603,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             file_path.clone(),
             proj_dir.clone()
         );
-        let tex_file_path = join_paths(&[proj_dir, "demo.tex".to_string()]);
+        let tex_file_path = join_paths(&[proj_dir, params.file]);
         let demo_tex = CString::new(tex_file_path.clone());
         let mut position_list: Vec<PdfPosResp> = Vec::new();
         let node_number = synctex_display_query(
