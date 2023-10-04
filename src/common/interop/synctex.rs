@@ -51,4 +51,11 @@ extern "C" {
     pub fn synctex_node_visible_width(node: synctex_node_p) -> f32;
 
     pub fn synctex_node_visible_height(node: synctex_node_p) -> f32;
+
+    pub fn synctex_edit_query(
+        scanner: synctex_scanner_p,
+        page: ::std::os::raw::c_int,
+        h: f32,
+        v: f32,
+    ) -> synctex_status_t;
 }
