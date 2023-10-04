@@ -595,9 +595,9 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             c_build_path.unwrap().as_ptr(),
             1,
         );
-        println!("c result: {:?}", scanner);
+        println!("c result: {:?}, scanner file path:{}, build path:{}", scanner, file_path.clone(), proj_dir.clone());
         let tex_file_path = join_paths(&[proj_dir, "demo.tex".to_string()]);
-        let demo_tex = CString::new(tex_file_path);
+        let demo_tex = CString::new(tex_file_path.clone());
         let mut position_list: Vec<PdfPosResp> = Vec::new();
         let node_number = synctex_display_query(scanner, demo_tex.unwrap().as_ptr(), 1, 1, 0);
         if node_number > 0 {
@@ -618,7 +618,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
                 position_list.push(single_pos);
             }
         }
-        warn!("node_number result: {:?}", node_number);
+        warn!("node_number result: {:?},demo tex:{}", node_number, tex_file_path.clone());
         return position_list;
     }
 }

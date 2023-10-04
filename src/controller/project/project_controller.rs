@@ -233,7 +233,11 @@ async fn upload_proj_file(
 }
 
 async fn get_pdf_position(form: web::Query<GetPdfPosParams>) -> HttpResponse {
-    get_pdf_pos(&form.0);
+    let pos = get_pdf_pos(&form.0);
+    box_actix_rest_response(pos)
+}
+
+async fn get_src_position() -> HttpResponse {
     box_actix_rest_response("ok")
 }
 
@@ -247,6 +251,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/del", web::delete().to(del_proj))
             .route("/latest/pdf", web::get().to(get_latest_pdf))
             .route("/pos/pdf",web::get().to(get_pdf_position))
+            .route("/pos/src", web::get().to(get_src_position))
             .route("/edit", web::put().to(edit_project))
             .route("/join", web::post().to(join_proj))
             .route("/file/upload", web::post().to(upload_proj_file))
