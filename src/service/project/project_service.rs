@@ -1,7 +1,6 @@
 use crate::common::interop::synctex::{
     synctex_display_query, synctex_edit_query, synctex_node_p, synctex_node_page,
-    synctex_node_visible_h, synctex_node_visible_height, synctex_node_visible_v,
-    synctex_node_visible_width, synctex_scanner_new_with_output_file, synctex_scanner_next_result, synctex_node_get_name, synctex_node_line, synctex_node_column,
+    synctex_scanner_new_with_output_file, synctex_scanner_next_result, synctex_node_get_name, synctex_node_line, synctex_node_column, synctex_node_box_visible_h, synctex_node_box_visible_v, synctex_node_box_visible_depth, synctex_node_box_visible_width, synctex_node_box_visible_height,
 };
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -609,10 +608,10 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
                 let page = synctex_node_page(node);
-                let h = synctex_node_visible_h(node);
-                let v = synctex_node_visible_v(node);
-                let height = synctex_node_visible_height(node);
-                let width = synctex_node_visible_width(node);
+                let h = synctex_node_box_visible_h(node);
+                let v = synctex_node_box_visible_v(node)+synctex_node_box_visible_depth(node);
+                let width = synctex_node_box_visible_width(node).abs();
+                let height = (synctex_node_box_visible_height(node)+synctex_node_box_visible_depth(node)).max(1.0);
                 let single_pos = PdfPosResp::from((page, h, v, height, width));
                 position_list.push(single_pos);
             }

@@ -66,4 +66,14 @@ extern "C" {
     pub fn synctex_node_column(node: synctex_node_p) -> ::std::os::raw::c_int;
 
     pub fn synctex_node_line(node: synctex_node_p) -> ::std::os::raw::c_int;
+
+    pub fn synctex_node_box_visible_h(node: synctex_node_p) -> f32;
+
+    pub fn synctex_node_box_visible_v(node: synctex_node_p) -> f32;
+
+    pub fn synctex_node_box_visible_width(node: synctex_node_p) -> f32;
+
+    pub fn synctex_node_box_visible_height(node: synctex_node_p) -> f32;
+
+    pub fn synctex_node_box_visible_depth(node: synctex_node_p) -> f32;
 }
