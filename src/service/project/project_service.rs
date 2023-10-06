@@ -612,7 +612,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
                 let v = synctex_node_box_visible_v(node)+synctex_node_box_visible_depth(node);
                 let width = synctex_node_box_visible_width(node).abs();
                 let height = (synctex_node_box_visible_height(node)+synctex_node_box_visible_depth(node)).max(1.0);
-                let single_pos = PdfPosResp::from((page, h, v, height, width));
+                let single_pos = PdfPosResp::from((page, h, v,width, height));
                 position_list.push(single_pos);
             }
         }
