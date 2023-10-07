@@ -247,6 +247,10 @@ pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
     let proj_dir = get_proj_base_dir_instant(&proj_id);
+    match create_directory_if_not_exists(&proj_dir) {
+        Ok(()) => {}
+        Err(e) => error!("create project directory before tpl copy failed,{}", e),
+    }
     let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
     if let Err(e) = result {
         error!(
