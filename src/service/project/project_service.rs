@@ -593,9 +593,11 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             error!("parse build path error,{},{}", e, proj_dir.clone());
             return Vec::new();
         }
+        let cstring_file_path = c_file_path.unwrap();
+        let cstring_build_path = c_build_path.unwrap();
         let scanner = synctex_scanner_new_with_output_file(
-            c_file_path.unwrap().as_ptr(),
-            c_build_path.unwrap().as_ptr(),
+            cstring_file_path.as_ptr(),
+            cstring_build_path.as_ptr(),
             1,
         );
         let tex_file_path = join_paths(&[proj_dir, params.path.clone(), params.file.clone()]);
@@ -642,9 +644,11 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
             error!("parse build path error,{},{}", e, proj_dir.clone());
             return Vec::new();
         }
+        let cstring_file_path = c_file_path.unwrap();
+        let cstring_build_path = c_build_path.unwrap();
         let scanner = synctex_scanner_new_with_output_file(
-            c_file_path.unwrap().as_ptr(),
-            c_build_path.unwrap().as_ptr(),
+            cstring_file_path.as_ptr(),
+            cstring_build_path.as_ptr(),
             1,
         );
         println!(
