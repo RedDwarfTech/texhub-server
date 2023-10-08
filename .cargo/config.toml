@@ -1,0 +1,6 @@
+[alias]
+b = "build"
+
+[build]
+rustflags = ["-L", "/Users/xiaoqiangjiang/source/reddwarf/backend/texhub-server/src/so"]
+
