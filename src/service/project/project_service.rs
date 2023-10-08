@@ -1035,7 +1035,7 @@ pub async fn comp_log_file_read(
             }
         }
     }
-    drop(tx);
+    drop(tx.to_owned());
 }
 
 pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {
