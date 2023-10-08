@@ -48,7 +48,7 @@ pub fn get_tpl_page_impl(params: &TplQueryParams) -> PaginationResponse<Vec<TexT
     }
     let query = query
         .paginate(params.page_num.unwrap_or(1).clone())
-        .per_page(params.page_size.unwrap_or(10).clone());
+        .per_page(params.page_size.unwrap_or(9).clone());
     let page_result:QueryResult<(Vec<TexTemplate>, i64, i64)> = query.load_and_count_pages_total::<TexTemplate>(&mut get_connection());
     let page_map_result = map_pagination_res(
         page_result,
