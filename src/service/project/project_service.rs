@@ -324,33 +324,15 @@ pub fn support_sync(file_full_path: &String) -> bool {
     {
         return true;
     }
-    if let Some(ext) = extension {
-        match ext.to_str().unwrap() {
-            "tex" => {
-                return true;
-            }
-            "cls" => {
-                return true;
-            }
-            "bib" => {
-                return true;
-            }
-            "bbl" => {
-                return true;
-            }
-            "md" => {
-                return true;
-            }
-            "txt" => {
-                return true;
-            }
-            _ => {
-                return false;
-            }
+    let sync_file_types = get_app_config("texhub.yjs_sync_file_type");
+    let sync_type_array: Vec<&str> = sync_file_types.split(',').collect();
+    if extension.is_some() {
+        let ext_str = extension.unwrap().to_str().unwrap();
+        if sync_type_array.contains(&ext_str) {
+            return true;
         }
-    } else {
-        return false;
     }
+    return false;
 }
 
 pub fn create_files_into_db(
