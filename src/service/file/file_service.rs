@@ -11,6 +11,7 @@ use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
+use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_web::HttpResponse;
 use chrono::Duration;
@@ -30,7 +31,6 @@ use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
-use crate::service::global::proj::proj_util::get_proj_base_dir;
 
 pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
@@ -204,7 +204,10 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
     return update_result;
 }
 
-pub async fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &LoginUserInfo) -> TexFile {
+pub async fn rename_file_impl(
+    edit_req: &TexFileRenameReq,
+    login_user_info: &LoginUserInfo,
+) -> TexFile {
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
         .eq(edit_req.file_id.clone())
@@ -217,17 +220,73 @@ pub async fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &Log
     return update_result;
 }
 
-pub async fn mv_file_impl(edit_req: &MoveFileReq, login_user_info: &LoginUserInfo) -> TexFile {
-    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
-    let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
-        .eq(edit_req.file_id.clone())
-        .and(crate::model::diesel::tex::tex_schema::tex_file::user_id.eq(login_user_info.userId))
-        .and(crate::model::diesel::tex::tex_schema::tex_file::project_id.eq(edit_req.project_id.clone()));
-    let update_result = diesel::update(tex_file.filter(predicate))
-        .set(parent.eq(edit_req.parent_id.clone()))
-        .get_result::<TexFile>(&mut get_connection())
-        .expect("unable to move tex file");
-    return update_result;
+fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error> {
+    fs::create_dir_all(dest_path)?;
+    for entry in fs::read_dir(src_path)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let entry_path = entry.path();
+        if file_type.is_dir() {
+            let new_dest_path = format!("{}/{}", dest_path, entry.file_name().to_string_lossy());
+            move_directory(&entry_path.to_string_lossy(), &new_dest_path)?;
+        } else if file_type.is_file() {
+            let new_dest_path = format!("{}/{}", dest_path, entry.file_name().to_string_lossy());
+            fs::rename(&entry_path, &new_dest_path)?;
+        }
+    }
+    fs::remove_dir_all(src_path)?;
+    Ok(())
+}
+
+pub async fn mv_file_impl(
+    edit_req: &MoveFileReq,
+    login_user_info: &LoginUserInfo,
+) -> Result<Option<TexFile>, Error> {
+    let mut connection = get_connection();
+    let trans_result: Result<Option<TexFile>, Error> = connection.transaction(|connection| {
+        let proj_dir = get_proj_base_dir(&edit_req.project_id);
+        if edit_req.file_type == ThFileType::Folder as i32 {
+            let src_dir = join_paths(&[proj_dir.clone(), edit_req.src_path.clone()]);
+            let dist_dir = join_paths(&[proj_dir.clone(), edit_req.dist_path.clone()]);
+            let m_result = move_directory(&src_dir, &dist_dir);
+            if let Err(err) = m_result {
+                error!("move dir failed, {}", err);
+                return Ok(None);
+            }
+        } else {
+            let src_path = join_paths(&[
+                proj_dir.clone(),
+                edit_req.src_path.clone(),
+                edit_req.file_name.clone(),
+            ]);
+            let dist_path = join_paths(&[
+                proj_dir.clone(),
+                edit_req.dist_path.clone(),
+                edit_req.file_name.clone(),
+            ]);
+            let fm = fs::rename(src_path, dist_path);
+            if let Err(err) = fm {
+                error!("move file failed, {}", err);
+                return Ok(None);
+            }
+        }
+        use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+        let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
+            .eq(edit_req.file_id.clone())
+            .and(
+                crate::model::diesel::tex::tex_schema::tex_file::user_id.eq(login_user_info.userId),
+            )
+            .and(
+                crate::model::diesel::tex::tex_schema::tex_file::project_id
+                    .eq(edit_req.project_id.clone()),
+            );
+        let update_result = diesel::update(tex_file.filter(predicate))
+            .set(parent.eq(edit_req.parent_id.clone()))
+            .get_result::<TexFile>(connection)
+            .expect("unable to move tex file");
+        return Ok(Some(update_result));
+    });
+    return trans_result;
 }
 
 pub fn delete_file_recursive(del_req: &TexFileDelReq, tex_file: &TexFile) -> Result<usize, Error> {

@@ -15,8 +15,9 @@ use crate::{
     },
 };
 use actix_web::{web, HttpResponse, Responder};
+use log::error;
 use rust_wheel::{
-    common::wrapper::actix_http_resp::box_actix_rest_response,
+    common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
 
@@ -107,9 +108,17 @@ pub async fn rename_file(
 }
 
 pub async fn move_node(form: actix_web_validator::Json<MoveFileReq>,login_user_info: LoginUserInfo) -> impl Responder {
-    let db_file = mv_file_impl(&form.0, &login_user_info).await;
-    del_project_cache(&db_file.project_id).await;
-    let proj_file_tree = get_file_tree(&db_file.project_id);
+    let move_result = mv_file_impl(&form.0, &login_user_info).await;
+    if let Err(err) = &move_result {
+        error!("move file failed,{}", err);
+        box_error_actix_rest_response("failed", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
+    }
+    let db_file = move_result.unwrap();
+    if db_file.is_none() {
+        return box_error_actix_rest_response("no texfile", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
+    }
+    del_project_cache(&db_file.clone().unwrap().project_id).await;
+    let proj_file_tree = get_file_tree(&db_file.unwrap().project_id);
     box_actix_rest_response(proj_file_tree)
 }
 
