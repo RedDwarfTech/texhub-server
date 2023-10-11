@@ -11,7 +11,7 @@ use crate::{
             create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
             get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl, mv_file_impl,
         },
-        project::project_service::get_cached_proj_info,
+        project::project_service::{get_cached_proj_info, del_project_cache},
     },
 };
 use actix_web::{web, HttpResponse, Responder};
@@ -108,7 +108,9 @@ pub async fn rename_file(
 
 pub async fn move_node(form: actix_web_validator::Json<MoveFileReq>,login_user_info: LoginUserInfo) -> impl Responder {
     let db_file = mv_file_impl(&form.0, &login_user_info).await;
-    box_actix_rest_response(db_file)
+    del_project_cache(&db_file.project_id).await;
+    let proj_file_tree = get_file_tree(&db_file.project_id);
+    box_actix_rest_response(proj_file_tree)
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {

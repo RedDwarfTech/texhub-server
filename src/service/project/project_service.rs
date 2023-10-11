@@ -681,7 +681,7 @@ pub fn join_project(
 }
 
 pub async fn del_project_cache(del_project_id: &String) {
-    let cache_key = format!(
+    let cache_key: String = format!(
         "{}:{}",
         get_app_config("texhub.proj_cache_key"),
         del_project_id
