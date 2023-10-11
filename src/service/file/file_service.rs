@@ -6,6 +6,7 @@ use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
+use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
@@ -213,6 +214,19 @@ pub async fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &Log
         .get_result::<TexFile>(&mut get_connection())
         .expect("unable to update tex file name");
     del_project_cache(&update_result.project_id).await;
+    return update_result;
+}
+
+pub async fn mv_file_impl(edit_req: &MoveFileReq, login_user_info: &LoginUserInfo) -> TexFile {
+    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
+        .eq(edit_req.file_id.clone())
+        .and(crate::model::diesel::tex::tex_schema::tex_file::user_id.eq(login_user_info.userId))
+        .and(crate::model::diesel::tex::tex_schema::tex_file::project_id.eq(edit_req.project_id.clone()));
+    let update_result = diesel::update(tex_file.filter(predicate))
+        .set(parent.eq(edit_req.parent_id.clone()))
+        .get_result::<TexFile>(&mut get_connection())
+        .expect("unable to move tex file");
     return update_result;
 }
 

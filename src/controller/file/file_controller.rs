@@ -2,14 +2,14 @@ use crate::{
     model::{
         request::file::{
             file_add_req::TexFileAddReq, file_del::TexFileDelReq, file_rename::TexFileRenameReq,
-            query::file_query_params::FileQueryParams,
+            query::file_query_params::FileQueryParams, edit::move_file_req::MoveFileReq,
         },
         response::file::ws_file_detail::WsFileDetail,
     },
     service::{
         file::file_service::{
             create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
-            get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl,
+            get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl, mv_file_impl,
         },
         project::project_service::get_cached_proj_info,
     },
@@ -106,6 +106,11 @@ pub async fn rename_file(
     box_actix_rest_response(db_file)
 }
 
+pub async fn move_node(form: actix_web_validator::Json<MoveFileReq>,login_user_info: LoginUserInfo) -> impl Responder {
+    let db_file = mv_file_impl(&form.0, &login_user_info).await;
+    box_actix_rest_response(db_file)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/file")
@@ -115,6 +120,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))
+            .route("/mv", web::patch().to(move_node))
             .route("/inited", web::put().to(update_file_init))
             .route("/rename", web::patch().to(rename_file))
             .route("/detail", web::get().to(get_file))
