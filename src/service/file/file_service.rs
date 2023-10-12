@@ -279,8 +279,16 @@ pub async fn mv_file_impl(
             .eq(edit_req.file_id.clone())
             .and(tex_file_table::user_id.eq(login_user_info.userId))
             .and(tex_file_table::project_id.eq(edit_req.project_id.clone()));
+        let new_relative_path = if edit_req.file_type == ThFileType::Folder as i32 {
+            join_paths(&[edit_req.dist_path.clone(), edit_req.file_name.clone()])
+        } else {
+            edit_req.dist_path.clone()
+        };
         let update_result = diesel::update(tex_file.filter(predicate))
-            .set(parent.eq(edit_req.parent_id.clone()))
+            .set((
+                parent.eq(edit_req.parent_id.clone()),
+                file_path.eq(new_relative_path),
+            ))
             .get_result::<TexFile>(connection)
             .expect("unable to move tex file");
         return Ok(Some(update_result));
