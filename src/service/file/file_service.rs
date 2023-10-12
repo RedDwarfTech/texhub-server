@@ -250,7 +250,10 @@ pub async fn mv_file_impl(
             let dist_dir = join_paths(&[proj_dir.clone(), edit_req.dist_path.clone()]);
             let m_result = move_directory(&src_dir, &dist_dir);
             if let Err(err) = m_result {
-                error!("move dir failed, {}", err);
+                error!(
+                    "move dir failed, {}, src dir: {}, dist dir: {}",
+                    err, src_dir, dist_dir
+                );
                 return Ok(None);
             }
         } else {
@@ -264,9 +267,12 @@ pub async fn mv_file_impl(
                 edit_req.dist_path.clone(),
                 edit_req.file_name.clone(),
             ]);
-            let fm = fs::rename(src_path, dist_path);
+            let fm = fs::rename(&src_path, &dist_path);
             if let Err(err) = fm {
-                error!("move file failed, {}", err);
+                error!(
+                    "move file failed, {} ,src path: {}, dist path: {}",
+                    err, src_path, dist_path
+                );
                 return Ok(None);
             }
         }
