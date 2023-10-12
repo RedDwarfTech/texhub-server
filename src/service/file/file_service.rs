@@ -148,17 +148,14 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
 
 pub async fn create_file_on_disk(file: &TexFile) {
     let base_compile_dir: String = get_proj_base_dir(&file.project_id);
-    let split_path = &[
-        base_compile_dir,
-        file.project_id.clone(),
-        file.file_path.clone(),
-        file.name.clone(),
-    ];
-    let file_full_path = join_paths(split_path);
     if file.file_type == (ThFileType::Folder as i32) {
+        let split_path = &[base_compile_dir, file.file_path.clone()];
+        let file_full_path = join_paths(split_path);
         warn!("create folder: {}", file_full_path);
         create_folder_not_exists(&file_full_path);
     } else {
+        let split_path = &[base_compile_dir, file.file_path.clone(), file.name.clone()];
+        let file_full_path = join_paths(split_path);
         let create_result = create_disk_file(&file_full_path);
         if let Err(e) = create_result {
             error!("create file on disk failed, {}", e);
