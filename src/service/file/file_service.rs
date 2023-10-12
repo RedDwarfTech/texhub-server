@@ -242,6 +242,8 @@ pub async fn mv_file_impl(
     edit_req: &MoveFileReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexFile>, Error> {
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    use tex_file_table::dsl::*;
     let mut connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> = connection.transaction(|connection| {
         let proj_dir = get_proj_base_dir(&edit_req.project_id);
@@ -276,16 +278,10 @@ pub async fn mv_file_impl(
                 return Ok(None);
             }
         }
-        use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
-        let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
+        let predicate = tex_file_table::file_id
             .eq(edit_req.file_id.clone())
-            .and(
-                crate::model::diesel::tex::tex_schema::tex_file::user_id.eq(login_user_info.userId),
-            )
-            .and(
-                crate::model::diesel::tex::tex_schema::tex_file::project_id
-                    .eq(edit_req.project_id.clone()),
-            );
+            .and(tex_file_table::user_id.eq(login_user_info.userId))
+            .and(tex_file_table::project_id.eq(edit_req.project_id.clone()));
         let update_result = diesel::update(tex_file.filter(predicate))
             .set(parent.eq(edit_req.parent_id.clone()))
             .get_result::<TexFile>(connection)
