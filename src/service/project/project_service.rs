@@ -1,7 +1,7 @@
 use crate::common::interop::synctex::{
     synctex_display_query, synctex_edit_query, synctex_node_box_visible_depth,
     synctex_node_box_visible_h, synctex_node_box_visible_height, synctex_node_box_visible_v,
-    synctex_node_box_visible_width, synctex_node_column, synctex_node_get_name, synctex_node_line,
+    synctex_node_box_visible_width, synctex_node_column, synctex_node_line,
     synctex_node_p, synctex_node_page, synctex_scanner_new_with_output_file,
     synctex_scanner_next_result,
 };
@@ -78,6 +78,8 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
 use crate::common::interop::synctex::synctex_node_visible_v;
 use crate::common::interop::synctex::synctex_node_visible_h;
+use crate::common::interop::synctex::synctex_node_tag;
+use crate::common::interop::synctex::synctex_scanner_get_name;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -599,6 +601,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
                 let page = synctex_node_page(node);
+                // this code was inspired from synctex synctex main viewer procceed code
                 let h = synctex_node_box_visible_h(node);
                 let v = synctex_node_box_visible_v(node) + synctex_node_box_visible_depth(node);
                 let x = synctex_node_visible_h(node);
@@ -649,8 +652,7 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
         if node_number > 0 {
             for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
-                warn!("node...{:?}", node);
-                let file = synctex_node_get_name(node);
+                let file = synctex_scanner_get_name(scanner,synctex_node_tag(node));
                 warn!("page: {:?}", file);
                 let line = synctex_node_line(node);
                 warn!("line: {:?}", line);

@@ -76,4 +76,11 @@ extern "C" {
     pub fn synctex_node_box_visible_height(node: synctex_node_p) -> f32;
 
     pub fn synctex_node_box_visible_depth(node: synctex_node_p) -> f32;
+
+    pub fn synctex_scanner_get_name(
+        scanner: synctex_scanner_p,
+        tag: ::std::os::raw::c_int,
+    ) -> *const ::std::os::raw::c_char;
+
+    pub fn synctex_node_tag(node: synctex_node_p) -> ::std::os::raw::c_int;
 }
