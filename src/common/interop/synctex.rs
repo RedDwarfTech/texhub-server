@@ -83,4 +83,6 @@ extern "C" {
     ) -> *const ::std::os::raw::c_char;
 
     pub fn synctex_node_tag(node: synctex_node_p) -> ::std::os::raw::c_int;
+
+    pub fn synctex_scanner_free(scanner: synctex_scanner_p) -> ::std::os::raw::c_int;
 }

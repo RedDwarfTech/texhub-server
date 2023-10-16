@@ -1,4 +1,4 @@
-use crate::common::interop::synctex::synctex_node_tag;
+use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::interop::synctex::synctex_node_visible_h;
 use crate::common::interop::synctex::synctex_node_visible_v;
 use crate::common::interop::synctex::synctex_scanner_get_name;
@@ -614,6 +614,7 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
                 position_list.push(single_pos);
             }
         }
+        synctex_scanner_free(scanner);
         return position_list;
     }
 }
@@ -662,11 +663,7 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
                 position_list.push(single_pos);
             }
         }
-        warn!(
-            "node_number result: {:?},demo tex:{}",
-            node_number,
-            tex_file_path.clone()
-        );
+        synctex_scanner_free(scanner);
         return position_list;
     }
 }
