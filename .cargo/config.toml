@@ -1,12 +1,3 @@
-<<<<<<< HEAD
-[build]
-jobs = 1                      # number of parallel jobs, defaults to # of CPUs
-rustc = "rustc"               # the rust compiler tool
-rustdoc = "rustdoc"           # the doc generator tool
-target-dir = "target"         # path of where to place all generated artifacts
-rustflags = ["-L /src/so"]        # custom flags to pass to all compiler invocations
-incremental = true            # whether or not to enable incremental compilation
-=======
 [alias]
 b = "build"
 
@@ -14,4 +5,3 @@ b = "build"
 # https://doc.rust-lang.org/cargo/reference/config.html
 rustflags = ["-L", "./src/so"]
 incremental = true
->>>>>>> ccfc5fee50a597023e53913bff4e8ce674b494a6
