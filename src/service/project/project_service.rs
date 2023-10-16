@@ -1,6 +1,12 @@
+use crate::common::interop::synctex::synctex_node_tag;
+use crate::common::interop::synctex::synctex_node_visible_h;
+use crate::common::interop::synctex::synctex_node_visible_v;
+use crate::common::interop::synctex::synctex_scanner_get_name;
 use crate::common::interop::synctex::{
-    synctex_display_query, synctex_edit_query, synctex_node_p, synctex_node_page,
-    synctex_scanner_new_with_output_file, synctex_scanner_next_result, synctex_node_get_name, synctex_node_line, synctex_node_column, synctex_node_box_visible_h, synctex_node_box_visible_v, synctex_node_box_visible_depth, synctex_node_box_visible_width, synctex_node_box_visible_height,
+    synctex_display_query, synctex_edit_query, synctex_node_box_visible_depth,
+    synctex_node_box_visible_h, synctex_node_box_visible_height, synctex_node_box_visible_v,
+    synctex_node_box_visible_width, synctex_node_column, synctex_node_line, synctex_node_p,
+    synctex_node_page, synctex_scanner_new_with_output_file, synctex_scanner_next_result,
 };
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -64,7 +70,7 @@ use rust_wheel::texhub::compile_status::CompileStatus;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
 use std::os::raw::c_int;
@@ -73,6 +79,7 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+use std::path::PathBuf;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -324,33 +331,15 @@ pub fn support_sync(file_full_path: &String) -> bool {
     {
         return true;
     }
-    if let Some(ext) = extension {
-        match ext.to_str().unwrap() {
-            "tex" => {
-                return true;
-            }
-            "cls" => {
-                return true;
-            }
-            "bib" => {
-                return true;
-            }
-            "bbl" => {
-                return true;
-            }
-            "md" => {
-                return true;
-            }
-            "txt" => {
-                return true;
-            }
-            _ => {
-                return false;
-            }
+    let sync_file_types = get_app_config("texhub.yjs_sync_file_type");
+    let sync_type_array: Vec<&str> = sync_file_types.split(',').collect();
+    if extension.is_some() {
+        let ext_str = extension.unwrap().to_str().unwrap();
+        if sync_type_array.contains(&ext_str) {
+            return true;
         }
-    } else {
-        return false;
     }
+    return false;
 }
 
 pub fn create_files_into_db(
@@ -577,11 +566,8 @@ fn create_proj(
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let pdf_file_name = format!("{}{}",get_filename_without_ext(&params.main_file),".pdf");
-    let file_path = join_paths(&[
-        &proj_dir,
-        &pdf_file_name.to_string(),
-    ]);
+    let pdf_file_name = format!("{}{}", get_filename_without_ext(&params.main_file), ".pdf");
+    let file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
     unsafe {
         let c_file_path = CString::new(file_path.clone());
         if let Err(e) = c_file_path {
@@ -593,17 +579,20 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             error!("parse build path error,{},{}", e, proj_dir.clone());
             return Vec::new();
         }
+        let cstring_file_path = c_file_path.unwrap();
+        let cstring_build_path = c_build_path.unwrap();
         let scanner = synctex_scanner_new_with_output_file(
-            c_file_path.unwrap().as_ptr(),
-            c_build_path.unwrap().as_ptr(),
+            cstring_file_path.as_ptr(),
+            cstring_build_path.as_ptr(),
             1,
         );
         let tex_file_path = join_paths(&[proj_dir, params.path.clone(), params.file.clone()]);
         let demo_tex = CString::new(tex_file_path.clone());
         let mut position_list: Vec<PdfPosResp> = Vec::new();
+        let cstring_demo_tex = demo_tex.unwrap();
         let node_number = synctex_display_query(
             scanner,
-            demo_tex.unwrap().as_ptr(),
+            cstring_demo_tex.as_ptr(),
             params.line as c_int,
             params.column as c_int,
             0,
@@ -612,11 +601,16 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
                 let page = synctex_node_page(node);
+                // this code was inspired from synctex synctex main viewer procceed code
                 let h = synctex_node_box_visible_h(node);
-                let v = synctex_node_box_visible_v(node)+synctex_node_box_visible_depth(node);
+                let v = synctex_node_box_visible_v(node) + synctex_node_box_visible_depth(node);
+                let x = synctex_node_visible_h(node);
+                let y = synctex_node_visible_v(node);
                 let width = synctex_node_box_visible_width(node).abs();
-                let height = (synctex_node_box_visible_height(node)+synctex_node_box_visible_depth(node)).max(1.0);
-                let single_pos = PdfPosResp::from((page, h, v,width, height));
+                let height = (synctex_node_box_visible_height(node)
+                    + synctex_node_box_visible_depth(node))
+                .max(1.0);
+                let single_pos = PdfPosResp::from((page, h, v, width, height, x, y));
                 position_list.push(single_pos);
             }
         }
@@ -626,11 +620,8 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
 
 pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let pdf_file_name = format!("{}{}",get_filename_without_ext(&params.main_file),".pdf");
-    let file_path = join_paths(&[
-        &proj_dir,
-        &pdf_file_name.to_string(),
-    ]);
+    let pdf_file_name = format!("{}{}", get_filename_without_ext(&params.main_file), ".pdf");
+    let file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
     unsafe {
         let c_file_path = CString::new(file_path.clone());
         if let Err(e) = c_file_path {
@@ -642,9 +633,11 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
             error!("parse build path error,{},{}", e, proj_dir.clone());
             return Vec::new();
         }
+        let cstring_file_path = c_file_path.unwrap();
+        let cstring_build_path = c_build_path.unwrap();
         let scanner = synctex_scanner_new_with_output_file(
-            c_file_path.unwrap().as_ptr(),
-            c_build_path.unwrap().as_ptr(),
+            cstring_file_path.as_ptr(),
+            cstring_build_path.as_ptr(),
             1,
         );
         println!(
@@ -653,22 +646,19 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
             file_path.clone(),
             proj_dir.clone()
         );
-        let tex_file_path = join_paths(&[proj_dir, params.path.clone(), params.file.to_string()]);
+        let tex_file_path = join_paths(&[proj_dir.clone(), params.path.clone(), params.file.to_string()]);
         let mut position_list: Vec<SrcPosResp> = Vec::new();
-        let node_number = synctex_edit_query(scanner, params.page as c_int, params.h , params.v);
+        let node_number = synctex_edit_query(scanner, params.page as c_int, params.h, params.v);
         if node_number > 0 {
             for _i in 0..node_number {
                 let node: synctex_node_p = synctex_scanner_next_result(scanner);
-                warn!("node...{:?}", node);
-                let file = synctex_node_get_name(node);
-                warn!("page: {:?}", file);
+                let file = synctex_scanner_get_name(scanner, synctex_node_tag(node));
                 let line = synctex_node_line(node);
-                warn!("line: {:?}", line);
                 let column = synctex_node_column(node);
-                warn!("column: {:?}", column);
                 let c_str = CStr::from_ptr(file);
                 let file_name: String = c_str.to_string_lossy().into_owned();
-                let single_pos = SrcPosResp::from((file_name, line, column));
+                let src_relative_path = get_file_relative_path(file_name.clone(), proj_dir.clone());
+                let single_pos = SrcPosResp::from((src_relative_path, line, column));
                 position_list.push(single_pos);
             }
         }
@@ -678,6 +668,23 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
             tex_file_path.clone()
         );
         return position_list;
+    }
+}
+
+fn get_file_relative_path(file_full_path: String, proj_dir: String) -> String {
+    let abs_path = Path::new(file_full_path.as_str());
+    let root = Path::new(proj_dir.as_str());
+    match abs_path.strip_prefix(root) {
+        Ok(relative) => {
+            let mut relative_path = PathBuf::from(relative);
+            let path_string = relative_path.as_mut_os_str().to_string_lossy().to_string();
+            let final_path = path_string.replace("./", "");
+            return final_path;
+        }
+        Err(err) => {
+            error!("Failed to get relative path: {}", err);
+            return "".to_owned();
+        }
     }
 }
 
@@ -694,7 +701,7 @@ pub fn join_project(
 }
 
 pub async fn del_project_cache(del_project_id: &String) {
-    let cache_key = format!(
+    let cache_key: String = format!(
         "{}:{}",
         get_app_config("texhub.proj_cache_key"),
         del_project_id
@@ -1035,7 +1042,7 @@ pub async fn comp_log_file_read(
             }
         }
     }
-    drop(tx);
+    drop(tx.to_owned());
 }
 
 pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {

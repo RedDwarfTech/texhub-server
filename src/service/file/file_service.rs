@@ -6,10 +6,12 @@ use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
+use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
+use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_web::HttpResponse;
 use chrono::Duration;
@@ -29,7 +31,6 @@ use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
-use crate::service::global::proj::proj_util::get_proj_base_dir;
 
 pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
@@ -147,17 +148,14 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
 
 pub async fn create_file_on_disk(file: &TexFile) {
     let base_compile_dir: String = get_proj_base_dir(&file.project_id);
-    let split_path = &[
-        base_compile_dir,
-        file.project_id.clone(),
-        file.file_path.clone(),
-        file.name.clone(),
-    ];
-    let file_full_path = join_paths(split_path);
     if file.file_type == (ThFileType::Folder as i32) {
+        let split_path = &[base_compile_dir, file.file_path.clone()];
+        let file_full_path = join_paths(split_path);
         warn!("create folder: {}", file_full_path);
         create_folder_not_exists(&file_full_path);
     } else {
+        let split_path = &[base_compile_dir, file.file_path.clone(), file.name.clone()];
+        let file_full_path = join_paths(split_path);
         let create_result = create_disk_file(&file_full_path);
         if let Err(e) = create_result {
             error!("create file on disk failed, {}", e);
@@ -203,7 +201,10 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
     return update_result;
 }
 
-pub async fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &LoginUserInfo) -> TexFile {
+pub async fn rename_file_impl(
+    edit_req: &TexFileRenameReq,
+    login_user_info: &LoginUserInfo,
+) -> TexFile {
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
         .eq(edit_req.file_id.clone())
@@ -214,6 +215,85 @@ pub async fn rename_file_impl(edit_req: &TexFileRenameReq, login_user_info: &Log
         .expect("unable to update tex file name");
     del_project_cache(&update_result.project_id).await;
     return update_result;
+}
+
+fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error> {
+    fs::create_dir_all(dest_path)?;
+    for entry in fs::read_dir(src_path)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let entry_path = entry.path();
+        if file_type.is_dir() {
+            let new_dest_path = format!("{}/{}", dest_path, entry.file_name().to_string_lossy());
+            move_directory(&entry_path.to_string_lossy(), &new_dest_path)?;
+        } else if file_type.is_file() {
+            let new_dest_path = format!("{}/{}", dest_path, entry.file_name().to_string_lossy());
+            fs::rename(&entry_path, &new_dest_path)?;
+        }
+    }
+    fs::remove_dir_all(src_path)?;
+    Ok(())
+}
+
+pub async fn mv_file_impl(
+    edit_req: &MoveFileReq,
+    login_user_info: &LoginUserInfo,
+) -> Result<Option<TexFile>, Error> {
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    use tex_file_table::dsl::*;
+    let mut connection = get_connection();
+    let trans_result: Result<Option<TexFile>, Error> = connection.transaction(|connection| {
+        let proj_dir = get_proj_base_dir(&edit_req.project_id);
+        if edit_req.file_type == ThFileType::Folder as i32 {
+            let src_dir = join_paths(&[proj_dir.clone(), edit_req.src_path.clone()]);
+            let dist_dir = join_paths(&[proj_dir.clone(), edit_req.dist_path.clone()]);
+            let m_result = move_directory(&src_dir, &dist_dir);
+            if let Err(err) = m_result {
+                error!(
+                    "move dir failed, {}, src dir: {}, dist dir: {}",
+                    err, src_dir, dist_dir
+                );
+                return Ok(None);
+            }
+        } else {
+            let src_path = join_paths(&[
+                proj_dir.clone(),
+                edit_req.src_path.clone(),
+                edit_req.file_name.clone(),
+            ]);
+            let dist_path = join_paths(&[
+                proj_dir.clone(),
+                edit_req.dist_path.clone(),
+                edit_req.file_name.clone(),
+            ]);
+            let fm = fs::rename(&src_path, &dist_path);
+            if let Err(err) = fm {
+                error!(
+                    "move file failed, {} ,src path: {}, dist path: {}",
+                    err, src_path, dist_path
+                );
+                return Ok(None);
+            }
+        }
+        let predicate = tex_file_table::file_id
+            .eq(edit_req.file_id.clone())
+            .and(tex_file_table::user_id.eq(login_user_info.userId))
+            .and(tex_file_table::project_id.eq(edit_req.project_id.clone()));
+        let new_relative_path = if edit_req.file_type == ThFileType::Folder as i32 {
+            join_paths(&[edit_req.dist_path.clone(), edit_req.file_name.clone()])
+        } else {
+            edit_req.dist_path.clone()
+        };
+        let update_result = diesel::update(tex_file.filter(predicate))
+            .set((
+                parent.eq(edit_req.parent_id.clone()),
+                file_path.eq(new_relative_path),
+            ))
+            .get_result::<TexFile>(connection)
+            .expect("unable to move tex file");
+        return Ok(Some(update_result));
+    });
+    return trans_result;
 }
 
 pub fn delete_file_recursive(del_req: &TexFileDelReq, tex_file: &TexFile) -> Result<usize, Error> {
