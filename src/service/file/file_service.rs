@@ -215,9 +215,17 @@ pub async fn rename_file_impl(
         .get_result::<TexFile>(&mut get_connection())
         .expect("unable to update tex file name");
     let proj_dir = get_proj_base_dir(&update_result.project_id);
-    let legacy_path = join_paths(&[proj_dir, update_result.file_path, edit_req.legacy_name]);
-    let new_path = join_paths(&[proj_dir, update_result.file_path, edit_req.name]);
-    match fs::rename(legacy_path, new_path) {
+    let legacy_path = join_paths(&[
+        proj_dir.clone(),
+        update_result.file_path.clone(),
+        edit_req.legacy_name.clone(),
+    ]);
+    let new_path = join_paths(&[
+        proj_dir,
+        update_result.file_path.clone(),
+        edit_req.name.clone(),
+    ]);
+    match fs::rename(legacy_path.clone(), new_path.clone()) {
         Ok(()) => {}
         Err(e) => {
             error!(
