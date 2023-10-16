@@ -1,0 +1,7 @@
+[build]
+jobs = 1                      # number of parallel jobs, defaults to # of CPUs
+rustc = "rustc"               # the rust compiler tool
+rustdoc = "rustdoc"           # the doc generator tool
+target-dir = "target"         # path of where to place all generated artifacts
+rustflags = ["-L /src/so"]        # custom flags to pass to all compiler invocations
+incremental = true            # whether or not to enable incremental compilation
