@@ -205,14 +205,27 @@ pub async fn rename_file_impl(
     edit_req: &TexFileRenameReq,
     login_user_info: &LoginUserInfo,
 ) -> TexFile {
-    use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
-    let predicate = crate::model::diesel::tex::tex_schema::tex_file::file_id
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    use tex_file_table::dsl::*;
+    let predicate = tex_file_table::file_id
         .eq(edit_req.file_id.clone())
-        .and(crate::model::diesel::tex::tex_schema::tex_file::user_id.eq(login_user_info.userId));
+        .and(tex_file_table::user_id.eq(login_user_info.userId));
     let update_result = diesel::update(tex_file.filter(predicate))
         .set(name.eq(edit_req.name.clone()))
         .get_result::<TexFile>(&mut get_connection())
         .expect("unable to update tex file name");
+    let proj_dir = get_proj_base_dir(&update_result.project_id);
+    let legacy_path = join_paths(&[proj_dir, update_result.file_path, edit_req.legacy_name]);
+    let new_path = join_paths(&[proj_dir, update_result.file_path, edit_req.name]);
+    match fs::rename(legacy_path, new_path) {
+        Ok(()) => {}
+        Err(e) => {
+            error!(
+                "rename project file facing issue {}, legacy path: {}, new path: {}",
+                e, legacy_path, new_path
+            );
+        }
+    }
     del_project_cache(&update_result.project_id).await;
     return update_result;
 }
