@@ -47,6 +47,15 @@ actix-multipart = "0.6.1"
 flate2 = "1.0"
 regex = "1.5"
 libz-sys = { version = "1.1.0", default-features = false, features = ["libc"] }
+jemallocator = "0.5.4"
+jemalloc-ctl = "0.5.4"
+
+[dependencies.jemalloc-sys]
+version = "0.5.4"
+features = ["stats", "profiling", "unprefixed_malloc_on_supported_platforms"]
 
 [build-dependencies]
 bindgen = "0.65.1"
+
+[profile.release]
+debug = true
