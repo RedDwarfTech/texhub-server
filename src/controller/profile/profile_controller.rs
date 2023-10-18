@@ -6,7 +6,7 @@ use crate::model::request::profile::profile_active_req::ProfileActiveReq;
 
 const PROF_ACTIVE: &'static [u8] = b"prof.active\0";
 const PROF_DUMP: &'static [u8] = b"prof.dump\0";
-const PROFILE_OUTPUT: &'static [u8] = b"profile.out\0";
+const PROFILE_OUTPUT: &'static [u8] = b"/opt/data/dump/profile.out\0";
 
 pub async fn do_dump() -> HttpResponse {
     let name = PROF_DUMP.name();
