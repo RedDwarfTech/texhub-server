@@ -35,7 +35,6 @@ async fn main() -> std::io::Result<()> {
             .configure(template_controller::config)
             .configure(file_controller::config)
             .configure(profile_controller::config)
-            .configure(health_controller::config)
     })
     .bind(address)?
     .run()
