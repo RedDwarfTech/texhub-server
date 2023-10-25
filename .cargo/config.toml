@@ -1,7 +1,7 @@
+# https://doc.rust-lang.org/cargo/reference/config.html
 [alias]
 b = "build"
 
 [build]
-# https://doc.rust-lang.org/cargo/reference/config.html
 rustflags = ["-L", "./src/so"]
 incremental = true
