@@ -6,7 +6,7 @@ use rust_wheel::config::app::app_conf_reader::get_app_config;
 
 pub async fn initial_file_request(proj_id: &String, file_id: &String, file_content: &String) {
     let client = Client::new();
-    let url_path = format!("{}", "/y-websocket/file/initial");
+    let url_path = format!("{}", "/doc/initial");
     let url = format!(
         "{}{}",
         get_app_config("texhub.y_websocket_api_url"),
