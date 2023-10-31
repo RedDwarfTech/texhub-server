@@ -80,6 +80,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
 use std::path::PathBuf;
+use crate::model::request::project::query::search_proj_params::SearchProjParams;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -1170,4 +1171,10 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
         return None;
     }
     return Some(cached_proj.unwrap());
+}
+
+pub fn proj_search_impl(_params: &SearchProjParams){
+
+
+    
 }

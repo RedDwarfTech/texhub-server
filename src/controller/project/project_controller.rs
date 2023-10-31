@@ -6,7 +6,7 @@ use crate::{
             edit::edit_proj_req::EditProjReq,
             query::{
                 get_pdf_pos_params::GetPdfPosParams, get_proj_params::GetProjParams,
-                proj_query_params::ProjQueryParams, get_src_pos_params::GetSrcPosParams,
+                get_src_pos_params::GetSrcPosParams, proj_query_params::ProjQueryParams,
             },
             queue::queue_status_req::QueueStatusReq,
             tex_compile_project_req::TexCompileProjectReq,
@@ -23,7 +23,8 @@ use crate::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
             create_tpl_project, del_project, edit_proj, get_cached_proj_info,
             get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_pdf_pos,
-            get_proj_by_type, get_proj_latest_pdf, join_project, save_proj_file, send_render_req, get_src_pos,
+            get_proj_by_type, get_proj_latest_pdf, get_src_pos, join_project, save_proj_file,
+            send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -45,6 +46,8 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
 };
+use crate::service::project::project_service::proj_search_impl;
+use crate::model::request::project::query::search_proj_params::SearchProjParams;
 
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
@@ -242,6 +245,11 @@ async fn get_src_position(form: web::Query<GetSrcPosParams>) -> HttpResponse {
     box_actix_rest_response(pos)
 }
 
+async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
+    let pos = proj_search_impl(&form.0);
+    box_actix_rest_response(pos)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -251,7 +259,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
             .route("/del", web::delete().to(del_proj))
             .route("/latest/pdf", web::get().to(get_latest_pdf))
-            .route("/pos/pdf",web::get().to(get_pdf_position))
+            .route("/pos/pdf", web::get().to(get_pdf_position))
             .route("/pos/src", web::get().to(get_src_position))
             .route("/edit", web::put().to(edit_project))
             .route("/join", web::post().to(join_proj))
@@ -267,6 +275,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile/log", web::get().to(get_proj_compile_log))
             .route("/compile/queue", web::post().to(add_compile_req_to_queue))
             .route("/compile/store", web::post().to(add_compile_req_to_db))
-            .route("/compile/status", web::put().to(update_compile_status)),
+            .route("/compile/status", web::put().to(update_compile_status))
+            .route("/search", web::get().to(proj_search)),
     );
 }

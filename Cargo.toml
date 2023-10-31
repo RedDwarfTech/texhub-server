@@ -50,6 +50,7 @@ libz-sys = { version = "1.1.0", default-features = false, features = ["libc"] }
 jemallocator = "0.5.4"
 jemalloc-ctl = "0.5.4"
 prometheus = "0.13.3"
+meilisearch-sdk = "0.24.2"
 
 [dependencies.jemalloc-sys]
 version = "0.5.4"
