@@ -46,8 +46,10 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
 };
+use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::service::project::project_service::proj_search_impl;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
+use crate::service::file::file_service::{get_file_by_fid, push_to_fulltextsearch};
 
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
@@ -250,6 +252,12 @@ async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
     box_actix_rest_response(pos.index_uid)
 }
 
+async fn update_idx(form: web::Query<TexFileIdxReq>) -> HttpResponse {
+    let tex_file = get_file_by_fid(&form.0.file_id);
+    let pos = push_to_fulltextsearch(&tex_file.unwrap()).await;
+    box_actix_rest_response(pos)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -276,6 +284,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile/queue", web::post().to(add_compile_req_to_queue))
             .route("/compile/store", web::post().to(add_compile_req_to_db))
             .route("/compile/status", web::put().to(update_compile_status))
-            .route("/search", web::get().to(proj_search)),
+            .route("/search", web::get().to(proj_search))
+            .route("/flush/idx", web::put().to(update_idx))
     );
 }

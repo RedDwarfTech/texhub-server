@@ -142,8 +142,19 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
         .expect("failed to add new tex file or folder");
     create_file_on_disk(&result).await;
     del_project_cache(&add_req.project_id).await;
+    push_to_fulltextsearch(&result).await;
     let resp = box_actix_rest_response(result);
     return resp;
+}
+
+pub async fn push_to_fulltextsearch(tex_file: &TexFile){
+    let url = get_app_config("texhub.meilisearch_url");
+    let api_key = "";
+    let client = meilisearch_sdk::Client::new(url, Some(api_key));
+    let movies = client.index("files");
+    movies.add_documents(&[
+        tex_file,
+    ], Some("id")).await.unwrap();
 }
 
 pub async fn create_file_on_disk(file: &TexFile) {
