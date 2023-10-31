@@ -1,4 +1,3 @@
-use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::interop::synctex::synctex_node_visible_h;
 use crate::common::interop::synctex::synctex_node_visible_v;
 use crate::common::interop::synctex::synctex_scanner_get_name;
@@ -8,6 +7,7 @@ use crate::common::interop::synctex::{
     synctex_node_box_visible_width, synctex_node_column, synctex_node_line, synctex_node_p,
     synctex_node_page, synctex_scanner_new_with_output_file, synctex_scanner_next_result,
 };
+use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
@@ -22,6 +22,7 @@ use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
 use crate::model::request::project::query::get_src_pos_params::GetSrcPosParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
+use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::request::project::queue::queue_req::QueueReq;
 use crate::model::request::project::queue::queue_status_req::QueueStatusReq;
 use crate::model::request::project::tex_compile_project_req::TexCompileProjectReq;
@@ -49,6 +50,7 @@ use diesel::{
 };
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
+use meilisearch_sdk::search::*;
 use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
@@ -75,12 +77,11 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
 use std::os::raw::c_int;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
-use std::path::PathBuf;
-use crate::model::request::project::query::search_proj_params::SearchProjParams;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -1173,8 +1174,13 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
     return Some(cached_proj.unwrap());
 }
 
-pub fn proj_search_impl(_params: &SearchProjParams){
-
-
-    
+pub async fn proj_search_impl(_params: &SearchProjParams) -> SearchResults<TexFile> {
+    let url = get_app_config("texhub.meilisearch_url");
+    let api_key = "";
+    let client = meilisearch_sdk::Client::new(url, Some(api_key));
+    let movies = client.index("files");
+    let query: SearchQuery = SearchQuery::new(&movies).with_query("Rust").build();
+    let results: SearchResults<TexFile> =
+        client.index("files").execute_query(&query).await.unwrap();
+    return results;
 }
