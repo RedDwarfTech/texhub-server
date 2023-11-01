@@ -249,7 +249,11 @@ async fn get_src_position(form: web::Query<GetSrcPosParams>) -> HttpResponse {
 
 async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
     let pos = proj_search_impl(&form.0).await;
-    box_actix_rest_response(pos.index_uid)
+    if pos.is_some() {
+        box_actix_rest_response(pos.unwrap().index_uid)
+    }else{
+        box_actix_rest_response("")
+    }
 }
 
 async fn update_idx(form: web::Query<TexFileIdxReq>) -> HttpResponse {

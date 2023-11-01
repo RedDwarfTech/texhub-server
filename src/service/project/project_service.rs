@@ -1174,14 +1174,22 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
     return Some(cached_proj.unwrap());
 }
 
-pub async fn proj_search_impl(params: &SearchProjParams) -> SearchResults<TexFile> {
+pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<TexFile>>{
     let url = get_app_config("texhub.meilisearch_url");
     let api_key = "";
     let client = meilisearch_sdk::Client::new(url, Some(api_key));
     let movies = client.index("files");
     let query_word = &params.keyword;
     let query: SearchQuery = SearchQuery::new(&movies).with_query(query_word).build();
-    let results: SearchResults<TexFile> =
-        client.index("files").execute_query(&query).await.unwrap();
-    return results;
+    let results =
+        client.index("files").execute_query(&query).await;
+    match results {
+        Ok(r) => {
+            return Some(r);
+        },
+        Err(e) => {
+            error!("search failed,{}, params: {:?}", e, params);
+            return None;
+        }
+    }
 }
