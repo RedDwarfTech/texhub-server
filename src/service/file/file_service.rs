@@ -147,14 +147,21 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
     return resp;
 }
 
-pub async fn push_to_fulltextsearch(tex_file: &TexFile){
+pub async fn push_to_fulltextsearch(tex_file: &TexFile) {
     let url = get_app_config("texhub.meilisearch_url");
     let api_key = "";
     let client = meilisearch_sdk::Client::new(url, Some(api_key));
     let movies = client.index("files");
-    movies.add_documents(&[
-        tex_file,
-    ], Some("id")).await.unwrap();
+    let add_result = movies.add_documents(&[tex_file], Some("id")).await;
+    match add_result {
+        Ok(_) => {}
+        Err(e) => {
+            error!(
+                "add fulltext search facing error,{}, text file: {:?}",
+                e, tex_file
+            );
+        }
+    }
 }
 
 pub async fn create_file_on_disk(file: &TexFile) {
