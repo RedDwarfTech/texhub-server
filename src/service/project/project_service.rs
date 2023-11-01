@@ -82,6 +82,7 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+use std::env;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -1175,7 +1176,7 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
 
 pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<TexFile>>{
     let url = get_app_config("texhub.meilisearch_url");
-    let api_key = "";
+    let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
     let client = meilisearch_sdk::Client::new(url, Some(api_key));
     let movies = client.index("files");
     let query_word = &params.keyword;
