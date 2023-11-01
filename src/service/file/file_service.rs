@@ -150,8 +150,9 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
 
 pub async fn push_to_fulltextsearch(tex_file: &TexFile) {
     let url = get_app_config("texhub.meilisearch_url");
+    let full_url = join_paths(&[url,"/indexes/files/documents".to_string()]);
     let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
-    let client = meilisearch_sdk::Client::new(url, Some(api_key));
+    let client = meilisearch_sdk::Client::new(full_url, Some(api_key));
     let movies = client.index("files");
     let add_result = movies.add_documents(&[tex_file], Some("id")).await;
     match add_result {
