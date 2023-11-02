@@ -27,7 +27,7 @@ use crate::{
             send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
-    },
+    }
 };
 use actix_multipart::form::MultipartForm;
 use actix_web::{
@@ -35,6 +35,7 @@ use actix_web::{
     web, HttpResponse, Responder,
 };
 use log::error;
+use meilisearch_sdk::SearchResult;
 use rust_wheel::{
     common::{
         util::net::{sse_message::SSEMessage, sse_stream::SseStream},
@@ -50,6 +51,7 @@ use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::service::project::project_service::proj_search_impl;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::service::file::file_service::{get_file_by_fid, push_to_fulltextsearch};
+use crate::model::diesel::tex::custom_tex_models::TexFile;
 
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
@@ -250,10 +252,20 @@ async fn get_src_position(form: web::Query<GetSrcPosParams>) -> HttpResponse {
 async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
     let pos = proj_search_impl(&form.0).await;
     if pos.is_some() {
-        box_actix_rest_response(pos.unwrap().index_uid)
+        let sr = pos.unwrap();
+        let ftr = get_fulltext_result(sr.hits);
+        box_actix_rest_response(ftr)
     }else{
         box_actix_rest_response("")
     }
+}
+
+fn get_fulltext_result(inputs: Vec<SearchResult<TexFile>>) -> Vec<TexFile>{
+    let mut files = Vec::new();
+    for item in inputs {
+        files.push(item.result);
+    }
+    return files;
 }
 
 async fn update_idx(form: web::Query<TexFileIdxReq>) -> HttpResponse {
