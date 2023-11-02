@@ -165,6 +165,7 @@ pub async fn push_to_fulltextsearch(tex_file: &TexFile) {
             );
         }
     }
+    let _ = movies.set_filterable_attributes(["name"]).await;
 }
 
 pub async fn create_file_on_disk(file: &TexFile) {
