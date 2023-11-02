@@ -7,6 +7,9 @@ use crate::model::diesel::tex::custom_tex_models::TexFile;
 pub struct WsFileDetail {
     pub file_path: String,
     pub project_id: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub file_id: String,
     pub name: String,
     pub project_created_time: i64
 }
@@ -18,6 +21,9 @@ impl From<(&TexFile,i64)> for WsFileDetail {
             project_id: items.0.project_id.clone(),
             name: items.0.name.clone(),
             project_created_time: items.1,
+            created_time: items.0.created_time,
+            updated_time: items.0.updated_time,
+            file_id: items.0.file_id.clone(),
         }
     }
 }

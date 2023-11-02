@@ -47,6 +47,9 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
     let file_detail = WsFileDetail {
         file_path: docs.file_path,
         project_id: docs.project_id,
+        created_time: docs.created_time,
+        updated_time: docs.updated_time,
+        file_id: docs.file_id,
         name: docs.name,
         project_created_time: proj.unwrap().main.created_time,
     };
