@@ -165,7 +165,18 @@ pub async fn push_to_fulltextsearch(tex_file: &TexFile) {
             );
         }
     }
-    let _ = movies.set_filterable_attributes(["name"]).await;
+    let set_result = movies.set_filterable_attributes(["name"]).await;
+    match set_result {
+        Ok(_) => {
+
+        }
+        Err(se) => {
+            error!(
+                "set fulltext search filter error,{}, text file: {:?}",
+                se, tex_file
+            );
+        }
+    }
 }
 
 pub async fn create_file_on_disk(file: &TexFile) {
