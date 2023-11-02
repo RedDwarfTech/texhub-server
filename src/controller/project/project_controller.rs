@@ -1,6 +1,6 @@
 use crate::{
     model::{
-        diesel::custom::project::upload::proj_upload_file::ProjUploadFile,
+        diesel::custom::{project::upload::proj_upload_file::ProjUploadFile, file::search_file::SearchFile},
         request::project::{
             add::tex_project_tpl_req::TexProjectTplReq,
             edit::edit_proj_req::EditProjReq,
@@ -51,7 +51,6 @@ use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::service::project::project_service::proj_search_impl;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search};
-use crate::model::diesel::tex::custom_tex_models::TexFile;
 
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
@@ -260,7 +259,7 @@ async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
     }
 }
 
-fn get_fulltext_result(inputs: Vec<SearchResult<TexFile>>) -> Vec<TexFile>{
+fn get_fulltext_result(inputs: Vec<SearchResult<SearchFile>>) -> Vec<SearchFile>{
     let mut files = Vec::new();
     for item in inputs {
         files.push(item.result);

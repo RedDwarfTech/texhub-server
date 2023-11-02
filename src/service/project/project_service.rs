@@ -10,6 +10,7 @@ use crate::common::interop::synctex::{
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
+use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
@@ -1174,7 +1175,7 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
     return Some(cached_proj.unwrap());
 }
 
-pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<TexFile>>{
+pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<SearchFile>>{
     let url = get_app_config("texhub.meilisearch_url");
     let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
     let client = meilisearch_sdk::Client::new(url, Some(api_key));
