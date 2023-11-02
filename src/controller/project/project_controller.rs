@@ -268,7 +268,7 @@ fn get_fulltext_result(inputs: Vec<SearchResult<TexFile>>) -> Vec<TexFile>{
     return files;
 }
 
-async fn update_idx(form: web::Query<TexFileIdxReq>) -> HttpResponse {
+async fn update_idx(form: web::Json<TexFileIdxReq>) -> HttpResponse {
     let tex_file = get_file_by_fid(&form.0.file_id);
     let pos = push_to_fulltext_search(&tex_file.unwrap(), &form.0.content).await;
     box_actix_rest_response(pos)
