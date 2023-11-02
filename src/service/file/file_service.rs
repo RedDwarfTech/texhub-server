@@ -155,7 +155,7 @@ pub async fn push_to_fulltextsearch(tex_file: &TexFile) {
     let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
     let client = meilisearch_sdk::Client::new(url, Some(api_key));
     let movies = client.index("files");
-    let add_result = movies.add_documents(&[tex_file], Some(&tex_file.file_id)).await;
+    let add_result = movies.add_documents(&[tex_file], Some("file_id")).await;
     match add_result {
         Ok(_) => {}
         Err(e) => {

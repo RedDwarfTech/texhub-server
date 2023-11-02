@@ -7,7 +7,6 @@ curl 'http://localhost:7700/indexes/files/search' \
     --header 'Content-Type: application/json' \
     --header 'Authorization: Bearer master-key' \
     --data-raw '{
-        "q": "ability",
         "limit": 20,
         "offset": 0
     }'
