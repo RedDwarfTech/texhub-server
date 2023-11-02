@@ -50,7 +50,7 @@ use tokio::{
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::service::project::project_service::proj_search_impl;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
-use crate::service::file::file_service::{get_file_by_fid, push_to_fulltextsearch};
+use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search};
 use crate::model::diesel::tex::custom_tex_models::TexFile;
 
 pub async fn get_projects(
@@ -270,7 +270,7 @@ fn get_fulltext_result(inputs: Vec<SearchResult<TexFile>>) -> Vec<TexFile>{
 
 async fn update_idx(form: web::Query<TexFileIdxReq>) -> HttpResponse {
     let tex_file = get_file_by_fid(&form.0.file_id);
-    let pos = push_to_fulltextsearch(&tex_file.unwrap()).await;
+    let pos = push_to_fulltext_search(&tex_file.unwrap(), &form.0.content).await;
     box_actix_rest_response(pos)
 }
 

@@ -6,6 +6,7 @@ use crate::common::database::get_connection;
 use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
+use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
 use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::file_add_req::TexFileAddReq;
@@ -143,19 +144,20 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
         .expect("failed to add new tex file or folder");
     create_file_on_disk(&result).await;
     del_project_cache(&add_req.project_id).await;
-    push_to_fulltextsearch(&result).await;
+    push_to_fulltext_search(&result, &"hello world".to_string()).await;
     let resp = box_actix_rest_response(result);
     return resp;
 }
 
-pub async fn push_to_fulltextsearch(tex_file: &TexFile) {
+pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
     let url = get_app_config("texhub.meilisearch_url");
     // https://www.meilisearch.com/docs/reference/api/documents
     // let full_url = join_paths(&[url, "/indexes/files/documents".to_string()]);
     let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
     let client = meilisearch_sdk::Client::new(url, Some(api_key));
     let movies = client.index("files");
-    let add_result = movies.add_documents(&[tex_file], Some("file_id")).await;
+    let new_doc = SearchFile::new_file(tex_file, content);
+    let add_result = movies.add_documents(&[new_doc], Some("file_id")).await;
     match add_result {
         Ok(_) => {}
         Err(e) => {
