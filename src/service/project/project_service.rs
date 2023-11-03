@@ -19,6 +19,7 @@ use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadF
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
+use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
 use crate::model::request::project::query::get_src_pos_params::GetSrcPosParams;
@@ -73,6 +74,7 @@ use rust_wheel::texhub::compile_status::CompileStatus;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
+use std::env;
 use std::ffi::{CStr, CString};
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
@@ -83,7 +85,6 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
-use std::env;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -1175,22 +1176,31 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
     return Some(cached_proj.unwrap());
 }
 
-pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<SearchFile>>{
+pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<SearchFile>> {
     let url = get_app_config("texhub.meilisearch_url");
     let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
     let client = meilisearch_sdk::Client::new(url, Some(api_key));
     let movies = client.index("files");
     let query_word = &params.keyword;
     let query: SearchQuery = SearchQuery::new(&movies).with_query(query_word).build();
-    let results =
-        client.index("files").execute_query(&query).await;
+    let results = client.index("files").execute_query(&query).await;
     match results {
         Ok(r) => {
             return Some(r);
-        },
+        }
         Err(e) => {
             error!("search failed,{}, params: {:?}", e, params);
             return None;
         }
     }
+}
+
+pub async fn handle_update_nickname(edit_nickname: &EditProjNickname) {
+    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
+    let predicate = crate::model::diesel::tex::tex_schema::tex_project::user_id
+        .eq(edit_nickname.user_id.clone());
+    diesel::update(tex_project.filter(predicate))
+        .set(nickname.eq(&edit_nickname.nickname))
+        .get_result::<TexProject>(&mut get_connection())
+        .expect("unable to update tex project");
 }

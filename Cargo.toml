@@ -51,6 +51,8 @@ jemallocator = "0.5.4"
 jemalloc-ctl = "0.5.4"
 prometheus = "0.13.3"
 meilisearch-sdk = "0.24.2"
+redlock = "2.0.0"
+redis = "0.23.3"
 
 [dependencies.jemalloc-sys]
 version = "0.5.4"

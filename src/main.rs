@@ -4,7 +4,7 @@ extern crate diesel;
 
 use actix_web::{App, HttpServer};
 use controller::{
-    collar::collar_controller, file::file_controller, project::project_controller,
+    collar::collar_controller, file::file_controller, project::{project_controller, proj_event_handler::consume_sys_events},
     template::template_controller,
 };
 use monitor::health_controller;
@@ -27,6 +27,7 @@ async fn main() -> std::io::Result<()> {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     let port: u16 = get_app_config("texhub.port").parse().unwrap();
     let address = ("0.0.0.0", port);
+    consume_sys_events();
     HttpServer::new(|| {
         App::new()
             .configure(collar_controller::config)
