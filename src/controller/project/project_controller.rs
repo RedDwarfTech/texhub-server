@@ -273,6 +273,12 @@ async fn update_idx(form: web::Json<TexFileIdxReq>) -> HttpResponse {
     box_actix_rest_response(pos)
 }
 
+async fn update_proj_nickname(form: web::Json<TexFileIdxReq>) -> HttpResponse {
+    let tex_file = get_file_by_fid(&form.0.file_id);
+    let pos = push_to_fulltext_search(&tex_file.unwrap(), &form.0.content).await;
+    box_actix_rest_response(pos)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -301,5 +307,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile/status", web::put().to(update_compile_status))
             .route("/search", web::get().to(proj_search))
             .route("/flush/idx", web::put().to(update_idx))
+            .route("/nickname",web::put().to(update_proj_nickname))
     );
 }
