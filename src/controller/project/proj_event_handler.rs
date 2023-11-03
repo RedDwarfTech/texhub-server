@@ -30,7 +30,7 @@ pub async fn listen_nickname_update() {
         let rl = RedLock::new(vec![redis_conn_str.as_str()]);
         let lock;
         loop {
-            match rl.lock("mutex".as_bytes(), 1000) {
+            match rl.lock("sys-event-mutex".as_bytes(), 1000) {
                 Ok(Some(l)) => {
                     lock = l;
                     break;
