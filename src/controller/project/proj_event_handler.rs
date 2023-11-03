@@ -1,11 +1,11 @@
-use std::env;
 use log::error;
 use redis::{
     streams::{StreamId, StreamKey, StreamReadOptions, StreamReadReply},
     Commands, RedisResult,
 };
 use redlock::{Lock, RedLock};
-use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::get_con};
+use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::get_redis_conn};
+use std::env;
 use tokio::task;
 
 use crate::{
@@ -22,9 +22,9 @@ pub fn consume_sys_events() {
 }
 
 pub async fn listen_nickname_update() {
-    let mut con = get_con();
+    let redis_conn_str = env::var("TEXHUB_REDIS_URL").unwrap();
+    let mut con = get_redis_conn(redis_conn_str.as_str());
     let stream_key = get_app_config("texhub.sys_events_stream");
-    let redis_conn_str = env::var("REDIS_URL").unwrap();
     let stream_id = "0";
     loop {
         let rl = RedLock::new(vec![redis_conn_str.as_str()]);
