@@ -5,6 +5,7 @@ use redis::{
 };
 use redlock::{Lock, RedLock};
 use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::get_redis_conn};
+use serde::{Deserialize, Serialize};
 use std::env;
 use tokio::task;
 
@@ -74,17 +75,34 @@ async fn handle_proj_compile_record(stream_id: StreamId, rl: &RedLock, lock: &Lo
     rl.unlock(&lock);
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[allow(non_snake_case)]
+struct Data {
+    nickname: String,
+    userId: i64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[allow(non_snake_case)]
+struct SysEvent {
+    data: Data,
+    id: i64,
+    msgType: String,
+}
+
 fn do_task(stream_id: &StreamId) -> Option<EditProjNickname> {
-    let msg_type_value: &redis::Value = stream_id.map.get("msgType").unwrap();
-    let msg_type = extract_string_value(msg_type_value).unwrap();
-    if msg_type == "NICKNAME_UPDATE" {
-        let uid_value: &redis::Value = stream_id.map.get("userId").unwrap();
-        let uid = extract_string_value(uid_value);
-        let nn_value: &redis::Value = stream_id.map.get("nickname").unwrap();
-        let nickname = extract_string_value(nn_value);
+    let payload: &redis::Value = stream_id.map.get("payload").unwrap();
+    let msg = extract_string_value(payload).unwrap();
+    let event: Result<SysEvent, serde_json::Error> = serde_json::from_str(&msg);
+    if let Err(e) = event {
+        error!("parse system event failed,{}",e);
+        return None;
+    }
+    let naked_event = event.unwrap();
+    if naked_event.msgType == "NICKNAME_UPDATE" {
         let param: EditProjNickname = EditProjNickname {
-            user_id: uid.unwrap().parse::<i64>().unwrap(),
-            nickname: nickname.unwrap(),
+            user_id: naked_event.data.userId,
+            nickname: naked_event.data.nickname,
         };
         return Some(param);
     } else {
