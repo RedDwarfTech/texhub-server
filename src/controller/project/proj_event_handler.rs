@@ -4,7 +4,7 @@ use redis::{
     Commands, RedisResult,
 };
 use redlock::{Lock, RedLock};
-use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::get_redis_conn};
+use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::{get_redis_conn, delete_stream_element}};
 use serde::{Deserialize, Serialize};
 use std::env;
 use tokio::task;
@@ -63,14 +63,20 @@ pub async fn listen_nickname_update() {
 
 pub async fn handle_proj_compile_stream(sk: StreamKey, rl: &RedLock, lock: &Lock<'_>) {
     for stream_id in sk.clone().ids {
-        handle_proj_compile_record(stream_id, rl, lock).await;
+        handle_proj_compile_record(stream_id, rl, lock, &sk).await;
     }
 }
 
-async fn handle_proj_compile_record(stream_id: StreamId, rl: &RedLock, lock: &Lock<'_>) {
+async fn handle_proj_compile_record(stream_id: StreamId, rl: &RedLock, lock: &Lock<'_>,sk: &StreamKey) {
     let param = do_task(&stream_id);
     if param.is_some() {
         handle_update_nickname(&param.unwrap()).await;
+        let del_result = delete_stream_element(sk.key.as_str(), stream_id.id.clone());
+        if let Err(e) = del_result {
+            error!("delete system event stream failed: {}, stream id: {:?}", e, &stream_id);
+            rl.unlock(&lock);
+            return;
+        }
     }
     rl.unlock(&lock);
 }
