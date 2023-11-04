@@ -1,10 +1,10 @@
 use log::error;
 use redis::{
     streams::{StreamId, StreamKey, StreamReadOptions, StreamReadReply},
-    Commands, RedisResult,
+    Commands, RedisError, RedisResult,
 };
 use redlock::{Lock, RedLock};
-use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::{get_redis_conn, delete_stream_element}};
+use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::get_redis_conn};
 use serde::{Deserialize, Serialize};
 use std::env;
 use tokio::task;
@@ -67,13 +67,24 @@ pub async fn handle_proj_compile_stream(sk: StreamKey, rl: &RedLock, lock: &Lock
     }
 }
 
-async fn handle_proj_compile_record(stream_id: StreamId, rl: &RedLock, lock: &Lock<'_>,sk: &StreamKey) {
+async fn handle_proj_compile_record(
+    stream_id: StreamId,
+    rl: &RedLock,
+    lock: &Lock<'_>,
+    sk: &StreamKey,
+) {
     let param = do_task(&stream_id);
     if param.is_some() {
         handle_update_nickname(&param.unwrap()).await;
-        let del_result = delete_stream_element(sk.key.as_str(), stream_id.id.clone());
+        let redis_conn_str = env::var("TEXHUB_REDIS_URL").unwrap();
+        let mut con = get_redis_conn(redis_conn_str.as_str());
+        let del_result: Result<usize, RedisError> =
+            con.xdel(sk.key.as_str(), &[stream_id.id.clone()]);
         if let Err(e) = del_result {
-            error!("delete system event stream failed: {}, stream id: {:?}", e, &stream_id);
+            error!(
+                "delete system event stream failed: {}, stream id: {:?}",
+                e, &stream_id
+            );
             rl.unlock(&lock);
             return;
         }
@@ -101,7 +112,7 @@ fn do_task(stream_id: &StreamId) -> Option<EditProjNickname> {
     let msg = extract_string_value(payload).unwrap();
     let event: Result<SysEvent, serde_json::Error> = serde_json::from_str(&msg);
     if let Err(e) = event {
-        error!("parse system event failed,{}",e);
+        error!("parse system event failed,{}", e);
         return None;
     }
     let naked_event = event.unwrap();
