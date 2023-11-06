@@ -646,12 +646,6 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
             cstring_build_path.as_ptr(),
             1,
         );
-        println!(
-            "c result: {:?}, scanner file path:{}, build path:{}",
-            scanner,
-            file_path.clone(),
-            proj_dir.clone()
-        );
         let mut position_list: Vec<SrcPosResp> = Vec::new();
         let node_number = synctex_edit_query(scanner, params.page as c_int, params.h, params.v);
         if node_number > 0 {
