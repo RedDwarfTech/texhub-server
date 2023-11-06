@@ -1,6 +1,6 @@
 use crate::{
     model::{
-        diesel::custom::{project::upload::proj_upload_file::ProjUploadFile, file::search_file::SearchFile},
+        diesel::custom::{project::upload::proj_upload_file::ProjUploadFile, file::{search_file::SearchFile, search_file_resp::SearchFileResp}},
         request::project::{
             add::tex_project_tpl_req::TexProjectTplReq,
             edit::edit_proj_req::EditProjReq,
@@ -43,6 +43,7 @@ use rust_wheel::{
     },
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
+use serde_json::{Value, Map};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
@@ -253,17 +254,22 @@ async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
     if pos.is_some() {
         let searched_files = pos.unwrap().clone();
         warn!("project search result: {:?}",searched_files);
-        let ftr = get_fulltext_result(searched_files.hits);
+        let ftr:Vec<SearchFileResp> = get_fulltext_result(searched_files.hits);
         box_actix_rest_response(ftr)
     }else{
         box_actix_rest_response("")
     }
 }
 
-fn get_fulltext_result(inputs: Vec<SearchResult<SearchFile>>) -> Vec<SearchFile>{
+fn get_fulltext_result(inputs: Vec<SearchResult<SearchFile>>) -> Vec<SearchFileResp>{
     let mut files = Vec::new();
     for item in inputs {
-        files.push(item.result);
+        let formmatted_result = item.formatted_result;
+        if formmatted_result.is_some() {
+            let unwrap_result:Map<String,Value> = formmatted_result.unwrap();
+            let sfr = SearchFileResp::new_file(unwrap_result);
+            files.push(sfr);
+        }
     }
     return files;
 }
