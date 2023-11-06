@@ -1178,6 +1178,7 @@ pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults
     let query_word = &params.keyword;
     let query: SearchQuery = SearchQuery::new(&movies)
     .with_query(query_word)
+    .with_attributes_to_crop(Selectors::Some(&[("content", None)]))
     .with_show_matches_position(true)
     .with_crop_length(20)
     .build();
