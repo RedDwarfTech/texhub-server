@@ -1179,6 +1179,7 @@ pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults
     let query: SearchQuery = SearchQuery::new(&movies)
     .with_query(query_word)
     .with_show_matches_position(true)
+    .with_crop_length(20)
     .build();
     let results = client.index("files").execute_query(&query).await;
     match results {
