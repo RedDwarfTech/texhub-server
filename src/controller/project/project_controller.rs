@@ -34,7 +34,7 @@ use actix_web::{
     http::header::{CacheControl, CacheDirective},
     web, HttpResponse, Responder,
 };
-use log::error;
+use log::{error, warn};
 use meilisearch_sdk::SearchResult;
 use rust_wheel::{
     common::{
@@ -251,8 +251,9 @@ async fn get_src_position(form: web::Query<GetSrcPosParams>) -> HttpResponse {
 async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
     let pos = proj_search_impl(&form.0).await;
     if pos.is_some() {
-        let sr = pos.unwrap();
-        let ftr = get_fulltext_result(sr.hits);
+        let searched_files = pos.unwrap().clone();
+        warn!("project search result: {:?}",searched_files);
+        let ftr = get_fulltext_result(searched_files.hits);
         box_actix_rest_response(ftr)
     }else{
         box_actix_rest_response("")
