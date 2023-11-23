@@ -1172,8 +1172,12 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
 
 pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<SearchFile>> {
     let url = get_app_config("texhub.meilisearch_url");
-    let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
-    let client = meilisearch_sdk::Client::new(url, Some(api_key));
+    let api_key = env::var("MEILI_MASTER_KEY");
+    if let Err(e) = api_key {
+        error!("get meilisearch api key failed {}", e);
+        return None;
+    }
+    let client = meilisearch_sdk::Client::new(url, Some(api_key.unwrap()));
     let movies = client.index("files");
     let query_word = &params.keyword;
     let query: SearchQuery = SearchQuery::new(&movies)
