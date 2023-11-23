@@ -7,7 +7,7 @@ use serde_json::Value;
 pub struct SearchFileResp {
     pub name: String,
     pub file_id: String,
-    pub path: String,
+    pub file_path: String,
     pub content: String,
 }
 
@@ -16,7 +16,7 @@ impl SearchFileResp {
         Self {
             name: file_map.get("name").unwrap().to_string(),
             file_id: file_map.get("file_id").unwrap().to_string(),
-            path: file_map.get("file_path").unwrap().to_string(),
+            file_path: file_map.get("file_path").unwrap().to_string(),
             content: file_map.get("content").unwrap().to_string()
         }
     }
