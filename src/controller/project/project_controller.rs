@@ -1,6 +1,13 @@
+use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
+use crate::model::request::project::query::search_proj_params::SearchProjParams;
+use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search};
+use crate::service::project::project_service::proj_search_impl;
 use crate::{
     model::{
-        diesel::custom::{project::upload::proj_upload_file::ProjUploadFile, file::{search_file::SearchFile, search_file_resp::SearchFileResp}},
+        diesel::custom::{
+            file::{search_file::SearchFile, search_file_resp::SearchFileResp},
+            project::upload::proj_upload_file::ProjUploadFile,
+        },
         request::project::{
             add::tex_project_tpl_req::TexProjectTplReq,
             edit::edit_proj_req::EditProjReq,
@@ -27,7 +34,7 @@ use crate::{
             send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
-    }
+    },
 };
 use actix_multipart::form::MultipartForm;
 use actix_web::{
@@ -43,15 +50,11 @@ use rust_wheel::{
     },
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
-use serde_json::{Value, Map};
+use serde_json::{Map, Value};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
 };
-use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
-use crate::service::project::project_service::proj_search_impl;
-use crate::model::request::project::query::search_proj_params::SearchProjParams;
-use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search};
 
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
@@ -253,20 +256,20 @@ async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
     let pos = proj_search_impl(&form.0).await;
     if pos.is_some() {
         let searched_files = pos.unwrap().clone();
-        warn!("project search result: {:?}",searched_files);
-        let ftr:Vec<SearchFileResp> = get_fulltext_result(searched_files.hits);
+        warn!("project search result: {:?}", searched_files);
+        let ftr: Vec<SearchFileResp> = get_fulltext_result(searched_files.hits);
         box_actix_rest_response(ftr)
-    }else{
+    } else {
         box_actix_rest_response("")
     }
 }
 
-fn get_fulltext_result(inputs: Vec<SearchResult<SearchFile>>) -> Vec<SearchFileResp>{
+fn get_fulltext_result(inputs: Vec<SearchResult<SearchFile>>) -> Vec<SearchFileResp> {
     let mut files = Vec::new();
     for item in inputs {
-        let formmatted_result = item.formatted_result;
+        let formmatted_result: Option<Map<String, Value>> = item.formatted_result;
         if formmatted_result.is_some() {
-            let unwrap_result:Map<String,Value> = formmatted_result.unwrap();
+            let unwrap_result: Map<String, Value> = formmatted_result.unwrap();
             let sfr = SearchFileResp::new_file(unwrap_result);
             files.push(sfr);
         }
@@ -314,6 +317,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile/status", web::put().to(update_compile_status))
             .route("/search", web::get().to(proj_search))
             .route("/flush/idx", web::put().to(update_idx))
-            .route("/nickname",web::put().to(update_proj_nickname))
+            .route("/nickname", web::put().to(update_proj_nickname)),
     );
 }

@@ -13,8 +13,9 @@ pub struct SearchFileResp {
 
 impl SearchFileResp {
     pub(crate) fn new_file(file_map: Map<String,Value>) -> Self {
+        let f_name = format!("{}",file_map.get("name").unwrap().to_string());
         Self {
-            name: file_map.get("name").unwrap().to_string(),
+            name: f_name,
             file_id: file_map.get("file_id").unwrap().to_string(),
             file_path: file_map.get("file_path").unwrap().to_string(),
             content: file_map.get("content").unwrap().to_string()
