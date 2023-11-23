@@ -1184,7 +1184,7 @@ pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults
     .with_query(query_word)
     .with_attributes_to_crop(Selectors::Some(&[("content", None)]))
     .with_show_matches_position(true)
-    .with_crop_length(20)
+    .with_crop_length(12)
     .build();
     let results = client.index("files").execute_query(&query).await;
     match results {
