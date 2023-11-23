@@ -9,7 +9,7 @@ use crate::{
     service::{
         file::file_service::{
             create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
-            get_file_tree, get_main_file_list, get_text_file_code, rename_file_impl, mv_file_impl,
+            get_file_tree, get_main_file_list, get_text_file_code, mv_file_impl, rename_trans,
         },
         project::project_service::{get_cached_proj_info, del_project_cache},
     },
@@ -106,7 +106,7 @@ pub async fn rename_file(
     form: actix_web_validator::Json<TexFileRenameReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let db_file = rename_file_impl(&form.0, &login_user_info).await;
+    let db_file = rename_trans(&form.0, &login_user_info).await;
     box_actix_rest_response(db_file)
 }
 

@@ -21,7 +21,7 @@ use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
-use log::{error, warn};
+use log::error;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
@@ -169,9 +169,7 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
     }
     let set_result = movies.set_filterable_attributes(["name"]).await;
     match set_result {
-        Ok(_) => {
-
-        }
+        Ok(_) => {}
         Err(se) => {
             error!(
                 "set fulltext search filter error,{}, text file: {:?}",
@@ -186,7 +184,6 @@ pub async fn create_file_on_disk(file: &TexFile) {
     if file.file_type == (ThFileType::Folder as i32) {
         let split_path = &[base_compile_dir, file.file_path.clone()];
         let file_full_path = join_paths(split_path);
-        warn!("create folder: {}", file_full_path);
         create_folder_not_exists(&file_full_path);
     } else {
         let split_path = &[base_compile_dir, file.file_path.clone(), file.name.clone()];
@@ -236,9 +233,33 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
     return update_result;
 }
 
-pub async fn rename_file_impl(
+pub async fn rename_trans(
     edit_req: &TexFileRenameReq,
     login_user_info: &LoginUserInfo,
+) -> Option<TexFile> {
+    let edit_req_copy = edit_req.clone();
+    let mut rename_connection = get_connection();
+    let trans_result: Result<Option<TexFile>, Error> =
+        rename_connection.transaction(|connection| {
+            let tex_file = rename_file_impl(edit_req_copy, login_user_info, connection);
+            Ok(Some(tex_file))
+        });
+    if let Err(e) = trans_result {
+        error!("rename file failed,{}", e);
+        return None;
+    }
+    let renamed_file = trans_result.unwrap();
+    if renamed_file.is_some() {
+        let proj_id = renamed_file.clone().unwrap().project_id;
+        del_project_cache(&proj_id).await;
+    }
+    return renamed_file;
+}
+
+pub fn rename_file_impl(
+    edit_req: &TexFileRenameReq,
+    login_user_info: &LoginUserInfo,
+    connection: &mut PgConnection,
 ) -> TexFile {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
@@ -247,9 +268,32 @@ pub async fn rename_file_impl(
         .and(tex_file_table::user_id.eq(login_user_info.userId));
     let update_result = diesel::update(tex_file.filter(predicate))
         .set(name.eq(edit_req.name.clone()))
-        .get_result::<TexFile>(&mut get_connection())
+        .get_result::<TexFile>(connection)
         .expect("unable to update tex file name");
     let proj_dir = get_proj_base_dir(&update_result.project_id);
+    if update_result.file_type == ThFileType::Folder as i32 {
+        handle_folder_rename(proj_dir, &update_result);
+    } else {
+        handle_file_rename(proj_dir, &update_result, edit_req);
+    }
+    return update_result;
+}
+
+fn handle_folder_rename(proj_dir: String, update_result: &TexFile) {
+    let legacy_path = join_paths(&[proj_dir.clone(), update_result.file_path.clone()]);
+    let new_path = join_paths(&[proj_dir, update_result.file_path.clone()]);
+    match fs::rename(legacy_path.clone(), new_path.clone()) {
+        Ok(()) => {}
+        Err(e) => {
+            error!(
+                "rename project folder facing issue {}, legacy path: {}, new path: {}",
+                e, legacy_path, new_path
+            );
+        }
+    }
+}
+
+fn handle_file_rename(proj_dir: String, update_result: &TexFile, edit_req: &TexFileRenameReq) {
     let legacy_path = join_paths(&[
         proj_dir.clone(),
         update_result.file_path.clone(),
@@ -269,8 +313,6 @@ pub async fn rename_file_impl(
             );
         }
     }
-    del_project_cache(&update_result.project_id).await;
-    return update_result;
 }
 
 fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error> {
