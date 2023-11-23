@@ -1,6 +1,6 @@
 use validator::Validate;
 
-#[derive(serde::Deserialize, Validate)]
+#[derive(serde::Deserialize, Validate, Clone)]
 pub struct TexFileRenameReq {
     pub file_id: String,
     #[validate(length(min = 1))]

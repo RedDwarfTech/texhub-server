@@ -241,7 +241,7 @@ pub async fn rename_trans(
     let mut rename_connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> =
         rename_connection.transaction(|connection| {
-            let tex_file = rename_file_impl(edit_req_copy, login_user_info, connection);
+            let tex_file = rename_file_impl(&edit_req_copy, login_user_info, connection);
             Ok(Some(tex_file))
         });
     if let Err(e) = trans_result {

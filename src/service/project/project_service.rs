@@ -1179,9 +1179,11 @@ pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults
     }
     let client = meilisearch_sdk::Client::new(url, Some(api_key.unwrap()));
     let movies = client.index("files");
+    let proj_search_filter = format!("project_id = {}", &params.project_id);
     let query_word = &params.keyword;
     let query: SearchQuery = SearchQuery::new(&movies)
     .with_query(query_word)
+    .with_filter(proj_search_filter.as_str())
     .with_attributes_to_crop(Selectors::Some(&[("content", None)]))
     .with_show_matches_position(true)
     .with_crop_length(12)
