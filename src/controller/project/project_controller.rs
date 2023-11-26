@@ -169,8 +169,11 @@ pub async fn update_compile_status(form: web::Json<TexCompileQueueStatus>) -> im
     return compile_status_update(&form.0).await;
 }
 
-pub async fn get_latest_pdf(params: web::Query<GetProjParams>) -> impl Responder {
-    let pdf_info = get_proj_latest_pdf(&params.0.project_id).await;
+pub async fn get_latest_pdf(
+    params: web::Query<GetProjParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let pdf_info = get_proj_latest_pdf(&params.0.project_id, &login_user_info.userId).await;
     box_actix_rest_response(pdf_info)
 }
 
@@ -206,13 +209,13 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
-pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileQueueLog>) -> HttpResponse {
+pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileQueueLog>, login_user_info: LoginUserInfo) -> HttpResponse {
     let (tx, rx): (
         UnboundedSender<SSEMessage<String>>,
         UnboundedReceiver<SSEMessage<String>>,
     ) = tokio::sync::mpsc::unbounded_channel();
     task::spawn(async move {
-        let output = get_comp_log_stream(&form.0, tx).await;
+        let output = get_comp_log_stream(&form.0, tx, &login_user_info).await;
         if let Err(e) = output {
             error!("handle sse req error: {}", e);
         }
