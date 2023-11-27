@@ -1061,7 +1061,7 @@ pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>,
     match send_result {
         Ok(_) => {}
         Err(e) => {
-            error!("send xelatex compile log error: {}", e);
+            error!("send xelatex compile log facing error: {}", e);
         }
     }
 }
