@@ -1004,7 +1004,7 @@ pub async fn get_project_pdf(proj_id: &String) -> String {
 pub async fn get_comp_log_stream(
     params: &TexCompileQueueLog,
     tx: UnboundedSender<SSEMessage<String>>,
-    login_user_info: &LoginUserInfo
+    login_user_info: &LoginUserInfo,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let base_compile_dir: String = get_proj_base_dir(&params.project_id);
@@ -1034,7 +1034,7 @@ pub async fn comp_log_file_read(
     reader: BufReader<ChildStdout>,
     tx: &UnboundedSender<SSEMessage<String>>,
     params: &TexCompileQueueLog,
-    uid: &i64
+    uid: &i64,
 ) {
     for line in reader.lines() {
         if let Ok(line) = line {
@@ -1101,7 +1101,7 @@ pub async fn send_render_req(
         let string_content = std::str::from_utf8(&data).unwrap().to_owned();
         let sse_mesg = serde_json::from_str(&string_content);
         if let Err(parse_err) = sse_mesg {
-            error!("parse json failed,{},text:{}", parse_err, string_content);
+            error!("parse json failed,{}, text:{}", parse_err, string_content);
             continue;
         }
         let send_result = tx.send(sse_mesg.unwrap());
