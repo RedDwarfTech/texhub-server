@@ -845,7 +845,7 @@ pub async fn add_compile_to_queue(
 ) -> HttpResponse {
     let mut connection = get_connection();
     let queue_req = QueueReq {
-        comp_status: vec![CompileStatus::Complete as i32, CompileStatus::Queued as i32],
+        comp_status: vec![CompileResult::Success as i32, CompileStatus::Queued as i32],
         project_id: params.project_id.clone(),
     };
     let queue_list = get_proj_queue_list(&queue_req, login_user_info);
