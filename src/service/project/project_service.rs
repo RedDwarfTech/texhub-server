@@ -846,6 +846,7 @@ pub async fn add_compile_to_queue(
     let mut connection = get_connection();
     let queue_req = QueueReq {
         comp_status: vec![CompileStatus::Complete as i32, CompileStatus::Queued as i32],
+        project_id: params.project_id.clone(),
     };
     let queue_list = get_proj_queue_list(&queue_req, login_user_info);
     if !queue_list.is_empty() {
@@ -952,7 +953,7 @@ pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> LatestCompile {
     let main_file = proj_info.main_file;
     let mut req = Vec::new();
     req.push(CompileResult::Success as i32);
-    let newest_queue = get_latest_proj_queue(&req, uid);
+    let newest_queue = get_latest_proj_queue(&req, uid, proj_id);
     let ver_no = if newest_queue.is_some() {
         newest_queue.unwrap().version_no
     } else {
