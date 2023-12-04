@@ -266,10 +266,15 @@ pub fn rename_file_impl(
     let predicate = tex_file_table::file_id
         .eq(edit_req.file_id.clone())
         .and(tex_file_table::user_id.eq(login_user_info.userId));
+    let update_msg = format!(
+        "unable to update tex file name, user id: {}, file_id: {}",
+        login_user_info.userId,
+        edit_req.file_id.clone()
+    );
     let update_result = diesel::update(tex_file.filter(predicate))
         .set(name.eq(edit_req.name.clone()))
         .get_result::<TexFile>(connection)
-        .expect("unable to update tex file name");
+        .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
     if update_result.file_type == ThFileType::Folder as i32 {
         handle_folder_rename(proj_dir, &update_result);
