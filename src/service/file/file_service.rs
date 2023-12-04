@@ -167,7 +167,7 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
             );
         }
     }
-    let set_result = movies.set_filterable_attributes(["name"]).await;
+    let set_result = movies.set_filterable_attributes(["name","project_id"]).await;
     match set_result {
         Ok(_) => {}
         Err(se) => {
