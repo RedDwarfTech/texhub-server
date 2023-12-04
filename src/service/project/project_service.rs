@@ -704,7 +704,7 @@ pub async fn del_project_cache(del_project_id: &String) {
         get_app_config("texhub.proj_cache_key"),
         del_project_id
     );
-    let del_result = del_redis_key(cache_key.as_str()).await;
+    let del_result = del_redis_key(cache_key.as_str());
     if let Err(e) = del_result {
         error!("delete project cache failed,{},cached key:{}", e, cache_key);
     }

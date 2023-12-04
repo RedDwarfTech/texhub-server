@@ -29,7 +29,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
+use rust_wheel::config::cache::redis_util::{set_value, sync_get_str, del_redis_key};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
@@ -280,6 +280,12 @@ pub fn rename_file_impl(
         handle_folder_rename(proj_dir, &update_result);
     } else {
         handle_file_rename(proj_dir, &update_result, edit_req);
+    }
+    let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
+    let file_cached_key = format!("{}:{}", file_cached_key_prev, &edit_req.file_id.clone());
+    let del_cache_result = del_redis_key(&file_cached_key);
+    if let Err(e) = del_cache_result {
+        error!("failed to delete file cache,{}", e);
     }
     return update_result;
 }
