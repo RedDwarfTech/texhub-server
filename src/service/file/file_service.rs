@@ -29,7 +29,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::{set_value, sync_get_str};
+use rust_wheel::config::cache::redis_util::{set_value, sync_get_str, del_redis_key};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
@@ -167,7 +167,7 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
             );
         }
     }
-    let set_result = movies.set_filterable_attributes(["name"]).await;
+    let set_result = movies.set_filterable_attributes(["name","project_id"]).await;
     match set_result {
         Ok(_) => {}
         Err(se) => {
@@ -241,7 +241,7 @@ pub async fn rename_trans(
     let mut rename_connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> =
         rename_connection.transaction(|connection| {
-            let tex_file = rename_file_impl(edit_req_copy, login_user_info, connection);
+            let tex_file = rename_file_impl(&edit_req_copy, login_user_info, connection);
             Ok(Some(tex_file))
         });
     if let Err(e) = trans_result {
@@ -266,15 +266,26 @@ pub fn rename_file_impl(
     let predicate = tex_file_table::file_id
         .eq(edit_req.file_id.clone())
         .and(tex_file_table::user_id.eq(login_user_info.userId));
+    let update_msg = format!(
+        "unable to update tex file name, user id: {}, file_id: {}",
+        login_user_info.userId,
+        edit_req.file_id.clone()
+    );
     let update_result = diesel::update(tex_file.filter(predicate))
         .set(name.eq(edit_req.name.clone()))
         .get_result::<TexFile>(connection)
-        .expect("unable to update tex file name");
+        .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
     if update_result.file_type == ThFileType::Folder as i32 {
         handle_folder_rename(proj_dir, &update_result);
     } else {
         handle_file_rename(proj_dir, &update_result, edit_req);
+    }
+    let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
+    let file_cached_key = format!("{}:{}", file_cached_key_prev, &edit_req.file_id.clone());
+    let del_cache_result = del_redis_key(&file_cached_key);
+    if let Err(e) = del_cache_result {
+        error!("failed to delete file cache,{}", e);
     }
     return update_result;
 }

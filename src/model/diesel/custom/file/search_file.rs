@@ -9,7 +9,7 @@ pub struct SearchFile {
     pub updated_time: i64,
     pub content: String,
     pub file_id: String,
-    pub path: String,
+    pub file_path: String,
 }
 
 impl SearchFile {
@@ -20,7 +20,7 @@ impl SearchFile {
             updated_time: file.updated_time,
             content: content.to_owned(),
             file_id: file.file_id.clone(),
-            path: file.file_path.clone()
+            file_path: file.file_path.clone()
         }
     }
 }

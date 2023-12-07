@@ -71,6 +71,7 @@ use rust_wheel::config::cache::redis_util::{
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
+use rust_wheel::texhub::proj::compile_result::CompileResult;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
@@ -85,6 +86,8 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+
+use super::project_queue_service::get_latest_proj_queue;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -701,7 +704,7 @@ pub async fn del_project_cache(del_project_id: &String) {
         get_app_config("texhub.proj_cache_key"),
         del_project_id
     );
-    let del_result = del_redis_key(cache_key.as_str()).await;
+    let del_result = del_redis_key(cache_key.as_str());
     if let Err(e) = del_result {
         error!("delete project cache failed,{},cached key:{}", e, cache_key);
     }
@@ -842,7 +845,8 @@ pub async fn add_compile_to_queue(
 ) -> HttpResponse {
     let mut connection = get_connection();
     let queue_req = QueueReq {
-        comp_status: vec![CompileStatus::Complete as i32, CompileStatus::Queued as i32],
+        comp_status: vec![CompileResult::Success as i32, CompileStatus::Queued as i32],
+        project_id: params.project_id.clone(),
     };
     let queue_list = get_proj_queue_list(&queue_req, login_user_info);
     if !queue_list.is_empty() {
@@ -944,14 +948,22 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
     return contents;
 }
 
-pub async fn get_proj_latest_pdf(proj_id: &String) -> LatestCompile {
+pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> LatestCompile {
     let proj_info = get_cached_proj_info(proj_id).unwrap();
     let main_file = proj_info.main_file;
+    let mut req = Vec::new();
+    req.push(CompileResult::Success as i32);
+    let newest_queue = get_latest_proj_queue(&req, uid, proj_id);
+    let ver_no = if newest_queue.is_some() {
+        newest_queue.unwrap().version_no
+    } else {
+        get_current_millisecond().to_string()
+    };
     let pdf_name = format!(
         "{}{}{}",
         get_filename_without_ext(&main_file.name),
         ".pdf?v=",
-        get_current_millisecond()
+        ver_no
     );
     let proj_relative_path = get_proj_relative_path(proj_id, proj_info.main.created_time);
     let pdf_result: LatestCompile = LatestCompile {
@@ -992,6 +1004,7 @@ pub async fn get_project_pdf(proj_id: &String) -> String {
 pub async fn get_comp_log_stream(
     params: &TexCompileQueueLog,
     tx: UnboundedSender<SSEMessage<String>>,
+    login_user_info: &LoginUserInfo,
 ) -> Result<String, reqwest::Error> {
     let file_name_without_ext = get_filename_without_ext(&params.file_name);
     let base_compile_dir: String = get_proj_base_dir(&params.project_id);
@@ -1008,9 +1021,10 @@ pub async fn get_comp_log_stream(
     let reader = std::io::BufReader::new(log_stdout);
     task::spawn_blocking({
         let queue_log_params = params.clone();
+        let uid = login_user_info.userId;
         move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(comp_log_file_read(reader, &tx, &queue_log_params));
+            rt.block_on(comp_log_file_read(reader, &tx, &queue_log_params, &uid));
         }
     });
     Ok("".to_owned())
@@ -1020,12 +1034,13 @@ pub async fn comp_log_file_read(
     reader: BufReader<ChildStdout>,
     tx: &UnboundedSender<SSEMessage<String>>,
     params: &TexCompileQueueLog,
+    uid: &i64,
 ) {
     for line in reader.lines() {
         if let Ok(line) = line {
             let msg_content = format!("{}\n", line.to_owned());
             if msg_content.contains("====END====") {
-                let cr = get_proj_latest_pdf(&params.project_id).await;
+                let cr = get_proj_latest_pdf(&params.project_id, uid).await;
                 let queue = get_cached_queue_status(params.qid).await;
                 let comp_resp = CompileResp::from((cr, queue.unwrap()));
                 let end_json = serde_json::to_string(&comp_resp).unwrap();
@@ -1046,7 +1061,7 @@ pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>,
     match send_result {
         Ok(_) => {}
         Err(e) => {
-            error!("send xelatex compile log error: {}", e);
+            error!("send xelatex compile log facing error: {}", e);
         }
     }
 }
@@ -1086,7 +1101,7 @@ pub async fn send_render_req(
         let string_content = std::str::from_utf8(&data).unwrap().to_owned();
         let sse_mesg = serde_json::from_str(&string_content);
         if let Err(parse_err) = sse_mesg {
-            error!("parse json failed,{},text:{}", parse_err, string_content);
+            error!("parse json failed,{}, text:{}", parse_err, string_content);
             continue;
         }
         let send_result = tx.send(sse_mesg.unwrap());
@@ -1172,16 +1187,22 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
 
 pub async fn proj_search_impl(params: &SearchProjParams) -> Option<SearchResults<SearchFile>> {
     let url = get_app_config("texhub.meilisearch_url");
-    let api_key = env::var("MEILI_MASTER_KEY").expect("MEILI_MASTER_KEY must be set");
-    let client = meilisearch_sdk::Client::new(url, Some(api_key));
+    let api_key = env::var("MEILI_MASTER_KEY");
+    if let Err(e) = api_key {
+        error!("get meilisearch api key failed {}", e);
+        return None;
+    }
+    let client = meilisearch_sdk::Client::new(url, Some(api_key.unwrap()));
     let movies = client.index("files");
+    let proj_search_filter = format!("project_id = {}", &params.project_id);
     let query_word = &params.keyword;
     let query: SearchQuery = SearchQuery::new(&movies)
-    .with_query(query_word)
-    .with_attributes_to_crop(Selectors::Some(&[("content", None)]))
-    .with_show_matches_position(true)
-    .with_crop_length(20)
-    .build();
+        .with_query(query_word)
+        .with_filter(proj_search_filter.as_str())
+        .with_attributes_to_crop(Selectors::Some(&[("content", None)]))
+        .with_show_matches_position(true)
+        .with_crop_length(12)
+        .build();
     let results = client.index("files").execute_query(&query).await;
     match results {
         Ok(r) => {
