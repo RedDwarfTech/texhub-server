@@ -8,8 +8,9 @@ use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
+use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::file::edit::move_file_req::MoveFileReq;
-use crate::model::request::file::file_add_req::TexFileAddReq;
+use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
@@ -116,6 +117,13 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
         return "".to_string();
     }
     return contents;
+}
+
+pub async fn create_file_ver(add_req: &TexFileVerAddReq, login_user_info: &LoginUserInfo) {
+    let result = diesel::insert_into(tex_file)
+        .values(&new_file)
+        .get_result::<TexFile>(&mut get_connection())
+        .expect("failed to add new tex file or folder");
 }
 
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
