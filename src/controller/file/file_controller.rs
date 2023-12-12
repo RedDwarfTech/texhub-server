@@ -139,7 +139,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/list", web::get().to(get_files))
             .route("/add", web::post().to(add_file))
             .route("/tree", web::get().to(get_files_tree))
-            .route("/ver/add", web::get().to(add_file_version))
+            .route("/ver/add", web::post().to(add_file_version))
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))
