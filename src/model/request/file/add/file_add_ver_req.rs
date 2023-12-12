@@ -6,5 +6,7 @@ pub struct TexFileVerAddReq {
     #[validate(length(min = 1))]
     pub file_id: String,
     #[validate(length(min = 1))]
-    pub project_id: String
+    pub project_id: String,
+    #[validate(length(min = 1))]
+    pub content: String
 }

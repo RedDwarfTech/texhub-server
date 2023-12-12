@@ -87,7 +87,8 @@ pub async fn add_file_version(
     form: actix_web_validator::Json<TexFileVerAddReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    return create_file_ver(&form.0, &login_user_info).await;
+    let tex_file_version = create_file_ver(&form.0, &login_user_info);
+    box_actix_rest_response(tex_file_version)
 }
 
 pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder {

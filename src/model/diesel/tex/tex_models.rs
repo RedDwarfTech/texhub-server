@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::model::diesel::tex::tex_schema::*;
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[diesel(table_name = "tex_comp_queue")]
+#[table_name = "tex_comp_queue"]
 pub struct TexCompQueue {
     pub id: i64,
     pub created_time: i64,
@@ -16,10 +16,13 @@ pub struct TexCompQueue {
     pub user_id: i64,
     pub comp_status: i32,
     pub project_id: String,
+    pub version_no: String,
+    pub comp_result: i32,
+    pub complete_time: i64,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[diesel(table_name = "tex_file")]
+#[table_name = "tex_file"]
 pub struct TexFile {
     pub id: i64,
     pub name: String,
@@ -38,7 +41,20 @@ pub struct TexFile {
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[diesel(table_name = "tex_proj_editor")]
+#[table_name = "tex_file_version"]
+pub struct TexFileVersion {
+    pub id: i64,
+    pub name: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub project_id: String,
+    pub file_id: String,
+    pub content: Option<String>,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[table_name = "tex_proj_editor"]
 pub struct TexProjEditor {
     pub id: i64,
     pub role_id: i32,
@@ -51,7 +67,7 @@ pub struct TexProjEditor {
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[diesel(table_name = "tex_project")]
+#[table_name = "tex_project"]
 pub struct TexProject {
     pub id: i64,
     pub proj_name: String,
@@ -65,7 +81,7 @@ pub struct TexProject {
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[diesel(table_name = "tex_template")]
+#[table_name = "tex_template"]
 pub struct TexTemplate {
     pub id: i64,
     pub name: String,
@@ -85,5 +101,6 @@ pub struct TexTemplate {
     pub intro: String,
     pub template_type: i32,
     pub pdf_name: String,
+    pub main_file_name: String,
 }
 

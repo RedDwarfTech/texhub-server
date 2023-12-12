@@ -6,8 +6,9 @@ use crate::common::database::get_connection;
 use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
+use crate::model::diesel::custom::file::file_ver_add::TexFileVersionAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
-use crate::model::diesel::tex::custom_tex_models::TexFile;
+use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion};
 use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::add::file_add_req::TexFileAddReq;
@@ -119,11 +120,14 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     return contents;
 }
 
-pub async fn create_file_ver(add_req: &TexFileVerAddReq, login_user_info: &LoginUserInfo) {
-    let result = diesel::insert_into(tex_file)
+pub fn create_file_ver(add_req: &TexFileVerAddReq, login_user_info: &LoginUserInfo) -> TexFileVersion {
+    use crate::model::diesel::tex::tex_schema::tex_file_version::dsl::*;
+    let new_file = TexFileVersionAdd::gen_tex_file(add_req,login_user_info);
+    let result = diesel::insert_into(tex_file_version)
         .values(&new_file)
-        .get_result::<TexFile>(&mut get_connection())
-        .expect("failed to add new tex file or folder");
+        .get_result::<TexFileVersion>(&mut get_connection())
+        .expect("failed to add new tex file version");
+    return result;
 }
 
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
