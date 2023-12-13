@@ -27,15 +27,13 @@ pub struct TexFileVersionAdd {
 
 impl TexFileVersionAdd {
     pub(crate) fn gen_tex_file(add_file: &TexFileVerAddReq, login_user_info: &LoginUserInfo) ->Self {
-        let uuid = Uuid::new_v4();
-        let uuid_string = uuid.to_string().replace("-", "");
         Self {
             name: add_file.name.clone(),
             created_time: get_current_millisecond(),
             updated_time: get_current_millisecond(),
             user_id: login_user_info.userId,
             project_id: add_file.project_id.clone(),
-            file_id: uuid_string,
+            file_id: add_file.file_id.clone(),
         }
     }
 }
