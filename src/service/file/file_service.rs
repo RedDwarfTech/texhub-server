@@ -14,6 +14,7 @@ use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
+use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
@@ -128,6 +129,17 @@ pub fn create_file_ver(add_req: &TexFileVerAddReq, login_user_info: &LoginUserIn
         .get_result::<TexFileVersion>(&mut get_connection())
         .expect("failed to add new tex file version");
     return result;
+}
+
+pub fn get_proj_history(history_req: &GetProjHistory, login_user_info: &LoginUserInfo) -> Vec<TexFileVersion> {
+    use crate::model::diesel::tex::tex_schema::tex_file_version as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::project_id.eq(history_req.project_id.clone()));
+    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
+    let files: Vec<TexFileVersion> = query
+    .load::<TexFileVersion>(&mut get_connection())
+    .expect("get project version facing error");
+    return files;
 }
 
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
