@@ -1,6 +1,7 @@
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
+use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
-use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search};
+use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search, get_proj_history};
 use crate::service::project::project_service::proj_search_impl;
 use crate::{
     model::{
@@ -292,11 +293,20 @@ async fn update_proj_nickname(form: web::Json<TexFileIdxReq>) -> HttpResponse {
     box_actix_rest_response(pos)
 }
 
+pub async fn get_proj_his(
+    params: web::Query<GetProjHistory>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let proj_history = get_proj_history(&params.0, &login_user_info);
+    box_actix_rest_response(proj_history)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_projects))
             .route("/info", web::get().to(get_project))
+            .route("/history", web::get().to(get_proj_his))
             .route("/add", web::post().to(create_project))
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
             .route("/del", web::delete().to(del_proj))

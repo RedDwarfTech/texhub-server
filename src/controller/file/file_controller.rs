@@ -91,14 +91,6 @@ pub async fn add_file_version(
     box_actix_rest_response(tex_file_version)
 }
 
-pub async fn get_file_version_list(
-    params: web::Query<GetProjHistory>,
-    login_user_info: LoginUserInfo,
-) -> impl Responder {
-    let proj_history = get_proj_history(&params.0, &login_user_info);
-    box_actix_rest_response(proj_history)
-}
-
 pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder {
     let new_file = file_init_complete(&form.0);
     box_actix_rest_response(new_file)
@@ -148,7 +140,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/add", web::post().to(add_file))
             .route("/tree", web::get().to(get_files_tree))
             .route("/ver/add", web::post().to(add_file_version))
-            .route("/ver/list", web::get().to(get_file_version_list))
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))
