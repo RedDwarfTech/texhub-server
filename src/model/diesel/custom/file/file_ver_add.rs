@@ -21,7 +21,8 @@ pub struct TexFileVersionAdd {
     pub user_id: i64,
     pub project_id: String,
     pub file_id: String,
-    pub content: String
+    pub content: String,
+    pub snapshot: String
 }
 
 impl TexFileVersionAdd {
@@ -33,7 +34,8 @@ impl TexFileVersionAdd {
             user_id: login_user_info.userId,
             project_id: add_file.project_id.clone(),
             file_id: add_file.file_id.clone(),
-            content: add_file.content.clone()
+            content: add_file.content.clone(),
+            snapshot: add_file.snapshot.clone()
         }
     }
 }

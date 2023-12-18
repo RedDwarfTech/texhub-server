@@ -103,4 +103,5 @@ pub struct TexFileVersion {
     pub project_id: String,
     pub file_id: String,
     pub content: String,
+    pub snapshot: String,
 }
