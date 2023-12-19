@@ -2,6 +2,7 @@
 #![allow(clippy::all)]
 use std::ffi::OsString;
 use actix_multipart::form::tempfile::TempFile;
+use diesel::sql_types::Bytea;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use serde::Serialize;
@@ -22,7 +23,7 @@ pub struct TexFileVersionAdd {
     pub project_id: String,
     pub file_id: String,
     pub content: String,
-    pub snapshot: String
+    pub snapshot: Vec<u8>
 }
 
 impl TexFileVersionAdd {
