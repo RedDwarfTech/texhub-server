@@ -9,5 +9,5 @@ pub struct TexFileVerAddReq {
     pub project_id: String,
     #[validate(length(min = 1))]
     pub content: String,
-    pub snapshot: Vec<u8>
+    pub snapshot: String
 }

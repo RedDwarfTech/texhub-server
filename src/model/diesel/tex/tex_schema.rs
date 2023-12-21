@@ -45,7 +45,7 @@ diesel::table! {
         project_id -> Varchar,
         file_id -> Varchar,
         content -> Varchar,
-        snapshot -> Bytea,
+        snapshot -> Text,
     }
 }
 
