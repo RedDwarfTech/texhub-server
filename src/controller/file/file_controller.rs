@@ -1,17 +1,19 @@
 use crate::{
     model::{
         request::file::{
-            file_add_req::TexFileAddReq, file_del::TexFileDelReq, file_rename::TexFileRenameReq,
-            query::file_query_params::FileQueryParams, edit::move_file_req::MoveFileReq,
+            add::file_add_req::TexFileAddReq, add::file_add_ver_req::TexFileVerAddReq,
+            edit::move_file_req::MoveFileReq, file_del::TexFileDelReq,
+            file_rename::TexFileRenameReq, query::file_query_params::FileQueryParams,
         },
         response::file::ws_file_detail::WsFileDetail,
     },
     service::{
         file::file_service::{
-            create_file, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_list,
-            get_file_tree, get_main_file_list, get_text_file_code, mv_file_impl, rename_trans,
+            create_file, create_file_ver, delete_file_recursive, file_init_complete,
+            get_file_by_fid, get_file_list, get_file_tree, get_main_file_list,
+            get_text_file_code, mv_file_impl, rename_trans,
         },
-        project::project_service::{get_cached_proj_info, del_project_cache},
+        project::project_service::{del_project_cache, get_cached_proj_info},
     },
 };
 use actix_web::{web, HttpResponse, Responder};
@@ -83,6 +85,14 @@ pub async fn add_file(
     return create_file(&form.0, &login_user_info).await;
 }
 
+pub async fn add_file_version(
+    form: actix_web_validator::Json<TexFileVerAddReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let tex_file_version = create_file_ver(&form.0, &login_user_info);
+    box_actix_rest_response(tex_file_version)
+}
+
 pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder {
     let new_file = file_init_complete(&form.0);
     box_actix_rest_response(new_file)
@@ -110,7 +120,10 @@ pub async fn rename_file(
     box_actix_rest_response(db_file)
 }
 
-pub async fn move_node(form: actix_web_validator::Json<MoveFileReq>,login_user_info: LoginUserInfo) -> impl Responder {
+pub async fn move_node(
+    form: actix_web_validator::Json<MoveFileReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
     let move_result = mv_file_impl(&form.0, &login_user_info).await;
     if let Err(err) = &move_result {
         error!("move file failed,{}", err);
@@ -118,7 +131,11 @@ pub async fn move_node(form: actix_web_validator::Json<MoveFileReq>,login_user_i
     }
     let db_file = move_result.unwrap();
     if db_file.is_none() {
-        return box_error_actix_rest_response("no texfile", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
+        return box_error_actix_rest_response(
+            "no texfile",
+            "MOVE_FILE_FAILED".to_owned(),
+            "".to_owned(),
+        );
     }
     del_project_cache(&db_file.clone().unwrap().project_id).await;
     let proj_file_tree = get_file_tree(&db_file.unwrap().project_id);
@@ -131,6 +148,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/list", web::get().to(get_files))
             .route("/add", web::post().to(add_file))
             .route("/tree", web::get().to(get_files_tree))
+            .route("/ver/add", web::post().to(add_file_version))
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))

@@ -11,7 +11,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 use crate::model::diesel::tex::custom_tex_models::TexTemplate;
 use crate::model::diesel::tex::tex_schema::*;
-use crate::model::request::file::file_add_req::TexFileAddReq;
+use crate::model::request::file::add::file_add_req::TexFileAddReq;
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
 #[diesel(table_name = tex_file)]
