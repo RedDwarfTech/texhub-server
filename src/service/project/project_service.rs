@@ -19,6 +19,7 @@ use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadF
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
+use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
@@ -1223,4 +1224,16 @@ pub async fn handle_update_nickname(edit_nickname: &EditProjNickname) {
         .set(nickname.eq(&edit_nickname.nickname))
         .get_result::<TexProject>(&mut get_connection())
         .expect("unable to update tex project");
+}
+
+pub fn handle_archive_proj(req: &ArchiveProjReq, login_user_info: &LoginUserInfo) -> TexProject {
+    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
+    use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
+    let predicate = tex_project_table::user_id
+        .eq(login_user_info.userId.clone()).and(tex_project_table::project_id.eq(req.project_id.clone()));
+    let update_result = diesel::update(tex_project.filter(predicate))
+        .set(archive_status.eq(req.archive_status))
+        .get_result::<TexProject>(&mut get_connection())
+        .expect("unable to update tex project archive status");
+    return update_result;
 }

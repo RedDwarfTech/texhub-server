@@ -1,8 +1,9 @@
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
+use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search, get_proj_history};
-use crate::service::project::project_service::proj_search_impl;
+use crate::service::project::project_service::{proj_search_impl, handle_archive_proj};
 use crate::{
     model::{
         diesel::custom::{
@@ -301,6 +302,14 @@ pub async fn get_proj_his(
     box_actix_rest_response(proj_history)
 }
 
+pub async fn archive_project(
+    form: web::Json<ArchiveProjReq>,
+    login_user_info: LoginUserInfo
+) -> impl Responder {
+    let proj_history = handle_archive_proj(&form.0, &login_user_info);
+    box_actix_rest_response(proj_history)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -330,6 +339,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile/status", web::put().to(update_compile_status))
             .route("/search", web::get().to(proj_search))
             .route("/flush/idx", web::put().to(update_idx))
-            .route("/nickname", web::put().to(update_proj_nickname)),
+            .route("/nickname", web::put().to(update_proj_nickname))
+            .route("/archive", web::put().to(archive_project))
     );
 }

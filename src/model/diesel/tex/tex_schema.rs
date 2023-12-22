@@ -75,6 +75,7 @@ diesel::table! {
         template_id -> Int8,
         project_id -> Varchar,
         nickname -> Varchar,
+        archive_status -> Int4
     }
 }
 
