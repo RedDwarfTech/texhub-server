@@ -322,7 +322,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/latest/pdf", web::get().to(get_latest_pdf))
             .route("/pos/pdf", web::get().to(get_pdf_position))
             .route("/pos/src", web::get().to(get_src_position))
-            .route("/edit", web::put().to(edit_project))
+            .route("/edit", web::patch().to(edit_project))
             .route("/join", web::post().to(join_proj))
             .route("/file/upload", web::post().to(upload_proj_file))
             .route("/log/stream", web::get().to(sse_handler))
