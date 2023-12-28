@@ -126,6 +126,7 @@ pub fn get_proj_by_type(
     let proj_ids: Vec<String> = editors.iter().map(|item| item.project_id.clone()).collect();
     use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
     let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
+    proj_query = proj_query.filter(tex_project_table::archive_status.eq(query_params.archive_status));
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
     let projects: Vec<TexProject> = proj_query
         .load::<TexProject>(&mut get_connection())
