@@ -1,9 +1,10 @@
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
+use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search, get_proj_history};
-use crate::service::project::project_service::{proj_search_impl, handle_archive_proj};
+use crate::service::project::project_service::{proj_search_impl, handle_archive_proj, handle_trash_proj};
 use crate::{
     model::{
         diesel::custom::{
@@ -310,6 +311,14 @@ pub async fn archive_project(
     box_actix_rest_response(proj_history)
 }
 
+pub async fn trash_project(
+    form: web::Json<TrashProjReq>,
+    login_user_info: LoginUserInfo
+) -> impl Responder {
+    let trash_result = handle_trash_proj(&form.0, &login_user_info);
+    box_actix_rest_response(trash_result)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -341,5 +350,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/flush/idx", web::put().to(update_idx))
             .route("/nickname", web::put().to(update_proj_nickname))
             .route("/archive", web::put().to(archive_project))
+            .route("/trash", web::put().to(trash_project))
     );
 }
