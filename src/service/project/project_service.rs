@@ -117,9 +117,7 @@ pub fn get_proj_by_type(
         let rid = query_params.role_id.unwrap();
         query = query.filter(proj_editor_table::role_id.eq(rid));
     }
-    if query_params.trash.is_some() {
-        query = query.filter(proj_editor_table::trash.eq(query_params.trash.unwrap()))
-    }
+    query = query.filter(proj_editor_table::trash.eq(query_params.trash));
     query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
     let editors: Vec<TexProjEditor> = query
         .load::<TexProjEditor>(&mut get_connection())
