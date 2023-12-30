@@ -60,7 +60,8 @@ diesel::table! {
         collar_status -> Int4,
         sort -> Int4,
         project_id -> Varchar,
-        trash -> Int4
+        trash -> Int4,
+        archive_status -> Int4
     }
 }
 

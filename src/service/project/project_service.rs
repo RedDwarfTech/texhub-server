@@ -1229,14 +1229,14 @@ pub async fn handle_update_nickname(edit_nickname: &EditProjNickname) {
         .expect("unable to update tex project");
 }
 
-pub fn handle_archive_proj(req: &ArchiveProjReq, login_user_info: &LoginUserInfo) -> TexProject {
-    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
-    use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
+pub fn handle_archive_proj(req: &ArchiveProjReq, login_user_info: &LoginUserInfo) -> TexProjEditor {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as tex_project_table;
     let predicate = tex_project_table::user_id
         .eq(login_user_info.userId.clone()).and(tex_project_table::project_id.eq(req.project_id.clone()));
-    let update_result = diesel::update(tex_project.filter(predicate))
+    let update_result = diesel::update(tex_proj_editor.filter(predicate))
         .set(archive_status.eq(req.archive_status))
-        .get_result::<TexProject>(&mut get_connection())
+        .get_result::<TexProjEditor>(&mut get_connection())
         .expect("unable to update tex project archive status");
     return update_result;
 }
