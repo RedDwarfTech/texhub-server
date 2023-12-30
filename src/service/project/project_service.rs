@@ -118,6 +118,7 @@ pub fn get_proj_by_type(
         query = query.filter(proj_editor_table::role_id.eq(rid));
     }
     query = query.filter(proj_editor_table::trash.eq(query_params.trash));
+    query = query.filter(proj_editor_table::archive_status.eq(query_params.archive_status));
     query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
     let editors: Vec<TexProjEditor> = query
         .load::<TexProjEditor>(&mut get_connection())
