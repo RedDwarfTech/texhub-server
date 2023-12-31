@@ -325,18 +325,21 @@ pub async fn trash_project(
 /**
  * facing content type error
  * https://stackoverflow.com/questions/77738477/content-type-error-when-using-rust-actix-download-file
+ * curl http://localhost:8000/tex/project/download?project_id=1&version=1
  */
 pub async fn download_project(
-    req: HttpRequest,
+    _req: HttpRequest,
     form: web::Json<DownloadProj>
-) -> impl Responder {
+) -> actix_web::Result<impl actix_web::Responder> {
     let path = handle_compress_proj(&form.0);
     match NamedFile::open(&path) {
         Ok(fe) => {
             // fe.set_content_type();
-            NamedFile::into_response(fe, &req)
+            // fe.use_last_modified(true);
+            // Ok(NamedFile::into_response(fe, &req))
+            Ok( fe.use_last_modified(true) )
         },
-        Err(_) => HttpResponse::BadRequest().json("can't download file")
+        Err(_) => Err(actix_web::error::ErrorBadRequest("File not Found") )
     }
 }
 
