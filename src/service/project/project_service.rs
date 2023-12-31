@@ -24,6 +24,7 @@ use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
+use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
 use crate::model::request::project::query::get_src_pos_params::GetSrcPosParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
@@ -1255,7 +1256,7 @@ pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) ->
     return update_result;
 }
 
-pub fn handle_compress_proj(_req: &TrashProjReq) -> Option<NamedFile> {
+pub fn handle_compress_proj(_req: &DownloadProj) -> Option<NamedFile> {
     let archive_path = gen_zip();
     let file_result = NamedFile::open(archive_path);
     if let Err(err) = file_result {

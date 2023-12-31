@@ -1,6 +1,7 @@
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
+use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search, get_proj_history};
@@ -322,7 +323,7 @@ pub async fn trash_project(
 }
 
 pub async fn download_project(
-    form: web::Json<TrashProjReq>
+    form: web::Json<DownloadProj>
 ) -> Result<NamedFile> {
     let trash_result = handle_compress_proj(&form.0);
     return Ok(trash_result.unwrap());
@@ -360,6 +361,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/nickname", web::put().to(update_proj_nickname))
             .route("/archive", web::put().to(archive_project))
             .route("/trash", web::put().to(trash_project))
-            .route("/compress", web::get().to(download_project))
+            .route("/download", web::get().to(download_project))
     );
 }
