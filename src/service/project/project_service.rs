@@ -1255,7 +1255,7 @@ pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) ->
     return update_result;
 }
 
-pub fn handle_compress_proj(_req: &DownloadProj) -> String{
-    let archive_path = gen_zip();
+pub fn handle_compress_proj(req: &DownloadProj) -> String{
+    let archive_path = gen_zip(&req.project_id);
     return archive_path;
 }

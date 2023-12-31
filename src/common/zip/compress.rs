@@ -1,10 +1,12 @@
 use std::{path::Path, fs::File};
 use zip::{ZipWriter, write::FileOptions};
+use crate::service::global::proj::proj_util::get_proj_download_base_dir;
 
-pub fn gen_zip() -> String {
+pub fn gen_zip(proj_id: &String) -> String {
     let file_folder = "/opt/data/project/2023/12/45e7bfd8344442049c22dd2e37f24ef6/";
     let folder_path = Path::new(file_folder);
-    let archive_file_path = format!("{}{}",file_folder,"archive.zip");
+    let download_dir = get_proj_download_base_dir(proj_id);
+    let archive_file_path = format!("{}{}",download_dir,"archive.zip");
     let file = File::create(archive_file_path.clone()).unwrap();
     let mut zip = ZipWriter::new(file);
     visit_folder(folder_path, &mut zip, "").unwrap();
