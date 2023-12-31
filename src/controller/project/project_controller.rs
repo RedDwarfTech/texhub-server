@@ -4,7 +4,7 @@ use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search, get_proj_history};
-use crate::service::project::project_service::{proj_search_impl, handle_archive_proj, handle_trash_proj};
+use crate::service::project::project_service::{proj_search_impl, handle_archive_proj, handle_trash_proj, handle_compress_proj};
 use crate::{
     model::{
         diesel::custom::{
@@ -39,6 +39,7 @@ use crate::{
         tpl::template_service::get_tempalte_by_id,
     },
 };
+use actix_files::NamedFile;
 use actix_multipart::form::MultipartForm;
 use actix_web::{
     http::header::{CacheControl, CacheDirective},
@@ -58,6 +59,7 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
 };
+use std::io::Result;
 
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
@@ -319,6 +321,13 @@ pub async fn trash_project(
     box_actix_rest_response(trash_result)
 }
 
+pub async fn download_project(
+    form: web::Json<TrashProjReq>
+) -> Result<NamedFile> {
+    let trash_result = handle_compress_proj(&form.0);
+    return Ok(trash_result.unwrap());
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -351,5 +360,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/nickname", web::put().to(update_proj_nickname))
             .route("/archive", web::put().to(archive_project))
             .route("/trash", web::put().to(trash_project))
+            .route("/compress", web::get().to(download_project))
     );
 }

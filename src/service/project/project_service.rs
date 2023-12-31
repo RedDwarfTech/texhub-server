@@ -8,6 +8,7 @@ use crate::common::interop::synctex::{
     synctex_node_page, synctex_scanner_new_with_output_file, synctex_scanner_next_result,
 };
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
+use crate::common::zip::compress::gen_zip;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
@@ -48,6 +49,7 @@ use crate::service::global::proj::proj_util::{
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
+use actix_files::NamedFile;
 use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
@@ -1251,4 +1253,14 @@ pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) ->
         .get_result::<TexProjEditor>(&mut get_connection())
         .expect("unable to update tex project archive status");
     return update_result;
+}
+
+pub fn handle_compress_proj(_req: &TrashProjReq) -> Option<NamedFile> {
+    let archive_path = gen_zip();
+    let file_result = NamedFile::open(archive_path);
+    if let Err(err) = file_result {
+        error!("read file error,{}", err);
+        return None;
+    }
+    return Some(file_result.unwrap());
 }
