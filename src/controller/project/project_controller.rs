@@ -42,6 +42,7 @@ use crate::{
 };
 use actix_files::NamedFile;
 use actix_multipart::form::MultipartForm;
+use actix_web::HttpRequest;
 use actix_web::{
     http::header::{CacheControl, CacheDirective},
     web, HttpResponse, Responder,
@@ -60,7 +61,6 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
 };
-use std::io::Result;
 
 pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
@@ -323,10 +323,14 @@ pub async fn trash_project(
 }
 
 pub async fn download_project(
+    req: HttpRequest,
     form: web::Json<DownloadProj>
-) -> Result<NamedFile> {
-    let trash_result = handle_compress_proj(&form.0);
-    return Ok(trash_result.unwrap());
+) -> impl Responder {
+    let path = handle_compress_proj(&form.0);
+    match NamedFile::open(&path) {
+        Ok(fe) => NamedFile::into_response(fe, &req),
+        Err(_) => HttpResponse::BadRequest().json("can't download file")
+    }
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {

@@ -50,7 +50,6 @@ use crate::service::global::proj::proj_util::{
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
-use actix_files::NamedFile;
 use diesel::result::Error;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
@@ -1256,12 +1255,7 @@ pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) ->
     return update_result;
 }
 
-pub fn handle_compress_proj(_req: &DownloadProj) -> Option<NamedFile> {
+pub fn handle_compress_proj(_req: &DownloadProj) -> String{
     let archive_path = gen_zip();
-    let file_result = NamedFile::open(archive_path);
-    if let Err(err) = file_result {
-        error!("read file error,{}", err);
-        return None;
-    }
-    return Some(file_result.unwrap());
+    return archive_path;
 }
