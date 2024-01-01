@@ -4,8 +4,12 @@ use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
-use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search, get_proj_history};
-use crate::service::project::project_service::{proj_search_impl, handle_archive_proj, handle_trash_proj, handle_compress_proj};
+use crate::service::file::file_service::{
+    get_file_by_fid, get_proj_history, push_to_fulltext_search,
+};
+use crate::service::project::project_service::{
+    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl,
+};
 use crate::{
     model::{
         diesel::custom::{
@@ -49,6 +53,7 @@ use actix_web::{
 };
 use log::{error, warn};
 use meilisearch_sdk::SearchResult;
+use mime::Mime;
 use rust_wheel::{
     common::{
         util::net::{sse_message::SSEMessage, sse_stream::SseStream},
@@ -215,7 +220,10 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
-pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileQueueLog>, login_user_info: LoginUserInfo) -> HttpResponse {
+pub async fn get_proj_compile_log_stream(
+    form: web::Query<TexCompileQueueLog>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
     let (tx, rx): (
         UnboundedSender<SSEMessage<String>>,
         UnboundedReceiver<SSEMessage<String>>,
@@ -308,7 +316,7 @@ pub async fn get_proj_his(
 
 pub async fn archive_project(
     form: web::Json<ArchiveProjReq>,
-    login_user_info: LoginUserInfo
+    login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let proj_history = handle_archive_proj(&form.0, &login_user_info);
     box_actix_rest_response(proj_history)
@@ -316,7 +324,7 @@ pub async fn archive_project(
 
 pub async fn trash_project(
     form: web::Json<TrashProjReq>,
-    login_user_info: LoginUserInfo
+    login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let trash_result = handle_trash_proj(&form.0, &login_user_info);
     box_actix_rest_response(trash_result)
@@ -330,23 +338,21 @@ pub async fn trash_project(
  */
 pub async fn download_project(
     req: HttpRequest,
-    form: web::Json<DownloadProj>
+    form: web::Json<DownloadProj>,
 ) -> actix_web::Result<impl actix_web::Responder> {
     let path = handle_compress_proj(&form.0);
     match NamedFile::open(&path) {
-        Ok(fe) => {
-            Ok(NamedFile::into_response(fe, &req))
-            // Ok( fe.use_last_modified(true) )
-        },
-        Err(_) => Err(actix_web::error::ErrorBadRequest("File not Found") )
+        Ok(file) => {
+            let content_type: Mime = "application/zip".parse().unwrap();
+            Ok(NamedFile::set_content_type(file, content_type).into_response(&req))
+        }
+        Err(_) => Err(actix_web::error::ErrorBadRequest("File not Found")),
     }
 }
 
-pub async fn compress_project(
-    form: web::Json<DownloadProj>
-) -> impl Responder {
-    // let path = handle_compress_proj(&form.0);
-    box_actix_rest_response("path")
+pub async fn compress_project(form: web::Json<DownloadProj>) -> impl Responder {
+    let path = handle_compress_proj(&form.0);
+    box_actix_rest_response(path)
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -382,6 +388,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/archive", web::put().to(archive_project))
             .route("/trash", web::put().to(trash_project))
             .route("/download", web::put().to(download_project))
-            .route("/compress", web::put().to(compress_project))
+            .route("/compress", web::put().to(compress_project)),
     );
 }
