@@ -1,14 +1,17 @@
 use std::{path::Path, fs::File};
-use rust_wheel::common::util::rd_file_util::create_folder_not_exists;
+use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
 use zip::{ZipWriter, write::FileOptions};
-use crate::service::global::proj::proj_util::get_proj_download_base_dir;
+use crate::service::global::proj::proj_util::{get_proj_download_base_dir, get_proj_base_dir};
 
 pub fn gen_zip(proj_id: &String) -> String {
-    let file_folder = "/opt/data/project/2023/12/45e7bfd8344442049c22dd2e37f24ef6/";
-    let folder_path = Path::new(file_folder);
+    let proj_base_dir = get_proj_base_dir(proj_id);
+    let folder_path = Path::new(proj_base_dir.as_str());
     let download_dir = get_proj_download_base_dir(proj_id);
     create_folder_not_exists(&download_dir);
-    let archive_file_path = format!("{}{}",download_dir,"archive.zip");
+    let archive_file_path = join_paths(&[
+        download_dir,
+        "archive.zip".to_string()
+    ]);
     let file = File::create(archive_file_path.clone()).unwrap();
     let mut zip = ZipWriter::new(file);
     visit_folder(folder_path, &mut zip, "").unwrap();
