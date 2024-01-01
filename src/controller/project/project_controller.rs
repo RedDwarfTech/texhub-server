@@ -326,6 +326,7 @@ pub async fn trash_project(
  * facing content type error
  * https://stackoverflow.com/questions/77738477/content-type-error-when-using-rust-actix-download-file
  * curl http://localhost:8000/tex/project/download?project_id=1&version=1
+ * curl http://localhost:8000/tex/project/compress?project_id=1&version=1
  */
 pub async fn download_project(
     _req: HttpRequest,
@@ -346,8 +347,8 @@ pub async fn download_project(
 pub async fn compress_project(
     form: web::Json<DownloadProj>
 ) -> impl Responder {
-    let path = handle_compress_proj(&form.0);
-    box_actix_rest_response(path)
+    // let path = handle_compress_proj(&form.0);
+    box_actix_rest_response("path")
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -382,7 +383,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/nickname", web::put().to(update_proj_nickname))
             .route("/archive", web::put().to(archive_project))
             .route("/trash", web::put().to(trash_project))
-            .route("/download", web::get().to(download_project))
+            .route("/download", web::put().to(download_project))
             .route("/compress", web::put().to(compress_project))
     );
 }
