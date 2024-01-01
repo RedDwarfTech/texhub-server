@@ -26,14 +26,12 @@ fn visit_folder(path: &Path, zip: &mut ZipWriter<File>, parent: &str) -> std::io
         let file_name = file_path.file_name().unwrap().to_string_lossy().into_owned();
         let zip_path = format!("{}{}/{}", parent, path.file_name().unwrap().to_string_lossy(), file_name);
         if file_path.is_dir() {
-            // 如果是子文件夹，则递归调用 visit_folder 函数
             visit_folder(&file_path, zip, &zip_path)?;
         } else {
-            // 如果是文件，则将其添加到 ZIP 文件中
             let mut file = File::open(&file_path)?;
             let options = FileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated)
-                .unix_permissions(0o755); // 可根据需要设置文件权限
+                .unix_permissions(0o755);
             zip.start_file(zip_path, options)?;
             std::io::copy(&mut file, zip)?;
         }
