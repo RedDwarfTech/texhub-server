@@ -329,16 +329,14 @@ pub async fn trash_project(
  * curl http://localhost:8000/tex/project/compress?project_id=1&version=1
  */
 pub async fn download_project(
-    _req: HttpRequest,
+    req: HttpRequest,
     form: web::Json<DownloadProj>
 ) -> actix_web::Result<impl actix_web::Responder> {
     let path = handle_compress_proj(&form.0);
     match NamedFile::open(&path) {
         Ok(fe) => {
-            // fe.set_content_type();
-            // fe.use_last_modified(true);
-            // Ok(NamedFile::into_response(fe, &req))
-            Ok( fe.use_last_modified(true) )
+            Ok(NamedFile::into_response(fe, &req))
+            // Ok( fe.use_last_modified(true) )
         },
         Err(_) => Err(actix_web::error::ErrorBadRequest("File not Found") )
     }
