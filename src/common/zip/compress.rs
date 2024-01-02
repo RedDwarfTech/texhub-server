@@ -24,10 +24,18 @@ fn visit_folder(path: &Path, zip: &mut ZipWriter<File>, parent: &str) -> std::io
         let entry = entry?;
         let file_path = entry.path();
         let file_name = file_path.file_name().unwrap().to_string_lossy().into_owned();
-        let zip_path = format!("{}{}/{}", parent, path.file_name().unwrap().to_string_lossy(), file_name);
         if file_path.is_dir() {
+            let zip_path = join_paths(&[
+                parent,
+                &path.file_name().unwrap().to_string_lossy()
+            ]);
             visit_folder(&file_path, zip, &zip_path)?;
         } else {
+            let zip_path = join_paths(&[
+                parent,
+                &path.file_name().unwrap().to_string_lossy(),
+                file_name.as_str()
+            ]);
             let mut file = File::open(&file_path)?;
             let options = FileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated)
