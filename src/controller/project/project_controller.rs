@@ -335,12 +335,15 @@ pub async fn trash_project(
  * https://stackoverflow.com/questions/77738477/content-type-error-when-using-rust-actix-download-file
  * curl http://localhost:8000/tex/project/download?project_id=1&version=1
  * curl http://localhost:8000/tex/project/compress?project_id=1&version=1
+ * curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "1","version": "1"}' -o filename.zip http://localhost:8000/tex/project/download?project_id=1&version=1
+ * curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "5ef2057551c24b5aa4d0e2cdadcbc524","version": "1"}'  -H "Authorization: Bearer eyJhbGciOiJIxxx" -o filename1.zip https://tex.poemhub.top/tex/project/download
+
  */
 pub async fn download_project(
     req: HttpRequest,
     form: web::Json<DownloadProj>,
 ) -> actix_web::Result<impl actix_web::Responder> {
-    let path = handle_compress_proj(&form.0);
+    let path =  handle_compress_proj(&form.0);
     match NamedFile::open(&path) {
         Ok(file) => {
             let content_type: Mime = "application/zip".parse().unwrap();
