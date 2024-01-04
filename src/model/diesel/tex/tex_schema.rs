@@ -45,7 +45,8 @@ diesel::table! {
         project_id -> Varchar,
         file_id -> Varchar,
         content -> Varchar,
-        snapshot -> Bytea,
+        action -> Int4,
+        snapshot -> Text,
     }
 }
 
@@ -59,6 +60,8 @@ diesel::table! {
         collar_status -> Int4,
         sort -> Int4,
         project_id -> Varchar,
+        trash -> Int4,
+        archive_status -> Int4
     }
 }
 
@@ -74,6 +77,8 @@ diesel::table! {
         template_id -> Int8,
         project_id -> Varchar,
         nickname -> Varchar,
+        archive_status -> Int4,
+        deleted -> Int4
     }
 }
 

@@ -33,6 +33,8 @@ pub struct TexProject {
     pub template_id: i64,
     pub project_id: String,
     pub nickname: String,
+    pub archive_status: i32,
+    pub deleted: i32
 }
 
 #[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
@@ -90,6 +92,8 @@ pub struct TexProjEditor {
     pub collar_status: i32,
     pub sort: i32,
     pub project_id: String,
+    pub trash: i32,
+    pub archive_status: i32
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
@@ -103,5 +107,6 @@ pub struct TexFileVersion {
     pub project_id: String,
     pub file_id: String,
     pub content: String,
-    pub snapshot: Vec<u8>,
+    pub action: i32,
+    pub snapshot: String,
 }

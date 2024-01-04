@@ -23,7 +23,8 @@ pub struct TexFileVersionAdd {
     pub project_id: String,
     pub file_id: String,
     pub content: String,
-    pub snapshot: Vec<u8>
+    pub action: i32,
+    pub snapshot: String
 }
 
 impl TexFileVersionAdd {
@@ -36,6 +37,7 @@ impl TexFileVersionAdd {
             project_id: add_file.project_id.clone(),
             file_id: add_file.file_id.clone(),
             content: add_file.content.clone(),
+            action: add_file.action,
             snapshot: add_file.snapshot.clone()
         }
     }

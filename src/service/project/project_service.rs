@@ -8,6 +8,7 @@ use crate::common::interop::synctex::{
     synctex_node_page, synctex_scanner_new_with_output_file, synctex_scanner_next_result,
 };
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
+use crate::common::zip::compress::gen_zip;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
@@ -19,8 +20,11 @@ use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadF
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
+use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
+use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
+use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
 use crate::model::request::project::query::get_src_pos_params::GetSrcPosParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
@@ -115,6 +119,8 @@ pub fn get_proj_by_type(
         let rid = query_params.role_id.unwrap();
         query = query.filter(proj_editor_table::role_id.eq(rid));
     }
+    query = query.filter(proj_editor_table::trash.eq(query_params.trash));
+    query = query.filter(proj_editor_table::archive_status.eq(query_params.archive_status));
     query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
     let editors: Vec<TexProjEditor> = query
         .load::<TexProjEditor>(&mut get_connection())
@@ -1223,4 +1229,33 @@ pub async fn handle_update_nickname(edit_nickname: &EditProjNickname) {
         .set(nickname.eq(&edit_nickname.nickname))
         .get_result::<TexProject>(&mut get_connection())
         .expect("unable to update tex project");
+}
+
+pub fn handle_archive_proj(req: &ArchiveProjReq, login_user_info: &LoginUserInfo) -> TexProjEditor {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as tex_project_table;
+    let predicate = tex_project_table::user_id
+        .eq(login_user_info.userId.clone()).and(tex_project_table::project_id.eq(req.project_id.clone()));
+    let update_result = diesel::update(tex_proj_editor.filter(predicate))
+        .set(archive_status.eq(req.archive_status))
+        .get_result::<TexProjEditor>(&mut get_connection())
+        .expect("unable to update tex project archive status");
+    return update_result;
+}
+
+pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) -> TexProjEditor {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as tex_project_table;
+    let predicate = tex_project_table::user_id
+        .eq(login_user_info.userId.clone()).and(tex_project_table::project_id.eq(req.project_id.clone()));
+    let update_result = diesel::update(tex_proj_editor.filter(predicate))
+        .set(trash.eq(req.trash))
+        .get_result::<TexProjEditor>(&mut get_connection())
+        .expect("unable to update tex project archive status");
+    return update_result;
+}
+
+pub fn handle_compress_proj(req: &DownloadProj) -> String{
+    let archive_path = gen_zip(&req.project_id);
+    return archive_path;
 }

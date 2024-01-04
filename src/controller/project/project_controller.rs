@@ -1,8 +1,15 @@
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
+use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
+use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
+use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
-use crate::service::file::file_service::{get_file_by_fid, push_to_fulltext_search, get_proj_history};
-use crate::service::project::project_service::proj_search_impl;
+use crate::service::file::file_service::{
+    get_file_by_fid, get_proj_history, push_to_fulltext_search,
+};
+use crate::service::project::project_service::{
+    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl,
+};
 use crate::{
     model::{
         diesel::custom::{
@@ -37,13 +44,16 @@ use crate::{
         tpl::template_service::get_tempalte_by_id,
     },
 };
+use actix_files::NamedFile;
 use actix_multipart::form::MultipartForm;
+use actix_web::HttpRequest;
 use actix_web::{
     http::header::{CacheControl, CacheDirective},
     web, HttpResponse, Responder,
 };
 use log::{error, warn};
 use meilisearch_sdk::SearchResult;
+use mime::Mime;
 use rust_wheel::{
     common::{
         util::net::{sse_message::SSEMessage, sse_stream::SseStream},
@@ -210,7 +220,10 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
-pub async fn get_proj_compile_log_stream(form: web::Query<TexCompileQueueLog>, login_user_info: LoginUserInfo) -> HttpResponse {
+pub async fn get_proj_compile_log_stream(
+    form: web::Query<TexCompileQueueLog>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
     let (tx, rx): (
         UnboundedSender<SSEMessage<String>>,
         UnboundedReceiver<SSEMessage<String>>,
@@ -301,6 +314,50 @@ pub async fn get_proj_his(
     box_actix_rest_response(proj_history)
 }
 
+pub async fn archive_project(
+    form: web::Json<ArchiveProjReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let proj_history = handle_archive_proj(&form.0, &login_user_info);
+    box_actix_rest_response(proj_history)
+}
+
+pub async fn trash_project(
+    form: web::Json<TrashProjReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let trash_result = handle_trash_proj(&form.0, &login_user_info);
+    box_actix_rest_response(trash_result)
+}
+
+/**
+ * facing content type error
+ * https://stackoverflow.com/questions/77738477/content-type-error-when-using-rust-actix-download-file
+ * curl http://localhost:8000/tex/project/download?project_id=1&version=1
+ * curl http://localhost:8000/tex/project/compress?project_id=1&version=1
+ * curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "1","version": "1"}' -o filename.zip http://localhost:8000/tex/project/download?project_id=1&version=1
+ * curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "5ef2057551c24b5aa4d0e2cdadcbc524","version": "1"}'  -H "Authorization: Bearer eyJhbGciOiJIxxx" -o filename1.zip https://tex.poemhub.top/tex/project/download
+
+ */
+pub async fn download_project(
+    req: HttpRequest,
+    form: web::Json<DownloadProj>,
+) -> actix_web::Result<impl actix_web::Responder> {
+    let path =  handle_compress_proj(&form.0);
+    match NamedFile::open(&path) {
+        Ok(file) => {
+            let content_type: Mime = "application/zip".parse().unwrap();
+            Ok(NamedFile::set_content_type(file, content_type).into_response(&req))
+        }
+        Err(_) => Err(actix_web::error::ErrorBadRequest("File not Found")),
+    }
+}
+
+pub async fn compress_project(form: web::Json<DownloadProj>) -> impl Responder {
+    let path = handle_compress_proj(&form.0);
+    box_actix_rest_response(path)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -313,7 +370,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/latest/pdf", web::get().to(get_latest_pdf))
             .route("/pos/pdf", web::get().to(get_pdf_position))
             .route("/pos/src", web::get().to(get_src_position))
-            .route("/edit", web::put().to(edit_project))
+            .route("/edit", web::patch().to(edit_project))
             .route("/join", web::post().to(join_proj))
             .route("/file/upload", web::post().to(upload_proj_file))
             .route("/log/stream", web::get().to(sse_handler))
@@ -330,6 +387,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compile/status", web::put().to(update_compile_status))
             .route("/search", web::get().to(proj_search))
             .route("/flush/idx", web::put().to(update_idx))
-            .route("/nickname", web::put().to(update_proj_nickname)),
+            .route("/nickname", web::put().to(update_proj_nickname))
+            .route("/archive", web::put().to(archive_project))
+            .route("/trash", web::put().to(trash_project))
+            .route("/download", web::put().to(download_project))
+            .route("/compress", web::put().to(compress_project)),
     );
 }
