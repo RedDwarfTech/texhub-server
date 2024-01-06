@@ -365,7 +365,7 @@ pub async fn compress_project(form: web::Json<DownloadProj>) -> impl Responder {
 }
 
 pub async fn new_folder(
-    form: web::Json<TexFolderReq>,
+    form: actix_web_validator::Json<TexFolderReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let folder = handle_folder_create(&form.0, &login_user_info);
