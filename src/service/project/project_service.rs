@@ -24,6 +24,7 @@ use crate::model::diesel::tex::custom_tex_models::{
 };
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
+use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
@@ -188,9 +189,21 @@ pub fn edit_proj(edit_req: &EditProjReq) -> TexProject {
     let predicate = crate::model::diesel::tex::tex_schema::tex_project::project_id
         .eq(edit_req.project_id.clone());
     let update_result = diesel::update(tex_project.filter(predicate))
-        .set((proj_name.eq(&edit_req.proj_name), folder_id.eq(edit_req.folder_id.clone())))
+        .set(proj_name.eq(&edit_req.proj_name))
         .get_result::<TexProject>(&mut get_connection())
         .expect("unable to update tex project");
+    return update_result;
+}
+
+pub fn edit_proj_folder(edit_req: &EditProjFolder, login_user_info: &LoginUserInfo) -> TexProject {
+    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
+    use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
+    let predicate = cv_work_table::project_id
+        .eq(edit_req.project_id.clone()).and(cv_work_table::user_id.eq(login_user_info.userId));
+    let update_result = diesel::update(tex_project.filter(predicate))
+        .set(folder_id.eq(&edit_req.folder_id))
+        .get_result::<TexProject>(&mut get_connection())
+        .expect("unable to update project folder");
     return update_result;
 }
 

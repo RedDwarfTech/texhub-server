@@ -21,7 +21,7 @@ pub struct TexCompQueue {
     pub complete_time: i64,
 }
 
-#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone, AsChangeset)]
+#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
 #[diesel(table_name = tex_project)]
 pub struct TexProject {
     pub id: i64,
