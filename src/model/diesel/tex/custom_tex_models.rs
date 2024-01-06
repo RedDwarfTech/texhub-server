@@ -116,10 +116,10 @@ pub struct TexFileVersion {
 #[diesel(table_name = tex_proj_folder)]
 pub struct TexProjFolder {
     pub id: i64,
-    pub folder_name: i32,
+    pub folder_name: String,
     pub created_time: i64,
     pub updated_time: i64,
     pub user_id: i64,
     pub sort: i32,
-    pub proj_type: Option<i32>,
+    pub proj_type: i32,
 }

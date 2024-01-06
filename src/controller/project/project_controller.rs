@@ -1,5 +1,6 @@
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
+use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
@@ -11,7 +12,7 @@ use crate::service::file::file_service::{
     get_file_by_fid, get_proj_history, push_to_fulltext_search,
 };
 use crate::service::project::project_service::{
-    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders,
+    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create,
 };
 use crate::{
     model::{
@@ -363,6 +364,14 @@ pub async fn compress_project(form: web::Json<DownloadProj>) -> impl Responder {
     box_actix_rest_response(path)
 }
 
+pub async fn new_folder(
+    form: web::Json<TexFolderReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let folder = handle_folder_create(&form.0, &login_user_info);
+    box_actix_rest_response(folder)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -396,6 +405,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/archive", web::put().to(archive_project))
             .route("/trash", web::put().to(trash_project))
             .route("/download", web::put().to(download_project))
-            .route("/compress", web::put().to(compress_project)),
+            .route("/compress", web::put().to(compress_project))
+            .route("/folder", web::post().to(new_folder))
     );
 }

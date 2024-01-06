@@ -64,12 +64,12 @@ table! {
 table! {
     tex_proj_folder (id) {
         id -> Int8,
-        folder_name -> Int4,
+        folder_name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
         user_id -> Int8,
         sort -> Int4,
-        proj_type -> Nullable<Int4>,
+        proj_type -> Int4,
     }
 }
 

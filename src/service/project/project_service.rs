@@ -12,6 +12,7 @@ use crate::common::zip::compress::gen_zip;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
+use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
@@ -21,6 +22,7 @@ use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
+use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
@@ -1259,6 +1261,16 @@ pub fn handle_archive_proj(req: &ArchiveProjReq, login_user_info: &LoginUserInfo
         .get_result::<TexProjEditor>(&mut get_connection())
         .expect("unable to update tex project archive status");
     return update_result;
+}
+
+pub fn handle_folder_create(req: &TexFolderReq, login_user_info: &LoginUserInfo) -> TexProjFolder {
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder::dsl::*;
+    let new_folder = FolderAdd::from_req(req, &login_user_info.userId);
+    let result = diesel::insert_into(tex_proj_folder)
+        .values(&new_folder)
+        .get_result::<TexProjFolder>(&mut get_connection())
+        .expect("unable to create folder");
+    return result;
 }
 
 pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) -> TexProjEditor {
