@@ -153,6 +153,7 @@ pub fn get_proj_by_type(
     use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
     let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
+    proj_query = proj_query.filter(tex_project_table::folder_id.eq(0));
     let projects: Vec<TexProject> = proj_query
         .load::<TexProject>(&mut get_connection())
         .expect("get project editor failed");
