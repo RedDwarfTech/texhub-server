@@ -34,7 +34,8 @@ pub struct TexProject {
     pub project_id: String,
     pub nickname: String,
     pub archive_status: i32,
-    pub deleted: i32
+    pub deleted: i32,
+    pub folder_id: Option<i64>,
 }
 
 #[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
@@ -109,4 +110,16 @@ pub struct TexFileVersion {
     pub content: String,
     pub action: i32,
     pub snapshot: String,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_proj_folder)]
+pub struct TexProjFolder {
+    pub id: i64,
+    pub folder_name: i32,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub sort: i32,
+    pub proj_type: Option<i32>,
 }

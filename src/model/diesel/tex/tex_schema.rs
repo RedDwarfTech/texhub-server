@@ -1,6 +1,4 @@
-// @generated automatically by Diesel CLI.
-
-diesel::table! {
+table! {
     tex_comp_queue (id) {
         id -> Int8,
         created_time -> Int8,
@@ -14,10 +12,9 @@ diesel::table! {
     }
 }
 
-diesel::table! {
+table! {
     tex_file (id) {
         id -> Int8,
-        #[max_length = 256]
         name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -34,10 +31,9 @@ diesel::table! {
     }
 }
 
-diesel::table! {
+table! {
     tex_file_version (id) {
         id -> Int8,
-        #[max_length = 256]
         name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -50,7 +46,7 @@ diesel::table! {
     }
 }
 
-diesel::table! {
+table! {
     tex_proj_editor (id) {
         id -> Int8,
         role_id -> Int4,
@@ -61,14 +57,25 @@ diesel::table! {
         sort -> Int4,
         project_id -> Varchar,
         trash -> Int4,
-        archive_status -> Int4
+        archive_status -> Int4,
     }
 }
 
-diesel::table! {
+table! {
+    tex_proj_folder (id) {
+        id -> Int8,
+        folder_name -> Int4,
+        created_time -> Int8,
+        updated_time -> Int8,
+        user_id -> Int8,
+        sort -> Int4,
+        proj_type -> Nullable<Int4>,
+    }
+}
+
+table! {
     tex_project (id) {
         id -> Int8,
-        #[max_length = 256]
         proj_name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -78,16 +85,15 @@ diesel::table! {
         project_id -> Varchar,
         nickname -> Varchar,
         archive_status -> Int4,
-        deleted -> Int4
+        deleted -> Int4,
+        folder_id -> Nullable<Int8>,
     }
 }
 
-diesel::table! {
+table! {
     tex_template (id) {
         id -> Int8,
-        #[max_length = 256]
         name -> Varchar,
-        #[max_length = 256]
         remark -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -108,11 +114,12 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(
+allow_tables_to_appear_in_same_query!(
     tex_comp_queue,
     tex_file,
     tex_file_version,
     tex_proj_editor,
+    tex_proj_folder,
     tex_project,
     tex_template,
 );
