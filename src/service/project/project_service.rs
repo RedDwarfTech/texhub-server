@@ -188,7 +188,7 @@ pub fn edit_proj(edit_req: &EditProjReq) -> TexProject {
     let predicate = crate::model::diesel::tex::tex_schema::tex_project::project_id
         .eq(edit_req.project_id.clone());
     let update_result = diesel::update(tex_project.filter(predicate))
-        .set(proj_name.eq(&edit_req.proj_name))
+        .set((proj_name.eq(&edit_req.proj_name), folder_id.eq(edit_req.folder_id.clone())))
         .get_result::<TexProject>(&mut get_connection())
         .expect("unable to update tex project");
     return update_result;
