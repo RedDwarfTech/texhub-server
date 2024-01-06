@@ -17,6 +17,7 @@ use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
+use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
@@ -104,6 +105,23 @@ pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexPr
         }
         Err(err) => {
             error!("get docs failed, {}", err);
+            return Vec::new();
+        }
+    }
+}
+
+pub fn get_proj_folders(query_params: &ProjQueryParams, login_user_info: &LoginUserInfo) -> Vec<TexProjFolder> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
+    query = query.filter(cv_work_table::proj_type.eq(query_params.proj_type));
+    let cvs = query.load::<TexProjFolder>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return result;
+        }
+        Err(err) => {
+            error!("get proj folder failed, {}", err);
             return Vec::new();
         }
     }

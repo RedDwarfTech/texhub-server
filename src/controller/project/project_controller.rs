@@ -1,14 +1,17 @@
+use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
+use crate::model::response::project::proj_resp::ProjResp;
+use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::service::file::file_service::{
     get_file_by_fid, get_proj_history, push_to_fulltext_search,
 };
 use crate::service::project::project_service::{
-    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl,
+    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders,
 };
 use crate::{
     model::{
@@ -71,9 +74,11 @@ pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let projects = get_proj_by_type(&params.0, &login_user_info);
+    let projects:Vec<TexProjResp> = get_proj_by_type(&params.0, &login_user_info);
+    let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
+    let resp: ProjResp = ProjResp::from_req(folders, projects);
     let res = ApiResponse {
-        result: projects,
+        result: resp,
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
