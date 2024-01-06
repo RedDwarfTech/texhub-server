@@ -29,6 +29,7 @@ use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
+use crate::model::request::project::query::folder_proj_params::FolderProjParams;
 use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
 use crate::model::request::project::query::get_src_pos_params::GetSrcPosParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
@@ -125,6 +126,23 @@ pub fn get_proj_folders(query_params: &ProjQueryParams, login_user_info: &LoginU
         }
         Err(err) => {
             error!("get proj folder failed, {}", err);
+            return Vec::new();
+        }
+    }
+}
+
+pub fn get_folder_project_impl(query_params: &FolderProjParams, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
+    use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
+    query = query.filter(cv_work_table::folder_id.eq(query_params.folder_id));
+    let cvs = query.load::<TexProject>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return result;
+        }
+        Err(err) => {
+            error!("get projects failed, {}", err);
             return Vec::new();
         }
     }

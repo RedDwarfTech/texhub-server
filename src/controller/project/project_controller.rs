@@ -5,6 +5,7 @@ use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
+use crate::model::request::project::query::folder_proj_params::FolderProjParams;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::response::project::proj_resp::ProjResp;
@@ -13,7 +14,7 @@ use crate::service::file::file_service::{
     get_file_by_fid, get_proj_history, push_to_fulltext_search,
 };
 use crate::service::project::project_service::{
-    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create, edit_proj_folder,
+    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create, edit_proj_folder, get_folder_project_impl,
 };
 use crate::{
     model::{
@@ -81,6 +82,18 @@ pub async fn get_projects(
     let resp: ProjResp = ProjResp::from_req(folders, projects);
     let res = ApiResponse {
         result: resp,
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
+pub async fn get_folder_projects(
+    params: web::Query<FolderProjParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let projects = get_folder_project_impl(&params.0, &login_user_info);
+    let res = ApiResponse {
+        result: projects,
         ..Default::default()
     };
     HttpResponse::Ok().json(res)
@@ -417,5 +430,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/compress", web::put().to(compress_project))
             .route("/folder", web::post().to(new_folder))
             .route("/move", web::patch().to(update_proj_folder))
+            .route("/perfolder", web::get().to(get_folder_projects))
     );
 }
