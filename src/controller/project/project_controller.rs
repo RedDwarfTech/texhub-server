@@ -3,6 +3,7 @@ use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
+use crate::model::request::project::edit::rename_proj_folder::RenameProjFolder;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::folder_proj_params::FolderProjParams;
@@ -14,7 +15,7 @@ use crate::service::file::file_service::{
     get_file_by_fid, get_proj_history, push_to_fulltext_search,
 };
 use crate::service::project::project_service::{
-    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create, edit_proj_folder, get_folder_project_impl,
+    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create, edit_proj_folder, get_folder_project_impl, rename_proj_collection_folder,
 };
 use crate::{
     model::{
@@ -394,6 +395,14 @@ pub async fn update_proj_folder(
     box_actix_rest_response(folder)
 }
 
+pub async fn rename_collect_folder(
+    form: actix_web_validator::Json<RenameProjFolder>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let folder = rename_proj_collection_folder(&form.0, &login_user_info);
+    box_actix_rest_response(folder)
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -431,5 +440,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/folder", web::post().to(new_folder))
             .route("/move", web::patch().to(update_proj_folder))
             .route("/perfolder", web::get().to(get_folder_projects))
+            .route("/folder/rename", web::patch().to(rename_collect_folder))
     );
 }

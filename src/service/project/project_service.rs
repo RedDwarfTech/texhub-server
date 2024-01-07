@@ -27,6 +27,7 @@ use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
+use crate::model::request::project::edit::rename_proj_folder::RenameProjFolder;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::folder_proj_params::FolderProjParams;
@@ -223,6 +224,18 @@ pub fn edit_proj_folder(edit_req: &EditProjFolder, login_user_info: &LoginUserIn
         .set(folder_id.eq(&edit_req.folder_id))
         .get_result::<TexProject>(&mut get_connection())
         .expect("unable to update project folder");
+    return update_result;
+}
+
+pub fn rename_proj_collection_folder(edit_req: &RenameProjFolder, login_user_info: &LoginUserInfo) -> TexProjFolder {
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder::dsl::*;
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder as cv_work_table;
+    let predicate = cv_work_table::id
+        .eq(edit_req.folder_id.clone()).and(cv_work_table::user_id.eq(login_user_info.userId));
+    let update_result = diesel::update(tex_proj_folder.filter(predicate))
+        .set(folder_name.eq(&edit_req.folder_name))
+        .get_result::<TexProjFolder>(&mut get_connection())
+        .expect("unable to rename project folder name");
     return update_result;
 }
 
