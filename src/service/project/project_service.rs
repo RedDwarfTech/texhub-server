@@ -13,6 +13,7 @@ use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
+use crate::model::diesel::custom::project::folder::folder_map_add::FolderMapAdd;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
@@ -23,6 +24,7 @@ use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
+use crate::model::request::project::del::del_folder_req::DelFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
@@ -57,6 +59,7 @@ use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
 use diesel::result::Error;
+use diesel::upsert::on_constraint;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
@@ -115,7 +118,10 @@ pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexPr
     }
 }
 
-pub fn get_proj_folders(query_params: &ProjQueryParams, login_user_info: &LoginUserInfo) -> Vec<TexProjFolder> {
+pub fn get_proj_folders(
+    query_params: &ProjQueryParams,
+    login_user_info: &LoginUserInfo,
+) -> Vec<TexProjFolder> {
     use crate::model::diesel::tex::tex_schema::tex_proj_folder as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
@@ -132,11 +138,13 @@ pub fn get_proj_folders(query_params: &ProjQueryParams, login_user_info: &LoginU
     }
 }
 
-pub fn get_folder_project_impl(query_params: &FolderProjParams, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
+pub fn get_folder_project_impl(
+    query_params: &FolderProjParams,
+    login_user_info: &LoginUserInfo,
+) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    query = query.filter(cv_work_table::folder_id.eq(query_params.folder_id));
     let cvs = query.load::<TexProject>(&mut get_connection());
     match cvs {
         Ok(result) => {
@@ -172,7 +180,6 @@ pub fn get_proj_by_type(
     use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
     let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
-    proj_query = proj_query.filter(tex_project_table::folder_id.eq(0));
     let projects: Vec<TexProject> = proj_query
         .load::<TexProject>(&mut get_connection())
         .expect("get project editor failed");
@@ -215,28 +222,73 @@ pub fn edit_proj(edit_req: &EditProjReq) -> TexProject {
     return update_result;
 }
 
-pub fn edit_proj_folder(edit_req: &EditProjFolder, login_user_info: &LoginUserInfo) -> TexProject {
-    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
-    use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
+pub fn move_proj_folder(edit_req: &EditProjFolder, login_user_info: &LoginUserInfo) -> Result<usize, diesel::result::Error>{
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder_map as cv_work_table;
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder_map::dsl::*;
     let predicate = cv_work_table::project_id
-        .eq(edit_req.project_id.clone()).and(cv_work_table::user_id.eq(login_user_info.userId));
-    let update_result = diesel::update(tex_project.filter(predicate))
-        .set(folder_id.eq(&edit_req.folder_id))
-        .get_result::<TexProject>(&mut get_connection())
-        .expect("unable to update project folder");
-    return update_result;
+        .eq(edit_req.project_id.clone())
+        .and(cv_work_table::user_id.eq(login_user_info.userId));
+    let add_map = FolderMapAdd::from_req(edit_req,&login_user_info.userId);
+    let insert_result = diesel::insert_into(tex_proj_folder_map)
+    .values(&add_map)
+    .on_conflict(on_constraint("tex_proj_folder_map_un"))
+    .do_update()
+    .set(folder_id.eq(edit_req.folder_id))
+    .execute(&mut get_connection());
+    return insert_result;
 }
 
-pub fn rename_proj_collection_folder(edit_req: &RenameProjFolder, login_user_info: &LoginUserInfo) -> TexProjFolder {
-    use crate::model::diesel::tex::tex_schema::tex_proj_folder::dsl::*;
+pub fn rename_proj_collection_folder(
+    edit_req: &RenameProjFolder,
+    login_user_info: &LoginUserInfo,
+) -> TexProjFolder {
     use crate::model::diesel::tex::tex_schema::tex_proj_folder as cv_work_table;
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder::dsl::*;
     let predicate = cv_work_table::id
-        .eq(edit_req.folder_id.clone()).and(cv_work_table::user_id.eq(login_user_info.userId));
+        .eq(edit_req.folder_id.clone())
+        .and(cv_work_table::user_id.eq(login_user_info.userId));
     let update_result = diesel::update(tex_proj_folder.filter(predicate))
         .set(folder_name.eq(&edit_req.folder_name))
         .get_result::<TexProjFolder>(&mut get_connection())
         .expect("unable to rename project folder name");
     return update_result;
+}
+
+pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &LoginUserInfo) {
+    let mut connection = get_connection();
+    let trans_result =
+        connection.transaction(|connection| do_folder_del(del_req,login_user_info, connection));
+    match trans_result {
+        Ok(_) => {}
+        Err(e) => {
+            error!("delete project collection folder failed,error:{}", e);
+        }
+    }
+}
+
+pub fn do_folder_del(
+    del_req: &DelFolderReq,
+    login_user_info: &LoginUserInfo,
+    connection: &mut PgConnection,
+) -> Result<usize, diesel::result::Error> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder as cv_work_table;
+    // use crate::model::diesel::tex::tex_schema::tex_proj_folder::dsl::*;
+    let predicate = cv_work_table::id
+        .eq(del_req.folder_id.clone())
+        .and(cv_work_table::user_id.eq(login_user_info.userId));
+    let delete_result = diesel::delete(cv_work_table::dsl::tex_proj_folder.filter(predicate))
+        .execute(&mut get_connection());
+
+    // use crate::model::diesel::tex::tex_schema::tex_project as proj_table;
+
+    //let update_proj_predicate = proj_table::folder_id
+    //    .eq(del_req.folder_id.clone())
+    //    .and(cv_work_table::user_id.eq(login_user_info.userId));
+    //let update_result = diesel::update(tex_proj_folder.filter(predicate))
+    //   .set(id.eq(&del_req.folder_id))
+    //    .get_result::<TexProjFolder>(&mut get_connection())
+     //   .expect("unable to rename project folder name");
+    return delete_result;
 }
 
 pub async fn create_empty_project(
@@ -756,6 +808,7 @@ fn get_file_relative_path(file_full_path: String, proj_dir: String) -> String {
         }
     }
 }
+
 
 pub fn join_project(
     req: &TexJoinProjectReq,
@@ -1297,10 +1350,11 @@ pub async fn handle_update_nickname(edit_nickname: &EditProjNickname) {
 }
 
 pub fn handle_archive_proj(req: &ArchiveProjReq, login_user_info: &LoginUserInfo) -> TexProjEditor {
-    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as tex_project_table;
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
     let predicate = tex_project_table::user_id
-        .eq(login_user_info.userId.clone()).and(tex_project_table::project_id.eq(req.project_id.clone()));
+        .eq(login_user_info.userId.clone())
+        .and(tex_project_table::project_id.eq(req.project_id.clone()));
     let update_result = diesel::update(tex_proj_editor.filter(predicate))
         .set(archive_status.eq(req.archive_status))
         .get_result::<TexProjEditor>(&mut get_connection())
@@ -1319,10 +1373,11 @@ pub fn handle_folder_create(req: &TexFolderReq, login_user_info: &LoginUserInfo)
 }
 
 pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) -> TexProjEditor {
-    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as tex_project_table;
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
     let predicate = tex_project_table::user_id
-        .eq(login_user_info.userId.clone()).and(tex_project_table::project_id.eq(req.project_id.clone()));
+        .eq(login_user_info.userId.clone())
+        .and(tex_project_table::project_id.eq(req.project_id.clone()));
     let update_result = diesel::update(tex_proj_editor.filter(predicate))
         .set(trash.eq(req.trash))
         .get_result::<TexProjEditor>(&mut get_connection())
@@ -1330,7 +1385,7 @@ pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) ->
     return update_result;
 }
 
-pub fn handle_compress_proj(req: &DownloadProj) -> String{
+pub fn handle_compress_proj(req: &DownloadProj) -> String {
     let archive_path = gen_zip(&req.project_id);
     return archive_path;
 }

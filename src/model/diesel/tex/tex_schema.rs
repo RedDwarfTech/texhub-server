@@ -74,6 +74,18 @@ table! {
 }
 
 table! {
+    tex_proj_folder_map (id) {
+        id -> Int8,
+        folder_id -> Int8,
+        created_time -> Int8,
+        updated_time -> Int8,
+        project_id -> Varchar,
+        user_id -> Int8,
+        proj_type -> Int4,
+    }
+}
+
+table! {
     tex_project (id) {
         id -> Int8,
         proj_name -> Varchar,
@@ -86,7 +98,6 @@ table! {
         nickname -> Varchar,
         archive_status -> Int4,
         deleted -> Int4,
-        folder_id -> Nullable<Int8>,
     }
 }
 
@@ -120,6 +131,7 @@ allow_tables_to_appear_in_same_query!(
     tex_file_version,
     tex_proj_editor,
     tex_proj_folder,
+    tex_proj_folder_map,
     tex_project,
     tex_template,
 );

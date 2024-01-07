@@ -74,12 +74,24 @@ pub struct TexProjEditor {
 #[diesel(table_name = "tex_proj_folder")]
 pub struct TexProjFolder {
     pub id: i64,
-    pub folder_name: i32,
+    pub folder_name: String,
     pub created_time: i64,
     pub updated_time: i64,
     pub user_id: i64,
     pub sort: i32,
-    pub proj_type: Option<i32>,
+    pub proj_type: i32,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_proj_folder_map")]
+pub struct TexProjFolderMap {
+    pub id: i64,
+    pub folder_id: i64,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub project_id: String,
+    pub user_id: i64,
+    pub proj_type: i32,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
@@ -96,7 +108,6 @@ pub struct TexProject {
     pub nickname: String,
     pub archive_status: i32,
     pub deleted: i32,
-    pub folder_id: Option<i64>,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
