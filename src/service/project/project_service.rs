@@ -20,6 +20,7 @@ use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
+use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
@@ -142,9 +143,19 @@ pub fn get_folder_project_impl(
     query_params: &FolderProjParams,
     login_user_info: &LoginUserInfo,
 ) -> Vec<TexProject> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder_map as folder_map;
+    let mut map_query = folder_map::table.into_boxed::<diesel::pg::Pg>();
+    map_query = map_query.filter(folder_map::user_id.eq(login_user_info.userId));
+    map_query = map_query.filter(folder_map::folder_id.eq(query_params.folder_id));
+    let folder_maps = map_query.load::<TexProjFolderMap>(&mut get_connection()).expect("get map failed");
+    let proj_ids: Vec<String> = folder_maps.iter().map(|item| item.project_id.clone()).collect();
+
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
+    if proj_ids.len() > 0 {
+        query = query.filter(cv_work_table::project_id.eq_any(proj_ids));
+    }
     let cvs = query.load::<TexProject>(&mut get_connection());
     match cvs {
         Ok(result) => {
