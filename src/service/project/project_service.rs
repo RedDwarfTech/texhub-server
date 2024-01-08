@@ -24,6 +24,7 @@ use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
+use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::del::del_folder_req::DelFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
@@ -61,6 +62,7 @@ use crate::service::project::project_folder_service::get_proj_default_folder;
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
+use actix_web::Responder;
 use diesel::result::Error;
 use diesel::upsert::on_constraint;
 use diesel::{
@@ -304,6 +306,22 @@ pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &Logi
     }
 }
 
+pub async fn do_proj_copy(
+    del_req: &CopyProjReq,
+    login_user_info: &LoginUserInfo,
+) -> impl Responder {
+    let proj = get_cached_proj_info(&del_req.project_id);
+    let d_name = format!("{}{}", proj.unwrap().main.proj_name, "(Copy)");
+    let projects = create_empty_project(&d_name, &login_user_info).await;
+    match projects {
+        Ok(project) => box_actix_rest_response(project),
+        Err(e) => {
+            let err = format!("create project failed,{}", e);
+            box_error_actix_rest_response(err.clone(), "CREATE_PROJ_FAILED".to_owned(), err)
+        }
+    }
+}
+
 pub fn do_folder_del(
     del_req: &DelFolderReq,
     login_user_info: &LoginUserInfo,
@@ -361,7 +379,7 @@ fn create_default_folder(
         let default_add = TexFolderReq {
             folder_name: "default".to_owned(),
             proj_type: 1,
-            default_folder: 1
+            default_folder: 1,
         };
         let new_default_folder = create_proj_default_folder(connection, rd_user_info, &default_add);
         let uid: i64 = rd_user_info.id.parse().unwrap();
@@ -372,7 +390,7 @@ fn create_default_folder(
         };
         let new_folder_map = FolderMapAdd::from_req(&map_add, &uid);
         use crate::model::diesel::tex::tex_schema::tex_proj_folder_map::dsl::*;
-        let result = diesel::insert_into(tex_proj_folder_map)
+        diesel::insert_into(tex_proj_folder_map)
             .values(&new_folder_map)
             .get_result::<TexProjFolderMap>(connection)
             .expect("add default folder map failed");
@@ -390,7 +408,7 @@ fn do_create_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    create_default_folder(rd_user_info,connection,&proj);
+    create_default_folder(rd_user_info, connection, &proj);
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {

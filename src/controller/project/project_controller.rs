@@ -1,4 +1,5 @@
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
+use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::del::del_folder_req::DelFolderReq;
@@ -16,7 +17,7 @@ use crate::service::file::file_service::{
     get_file_by_fid, get_proj_history, push_to_fulltext_search,
 };
 use crate::service::project::project_service::{
-    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create, get_folder_project_impl, rename_proj_collection_folder, del_proj_collection_folder, move_proj_folder,
+    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create, get_folder_project_impl, rename_proj_collection_folder, del_proj_collection_folder, move_proj_folder, do_proj_copy,
 };
 use crate::{
     model::{
@@ -413,6 +414,13 @@ pub async fn del_collect_folder(
     box_actix_rest_response(folder)
 }
 
+pub async fn cp_proj(
+    form: actix_web_validator::Json<CopyProjReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    return do_proj_copy(&form.0, &login_user_info).await;
+} 
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -452,5 +460,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/perfolder", web::get().to(get_folder_projects))
             .route("/folder/rename", web::patch().to(rename_collect_folder))
             .route("/folder/del", web::delete().to(del_collect_folder))
+            .route("/copy",web::post().to(cp_proj))
     );
 }
