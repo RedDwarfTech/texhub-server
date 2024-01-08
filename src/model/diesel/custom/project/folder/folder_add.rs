@@ -17,6 +17,7 @@ pub struct FolderAdd {
     pub sort: i32,
     pub folder_name: String,
     pub proj_type: i32,
+    pub default_folder: i32
 }
 
 impl FolderAdd {
@@ -28,6 +29,7 @@ impl FolderAdd {
             sort: 0,
             folder_name: folder_req.folder_name.clone(),
             proj_type: folder_req.proj_type.clone(),
+            default_folder: folder_req.default_folder,
         }
     }
 }
