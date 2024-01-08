@@ -26,7 +26,7 @@ impl FolderMapAdd {
             created_time: get_current_millisecond(),
             updated_time: get_current_millisecond(),
             user_id: user_id.to_owned(),
-            folder_id: 0,
+            folder_id: folder_req.folder_id,
             project_id: folder_req.project_id.clone(),
             proj_type: folder_req.proj_type.clone(),
         }
