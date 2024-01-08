@@ -365,6 +365,7 @@ fn create_default_folder(
         let default_add = TexFolderReq {
             folder_name: "default".to_owned(),
             proj_type: 1,
+            default_folder: 1
         };
         let new_default_folder = create_proj_default_folder(connection, rd_user_info, &default_add);
         let uid: i64 = rd_user_info.id.parse().unwrap();
