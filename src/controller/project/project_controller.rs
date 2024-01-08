@@ -389,7 +389,7 @@ pub async fn new_folder(
     box_actix_rest_response(folder)
 }
 
-pub async fn update_proj_folder(
+pub async fn mv_proj_folder(
     form: actix_web_validator::Json<EditProjFolder>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
@@ -448,7 +448,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/download", web::put().to(download_project))
             .route("/compress", web::put().to(compress_project))
             .route("/folder", web::post().to(new_folder))
-            .route("/move", web::patch().to(update_proj_folder))
+            .route("/move", web::patch().to(mv_proj_folder))
             .route("/perfolder", web::get().to(get_folder_projects))
             .route("/folder/rename", web::patch().to(rename_collect_folder))
             .route("/folder/del", web::delete().to(del_collect_folder))

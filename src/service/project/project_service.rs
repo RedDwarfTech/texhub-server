@@ -265,15 +265,11 @@ pub fn move_proj_folder(
     edit_req: &EditProjFolder,
     login_user_info: &LoginUserInfo,
 ) -> Result<usize, diesel::result::Error> {
-    use crate::model::diesel::tex::tex_schema::tex_proj_folder_map as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_proj_folder_map::dsl::*;
-    let predicate = cv_work_table::project_id
-        .eq(edit_req.project_id.clone())
-        .and(cv_work_table::user_id.eq(login_user_info.userId));
     let add_map = FolderMapAdd::from_req(edit_req, &login_user_info.userId);
     let insert_result = diesel::insert_into(tex_proj_folder_map)
         .values(&add_map)
-        .on_conflict(on_constraint("tex_proj_folder_map_un"))
+        .on_conflict(on_constraint("tex_proj_folder_map_user_proj_un"))
         .do_update()
         .set(folder_id.eq(edit_req.folder_id))
         .execute(&mut get_connection());
