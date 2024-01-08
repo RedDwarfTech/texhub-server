@@ -56,6 +56,8 @@ use crate::service::file::file_service::{get_file_by_fid, get_file_tree, get_mai
 use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
+use crate::service::project::project_folder_service::create_proj_default_folder;
+use crate::service::project::project_folder_service::get_proj_default_folder;
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -147,8 +149,13 @@ pub fn get_folder_project_impl(
     let mut map_query = folder_map::table.into_boxed::<diesel::pg::Pg>();
     map_query = map_query.filter(folder_map::user_id.eq(login_user_info.userId));
     map_query = map_query.filter(folder_map::folder_id.eq(query_params.folder_id));
-    let folder_maps = map_query.load::<TexProjFolderMap>(&mut get_connection()).expect("get map failed");
-    let proj_ids: Vec<String> = folder_maps.iter().map(|item| item.project_id.clone()).collect();
+    let folder_maps = map_query
+        .load::<TexProjFolderMap>(&mut get_connection())
+        .expect("get map failed");
+    let proj_ids: Vec<String> = folder_maps
+        .iter()
+        .map(|item| item.project_id.clone())
+        .collect();
 
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
@@ -171,7 +178,7 @@ pub fn get_folder_project_impl(
 pub fn get_proj_by_type(
     query_params: &ProjQueryParams,
     login_user_info: &LoginUserInfo,
-    default_folder: &TexProjFolder
+    default_folder: &TexProjFolder,
 ) -> Vec<TexProjResp> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
     let mut query = proj_editor_table::table.into_boxed::<diesel::pg::Pg>();
@@ -192,7 +199,8 @@ pub fn get_proj_by_type(
     use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
     let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
-    let folder_proj_ids = get_default_folder_proj_ids(query_params, default_folder, login_user_info);
+    let folder_proj_ids =
+        get_default_folder_proj_ids(query_params, default_folder, login_user_info);
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
     let projects: Vec<TexProject> = proj_query
         .load::<TexProject>(&mut get_connection())
@@ -213,15 +221,15 @@ pub fn get_default_folder_proj_ids(
     query_params: &ProjQueryParams,
     default_folder: &TexProjFolder,
     login_user_info: &LoginUserInfo,
-) -> Vec<String>{
+) -> Vec<String> {
     use crate::model::diesel::tex::tex_schema::tex_proj_folder_map as proj_folder_map_table;
     let mut query = proj_folder_map_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(proj_folder_map_table::folder_id.eq(default_folder.id));
     query = query.filter(proj_folder_map_table::user_id.eq(login_user_info.userId));
     query = query.filter(proj_folder_map_table::proj_type.eq(query_params.proj_type));
     let editors: Vec<TexProjFolderMap> = query
-    .load::<TexProjFolderMap>(&mut get_connection())
-    .expect("get default project folder map failed");
+        .load::<TexProjFolderMap>(&mut get_connection())
+        .expect("get default project folder map failed");
     if editors.len() == 0 {
         return Vec::new();
     }
@@ -256,19 +264,22 @@ pub fn edit_proj(edit_req: &EditProjReq) -> TexProject {
     return update_result;
 }
 
-pub fn move_proj_folder(edit_req: &EditProjFolder, login_user_info: &LoginUserInfo) -> Result<usize, diesel::result::Error>{
+pub fn move_proj_folder(
+    edit_req: &EditProjFolder,
+    login_user_info: &LoginUserInfo,
+) -> Result<usize, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_folder_map as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_proj_folder_map::dsl::*;
     let predicate = cv_work_table::project_id
         .eq(edit_req.project_id.clone())
         .and(cv_work_table::user_id.eq(login_user_info.userId));
-    let add_map = FolderMapAdd::from_req(edit_req,&login_user_info.userId);
+    let add_map = FolderMapAdd::from_req(edit_req, &login_user_info.userId);
     let insert_result = diesel::insert_into(tex_proj_folder_map)
-    .values(&add_map)
-    .on_conflict(on_constraint("tex_proj_folder_map_un"))
-    .do_update()
-    .set(folder_id.eq(edit_req.folder_id))
-    .execute(&mut get_connection());
+        .values(&add_map)
+        .on_conflict(on_constraint("tex_proj_folder_map_un"))
+        .do_update()
+        .set(folder_id.eq(edit_req.folder_id))
+        .execute(&mut get_connection());
     return insert_result;
 }
 
@@ -291,7 +302,7 @@ pub fn rename_proj_collection_folder(
 pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
     let trans_result =
-        connection.transaction(|connection| do_folder_del(del_req,login_user_info, connection));
+        connection.transaction(|connection| do_folder_del(del_req, login_user_info, connection));
     match trans_result {
         Ok(_) => {}
         Err(e) => {
@@ -321,7 +332,7 @@ pub fn do_folder_del(
     //let update_result = diesel::update(tex_proj_folder.filter(predicate))
     //   .set(id.eq(&del_req.folder_id))
     //    .get_result::<TexProjFolder>(&mut get_connection())
-     //   .expect("unable to rename project folder name");
+    //   .expect("unable to rename project folder name");
     return delete_result;
 }
 
@@ -347,6 +358,33 @@ pub async fn create_tpl_project(
     return trans_result;
 }
 
+fn create_default_folder(
+    rd_user_info: &RdUserInfo,
+    connection: &mut PgConnection,
+    proj: &TexProject,
+) {
+    let default_folder = get_proj_default_folder(rd_user_info, connection);
+    if default_folder.is_none() {
+        let default_add = TexFolderReq {
+            folder_name: "default".to_owned(),
+            proj_type: 1,
+        };
+        let new_default_folder = create_proj_default_folder(connection, rd_user_info, &default_add);
+        let uid: i64 = rd_user_info.id.parse().unwrap();
+        let map_add = EditProjFolder {
+            proj_type: 1,
+            project_id: proj.project_id.clone(),
+            folder_id: new_default_folder.id,
+        };
+        let new_folder_map = FolderMapAdd::from_req(&map_add, &uid);
+        use crate::model::diesel::tex::tex_schema::tex_proj_folder_map::dsl::*;
+        let result = diesel::insert_into(tex_proj_folder_map)
+            .values(&new_folder_map)
+            .get_result::<TexProjFolderMap>(connection)
+            .expect("add default folder map failed");
+    }
+}
+
 fn do_create_proj_trans(
     proj_name: &String,
     rd_user_info: &RdUserInfo,
@@ -358,6 +396,7 @@ fn do_create_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
+    create_default_folder(rd_user_info,connection,&proj);
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
@@ -842,7 +881,6 @@ fn get_file_relative_path(file_full_path: String, proj_dir: String) -> String {
         }
     }
 }
-
 
 pub fn join_project(
     req: &TexJoinProjectReq,
