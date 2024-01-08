@@ -156,13 +156,10 @@ pub fn get_folder_project_impl(
         .iter()
         .map(|item| item.project_id.clone())
         .collect();
-
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    if proj_ids.len() > 0 {
-        query = query.filter(cv_work_table::project_id.eq_any(proj_ids));
-    }
+    query = query.filter(cv_work_table::project_id.eq_any(proj_ids));
     let cvs = query.load::<TexProject>(&mut get_connection());
     match cvs {
         Ok(result) => {
