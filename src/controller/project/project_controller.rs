@@ -79,8 +79,9 @@ pub async fn get_projects(
     params: web::Query<ProjQueryParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let projects:Vec<TexProjResp> = get_proj_by_type(&params.0, &login_user_info);
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
+    let default_folder = folders.iter().find(|folder| folder.default_folder ==1).unwrap();
+    let projects:Vec<TexProjResp> = get_proj_by_type(&params.0, &login_user_info, default_folder);
     let resp: ProjResp = ProjResp::from_req(folders, projects);
     let res = ApiResponse {
         result: resp,

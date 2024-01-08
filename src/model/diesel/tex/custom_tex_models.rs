@@ -121,6 +121,7 @@ pub struct TexProjFolder {
     pub user_id: i64,
     pub sort: i32,
     pub proj_type: i32,
+    pub default_folder: i32,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]

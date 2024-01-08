@@ -70,6 +70,7 @@ table! {
         user_id -> Int8,
         sort -> Int4,
         proj_type -> Int4,
+        default_folder -> Int4,
     }
 }
 

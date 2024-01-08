@@ -171,6 +171,7 @@ pub fn get_folder_project_impl(
 pub fn get_proj_by_type(
     query_params: &ProjQueryParams,
     login_user_info: &LoginUserInfo,
+    default_folder: &TexProjFolder
 ) -> Vec<TexProjResp> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
     let mut query = proj_editor_table::table.into_boxed::<diesel::pg::Pg>();
@@ -191,6 +192,8 @@ pub fn get_proj_by_type(
     use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
     let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
+    let folder_proj_ids = get_default_folder_proj_ids(query_params, default_folder, login_user_info);
+    proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
     let projects: Vec<TexProject> = proj_query
         .load::<TexProject>(&mut get_connection())
         .expect("get project editor failed");
@@ -204,6 +207,26 @@ pub fn get_proj_by_type(
         }
     });
     return proj_resp;
+}
+
+pub fn get_default_folder_proj_ids(
+    query_params: &ProjQueryParams,
+    default_folder: &TexProjFolder,
+    login_user_info: &LoginUserInfo,
+) -> Vec<String>{
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder_map as proj_folder_map_table;
+    let mut query = proj_folder_map_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(proj_folder_map_table::folder_id.eq(default_folder.id));
+    query = query.filter(proj_folder_map_table::user_id.eq(login_user_info.userId));
+    query = query.filter(proj_folder_map_table::proj_type.eq(query_params.proj_type));
+    let editors: Vec<TexProjFolderMap> = query
+    .load::<TexProjFolderMap>(&mut get_connection())
+    .expect("get default project folder map failed");
+    if editors.len() == 0 {
+        return Vec::new();
+    }
+    let proj_ids: Vec<String> = editors.iter().map(|item| item.project_id.clone()).collect();
+    return proj_ids;
 }
 
 pub fn get_prj_by_id(proj_id: &String) -> Option<TexProject> {
