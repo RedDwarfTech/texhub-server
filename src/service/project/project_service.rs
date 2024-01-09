@@ -403,7 +403,7 @@ fn do_create_proj_trans(
     create_default_folder( rd_user_info, connection, &proj);
     if proj_req.folder_id.is_some() {
         let edit_req: EditProjFolder =EditProjFolder{
-            project_id: proj.project_id,
+            project_id: proj.project_id.clone(),
             folder_id: proj_req.folder_id.unwrap(),
             proj_type: 1,
         };

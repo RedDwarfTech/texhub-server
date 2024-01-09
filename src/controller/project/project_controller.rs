@@ -394,8 +394,8 @@ pub async fn mv_proj_folder(
     form: actix_web_validator::Json<EditProjFolder>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let folder = move_proj_folder(&form.0, &login_user_info);
-    box_actix_rest_response(folder.unwrap_or_default())
+    move_proj_folder(&form.0, &login_user_info.userId);
+    box_actix_rest_response("ok")
 }
 
 pub async fn rename_collect_folder(
