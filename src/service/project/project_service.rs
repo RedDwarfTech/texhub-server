@@ -26,6 +26,7 @@ use crate::model::diesel::tex::custom_tex_models::{
 };
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
+use crate::model::request::project::add::tex_project_req::TexProjectReq;
 use crate::model::request::project::del::del_folder_req::DelFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
@@ -307,12 +308,17 @@ pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &Logi
 }
 
 pub async fn do_proj_copy(
-    del_req: &CopyProjReq,
+    cp_req: &CopyProjReq,
     login_user_info: &LoginUserInfo,
 ) -> impl Responder {
-    let proj = get_cached_proj_info(&del_req.project_id);
+    let proj = get_cached_proj_info(&cp_req.project_id);
     let copied_proj_name = format!("{}{}", proj.unwrap().main.proj_name, "(Copy)");
-    let projects = create_empty_project(&copied_proj_name, &login_user_info).await;
+    let proj_req:TexProjectReq = TexProjectReq{
+        name: copied_proj_name,
+        template_id: None,
+        folder_id: Some(cp_req.folder_id),
+    };
+    let projects = create_empty_project(&proj_req, &login_user_info).await;
     match projects {
         Ok(project) => box_actix_rest_response(project),
         Err(e) => {
@@ -348,13 +354,13 @@ pub fn do_folder_del(
 }
 
 pub async fn create_empty_project(
-    proj_name: &String,
+    proj_req: &TexProjectReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProject, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection
-        .transaction(|connection| do_create_proj_trans(proj_name, &user_info, connection));
+        .transaction(|connection| do_create_proj_trans(proj_req, &user_info, connection));
     return trans_result;
 }
 
@@ -370,6 +376,7 @@ pub async fn create_tpl_project(
 }
 
 fn create_default_folder(
+    proj_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
     proj: &TexProject,
@@ -398,17 +405,17 @@ fn create_default_folder(
 }
 
 fn do_create_proj_trans(
-    proj_name: &String,
+    proj_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
 ) -> Result<TexProject, Error> {
-    let create_result = create_proj(proj_name, connection, rd_user_info);
+    let create_result = create_proj(proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    create_default_folder(rd_user_info, connection, &proj);
+    create_default_folder(proj_req, rd_user_info, connection, &proj);
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
@@ -437,7 +444,12 @@ fn do_create_tpl_proj_trans(
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
 ) -> Result<Option<TexProject>, Error> {
-    let create_result = create_proj(&tpl.name, connection, rd_user_info);
+    let proj_req:TexProjectReq  = TexProjectReq{
+        name: tpl.name.clone(),
+        template_id: Some(tpl.template_id),
+        folder_id: None,
+    };
+    let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
@@ -767,12 +779,12 @@ fn create_proj_file_impl(
 }
 
 fn create_proj(
-    name: &String,
+    proj_req: &TexProjectReq,
     connection: &mut PgConnection,
     rd_user_info: &RdUserInfo,
 ) -> Result<TexProject, diesel::result::Error> {
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let new_proj = TexProjectAdd::from_req(name, &uid, &rd_user_info.nickname);
+    let new_proj = TexProjectAdd::from_req(&proj_req.name, &uid, &rd_user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)

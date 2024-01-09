@@ -121,8 +121,7 @@ pub async fn create_project(
     form: actix_web_validator::Json<TexProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let d_name = form.name.clone();
-    let projects = create_empty_project(&d_name, &login_user_info).await;
+    let projects = create_empty_project(&form.0, &login_user_info).await;
     match projects {
         Ok(project) => box_actix_rest_response(project),
         Err(e) => {
