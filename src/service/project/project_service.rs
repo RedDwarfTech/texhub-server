@@ -65,7 +65,6 @@ use crate::{common::database::get_connection, model::diesel::tex::custom_tex_mod
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use diesel::result::Error;
-use diesel::upsert::on_constraint;
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
@@ -106,6 +105,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
 
+use super::project_folder_map_service::move_proj_folder;
 use super::project_queue_service::get_latest_proj_queue;
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
@@ -264,21 +264,6 @@ pub fn edit_proj(edit_req: &EditProjReq) -> TexProject {
     return update_result;
 }
 
-pub fn move_proj_folder(
-    edit_req: &EditProjFolder,
-    login_user_info: &LoginUserInfo,
-) -> Result<usize, diesel::result::Error> {
-    use crate::model::diesel::tex::tex_schema::tex_proj_folder_map::dsl::*;
-    let add_map = FolderMapAdd::from_req(edit_req, &login_user_info.userId);
-    let insert_result = diesel::insert_into(tex_proj_folder_map)
-        .values(&add_map)
-        .on_conflict(on_constraint("tex_proj_folder_map_user_proj_un"))
-        .do_update()
-        .set(folder_id.eq(edit_req.folder_id))
-        .execute(&mut get_connection());
-    return insert_result;
-}
-
 pub fn rename_proj_collection_folder(
     edit_req: &RenameProjFolder,
     login_user_info: &LoginUserInfo,
@@ -376,7 +361,6 @@ pub async fn create_tpl_project(
 }
 
 fn create_default_folder(
-    proj_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
     proj: &TexProject,
@@ -409,14 +393,22 @@ fn do_create_proj_trans(
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
 ) -> Result<TexProject, Error> {
+    let uid: i64 = rd_user_info.id.parse().unwrap();
     let create_result = create_proj(proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    create_default_folder(proj_req, rd_user_info, connection, &proj);
-    let uid: i64 = rd_user_info.id.parse().unwrap();
+    create_default_folder( rd_user_info, connection, &proj);
+    if proj_req.folder_id.is_some() {
+        let edit_req: EditProjFolder =EditProjFolder{
+            project_id: proj.project_id,
+            folder_id: proj_req.folder_id.unwrap(),
+            proj_type: 1,
+        };
+        move_proj_folder(&edit_req, &uid);
+    }
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
         Ok(file) => {
