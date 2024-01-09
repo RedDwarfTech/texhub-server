@@ -297,16 +297,7 @@ pub async fn do_proj_copy(
     cp_req: &CopyProjReq,
     login_user_info: &LoginUserInfo,
 ) -> impl Responder {
-    let proj = get_cached_proj_info(&cp_req.project_id).unwrap();
-    let copied_proj_name = format!("{}{}", proj.main.proj_name, "(Copy)");
-    let proj_req:TexProjectReq = TexProjectReq{
-        name: copied_proj_name,
-        template_id: None,
-        folder_id: Some(cp_req.folder_id),
-        legacy_proj_id: Some(cp_req.project_id.clone()),
-    };
-    let main_name: String = proj.main_file.name.clone();
-    let project = create_cp_project(&main_name, &proj_req, login_user_info).await;
+    let project = create_cp_project(cp_req, login_user_info).await;
     match project {
         Ok(proj) => box_actix_rest_response(proj),
         Err(e) => {
@@ -364,14 +355,22 @@ pub async fn create_tpl_project(
 }
 
 pub async fn create_cp_project(
-    main_name: &String,
-    proj_req: &TexProjectReq,
+    cp_req: &CopyProjReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
+    let proj = get_cached_proj_info(&cp_req.project_id).unwrap();
+    let copied_proj_name = format!("{}{}", proj.main.proj_name, "(Copy)");
+    let proj_req:TexProjectReq = TexProjectReq{
+        name: copied_proj_name,
+        template_id: None,
+        folder_id: Some(cp_req.folder_id),
+        legacy_proj_id: Some(cp_req.project_id.clone()),
+    };
+    let main_name: String = proj.main_file.name.clone();
     let trans_result = connection
-        .transaction(|connection| do_copy_proj_trans(main_name, proj_req, &user_info, connection));
+        .transaction(|connection| do_copy_proj_trans(&main_name, &proj_req, &user_info, connection));
     return trans_result;
 }
 
