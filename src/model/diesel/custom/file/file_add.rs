@@ -77,7 +77,7 @@ impl TexFileAdd {
         uid: &i64, 
         proj_id: &String, 
         file_name: &OsString,
-        tpl: &TexTemplate,
+        main_name: &String,
         parent_id: &str,
         file_type: i32
     ) ->Self {
@@ -93,7 +93,7 @@ impl TexFileAdd {
             file_type: file_type,
             file_id: uuid_string,
             parent: parent_id.to_string(),
-            main_flag: if file_name.to_string_lossy().into_owned() == tpl.main_file_name {
+            main_flag: if file_name.to_string_lossy().into_owned() == main_name.to_owned() {
                 1
             } else {
                 0

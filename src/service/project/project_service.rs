@@ -24,6 +24,7 @@ use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
+use crate::model::diesel::tex::tex_schema::tex_template::main_file_name;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::add::tex_project_req::TexProjectReq;
@@ -296,15 +297,16 @@ pub async fn do_proj_copy(
     cp_req: &CopyProjReq,
     login_user_info: &LoginUserInfo,
 ) -> impl Responder {
-    let proj = get_cached_proj_info(&cp_req.project_id);
-    let copied_proj_name = format!("{}{}", proj.unwrap().main.proj_name, "(Copy)");
+    let proj = get_cached_proj_info(&cp_req.project_id).unwrap();
+    let copied_proj_name = format!("{}{}", proj.main.proj_name, "(Copy)");
     let proj_req:TexProjectReq = TexProjectReq{
         name: copied_proj_name,
         template_id: None,
         folder_id: Some(cp_req.folder_id),
         legacy_proj_id: Some(cp_req.project_id.clone()),
     };
-    let projects = create_cp_project(&proj_req, login_user_info).await;
+    let main_name: String = proj.main_file.name.clone();
+    let projects = create_cp_project(&main_name, &proj_req, login_user_info).await;
     match projects {
         Ok(project) => box_actix_rest_response(project),
         Err(e) => {
@@ -362,13 +364,14 @@ pub async fn create_tpl_project(
 }
 
 pub async fn create_cp_project(
+    main_name: &String,
     proj_req: &TexProjectReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection
-        .transaction(|connection| do_copy_proj_trans(proj_req, &user_info, connection));
+        .transaction(|connection| do_copy_proj_trans(main_name, proj_req, &user_info, connection));
     return trans_result;
 }
 
@@ -465,6 +468,7 @@ fn do_create_tpl_proj_trans(
 }
 
 fn do_copy_proj_trans(
+    main_name: &String,
     cp_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
@@ -482,13 +486,17 @@ fn do_copy_proj_trans(
     }
     let proj = create_result.unwrap();
     let legacy_proj_id = cp_req.legacy_proj_id.as_ref().unwrap().clone();
-    do_create_copied_proj_on_disk(&legacy_proj_id,&proj, rd_user_info);
+    do_create_copied_proj_on_disk(&legacy_proj_id,&proj,main_name, rd_user_info);
     return Ok(Some(proj));
 }
 
-pub fn do_create_copied_proj_on_disk(legacy_proj_id: &String,proj: &TexProject, rd_user_info: &RdUserInfo) {
+pub fn do_create_copied_proj_on_disk(
+    legacy_proj_id: &String,
+    proj: &TexProject, 
+    main_name: &String,
+    rd_user_info: &RdUserInfo) {
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let create_res = create_copied_proj_files( legacy_proj_id,&proj.project_id, &uid);
+    let create_res = create_copied_proj_files( legacy_proj_id,&proj.project_id, main_name, &uid);
     if !create_res {
         error!(
             "create project files failed, project: {:?}",
@@ -524,7 +532,10 @@ pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info
     }
 }
 
-pub fn create_copied_proj_files(legacy_proj_id: &String, proj_id: &String, uid: &i64) -> bool {
+pub fn create_copied_proj_files(legacy_proj_id: &String, 
+    proj_id: &String, 
+    main_name: &String,
+    uid: &i64) -> bool {
     let legacy_proj_dir = get_proj_base_dir(legacy_proj_id);
     let proj_dir = get_proj_base_dir_instant(&proj_id);
     match create_directory_if_not_exists(&proj_dir) {
@@ -539,7 +550,7 @@ pub fn create_copied_proj_files(legacy_proj_id: &String, proj_id: &String, uid: 
         );
         return false;
     }
-    return copy_files_in_db();
+    return create_files_into_db(&proj_dir, proj_id, uid, main_name);
 }
 
 pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool {
@@ -558,7 +569,7 @@ pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool
         );
         return false;
     }
-    return create_files_into_db(&proj_dir, proj_id, uid, tpl);
+    return create_files_into_db(&proj_dir, proj_id, uid, &tpl.main_file_name);
 }
 
 fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
@@ -636,16 +647,19 @@ pub fn support_sync(file_full_path: &String) -> bool {
 
 pub fn copy_files_in_db(
 ) -> bool {
+
+
+
     return true;
 }
 pub fn create_files_into_db(
     project_path: &String,
     proj_id: &String,
     uid: &i64,
-    tpl: &TexTemplate,
+    main_name: &String,
 ) -> bool {
     let mut files: Vec<TexFileAdd> = Vec::new();
-    let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, tpl);
+    let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, &main_name);
     if let Err(err) = read_result {
         error!(
             "read directory failed,{}, project path: {}",
@@ -656,8 +670,8 @@ pub fn create_files_into_db(
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
     if files.len() == 0 {
         error!(
-            "read 0 files from disk, project path: {}, template: {:?}",
-            project_path, tpl
+            "read 0 files from disk, project path: {}, main_file_name: {:?}",
+            project_path, main_file_name
         );
         return false;
     }
@@ -683,7 +697,7 @@ fn read_directory(
     files: &mut Vec<TexFileAdd>,
     uid: &i64,
     proj_id: &String,
-    tpl: &TexTemplate,
+    main_name: &String,
 ) -> io::Result<()> {
     for entry in fs::read_dir(dir_path)? {
         if let Err(err) = entry {
@@ -705,7 +719,7 @@ fn read_directory(
                 uid,
                 proj_id,
                 &file_name,
-                tpl,
+                main_name,
                 parent_id,
                 1,
             );
@@ -716,7 +730,7 @@ fn read_directory(
                 uid,
                 proj_id,
                 &file_name,
-                tpl,
+                main_name,
                 parent_id,
                 ThFileType::Folder as i32,
             );
@@ -725,7 +739,7 @@ fn read_directory(
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", dir_path, dir_name);
             let recur_result =
-                read_directory(&next_parent, &parent_folder_id, files, uid, proj_id, tpl);
+                read_directory(&next_parent, &parent_folder_id, files, uid, proj_id, main_name);
             if let Err(err) = recur_result {
                 error!(
                     "read file failed, {}, next parant: {}, dir path: {}",
@@ -1154,8 +1168,8 @@ pub async fn add_compile_to_queue(
         );
     }
     let proj_cache = get_cached_proj_info(&params.project_id);
-    let main_file_name = proj_cache.clone().unwrap().main_file.name;
-    let log_file_name = format!("{}{}", get_filename_without_ext(&main_file_name), ".log");
+    let main_name = proj_cache.clone().unwrap().main_file.name;
+    let log_file_name = format!("{}{}", get_filename_without_ext(&main_name), ".log");
     let compile_base_dir = get_app_config("texhub.compile_base_dir");
     let proj_base_dir = get_proj_path(
         &compile_base_dir,
@@ -1165,7 +1179,7 @@ pub async fn add_compile_to_queue(
     let file_path = join_paths(&[
         proj_base_dir.clone(),
         params.project_id.clone(),
-        main_file_name.clone(),
+        main_name.clone(),
     ]);
     let out_path = join_paths(&[proj_base_dir, params.project_id.clone()]);
     let rt = get_current_millisecond().to_string();
