@@ -302,8 +302,9 @@ pub async fn do_proj_copy(
         name: copied_proj_name,
         template_id: None,
         folder_id: Some(cp_req.folder_id),
+        legacy_proj_id: Some(cp_req.project_id.clone()),
     };
-    let projects = create_empty_project(&proj_req, &login_user_info).await;
+    let projects = create_cp_project(&proj_req, login_user_info).await;
     match projects {
         Ok(project) => box_actix_rest_response(project),
         Err(e) => {
@@ -357,6 +358,17 @@ pub async fn create_tpl_project(
     let mut connection = get_connection();
     let trans_result = connection
         .transaction(|connection| do_create_tpl_proj_trans(&tex_tpl, &user_info, connection));
+    return trans_result;
+}
+
+pub async fn create_cp_project(
+    proj_req: &TexProjectReq,
+    login_user_info: &LoginUserInfo,
+) -> Result<Option<TexProject>, Error> {
+    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let mut connection = get_connection();
+    let trans_result = connection
+        .transaction(|connection| do_copy_proj_trans(proj_req, &user_info, connection));
     return trans_result;
 }
 
@@ -440,6 +452,7 @@ fn do_create_tpl_proj_trans(
         name: tpl.name.clone(),
         template_id: Some(tpl.template_id),
         folder_id: None,
+        legacy_proj_id: None
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
@@ -449,6 +462,47 @@ fn do_create_tpl_proj_trans(
     let proj = create_result.unwrap();
     do_create_proj_on_disk(&tpl, &proj, rd_user_info);
     return Ok(Some(proj));
+}
+
+fn do_copy_proj_trans(
+    cp_req: &TexProjectReq,
+    rd_user_info: &RdUserInfo,
+    connection: &mut PgConnection,
+) -> Result<Option<TexProject>, Error> {
+    let proj_req:TexProjectReq  = TexProjectReq{
+        name: cp_req.name.clone(),
+        template_id: None,
+        folder_id: cp_req.folder_id,
+        legacy_proj_id: cp_req.legacy_proj_id.clone(),
+    };
+    let create_result = create_proj(&proj_req, connection, rd_user_info);
+    if let Err(ce) = create_result {
+        error!("Failed to create proj: {}", ce);
+        return Err(ce);
+    }
+    let proj = create_result.unwrap();
+    let legacy_proj_id = cp_req.legacy_proj_id.as_ref().unwrap().clone();
+    do_create_copied_proj_on_disk(&legacy_proj_id,&proj, rd_user_info);
+    return Ok(Some(proj));
+}
+
+pub fn do_create_copied_proj_on_disk(legacy_proj_id: &String,proj: &TexProject, rd_user_info: &RdUserInfo) {
+    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let create_res = create_copied_proj_files( legacy_proj_id,&proj.project_id, &uid);
+    if !create_res {
+        error!(
+            "create project files failed, project: {:?}",
+            proj
+        );
+        return;
+    }
+    let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
+    match editor_result {
+        Ok(_) => {}
+        Err(error) => {
+            error!("create editor error: {}", error);
+        }
+    }
 }
 
 pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info: &RdUserInfo) {
@@ -468,6 +522,24 @@ pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info
             error!("create editor error: {}", error);
         }
     }
+}
+
+pub fn create_copied_proj_files(legacy_proj_id: &String, proj_id: &String, uid: &i64) -> bool {
+    let legacy_proj_dir = get_proj_base_dir(legacy_proj_id);
+    let proj_dir = get_proj_base_dir_instant(&proj_id);
+    match create_directory_if_not_exists(&proj_dir) {
+        Ok(()) => {}
+        Err(e) => error!("create project directory before tpl copy failed,{}", e),
+    }
+    let result = copy_dir_recursive(&legacy_proj_dir.as_str(), &proj_dir);
+    if let Err(e) = result {
+        error!(
+            "copy file failed,{}, legacy project dir: {}, project dir: {}",
+            e, legacy_proj_dir, proj_dir
+        );
+        return false;
+    }
+    return copy_files_in_db();
 }
 
 pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool {
@@ -562,6 +634,10 @@ pub fn support_sync(file_full_path: &String) -> bool {
     return false;
 }
 
+pub fn copy_files_in_db(
+) -> bool {
+    return true;
+}
 pub fn create_files_into_db(
     project_path: &String,
     proj_id: &String,
