@@ -311,8 +311,8 @@ pub async fn do_proj_copy(
     login_user_info: &LoginUserInfo,
 ) -> impl Responder {
     let proj = get_cached_proj_info(&del_req.project_id);
-    let d_name = format!("{}{}", proj.unwrap().main.proj_name, "(Copy)");
-    let projects = create_empty_project(&d_name, &login_user_info).await;
+    let copied_proj_name = format!("{}{}", proj.unwrap().main.proj_name, "(Copy)");
+    let projects = create_empty_project(&copied_proj_name, &login_user_info).await;
     match projects {
         Ok(project) => box_actix_rest_response(project),
         Err(e) => {

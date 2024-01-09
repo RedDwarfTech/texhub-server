@@ -2,6 +2,7 @@ use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
+use crate::model::request::project::add::tex_project_req::TexProjectReq;
 use crate::model::request::project::del::del_folder_req::DelFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
 use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
@@ -38,8 +39,7 @@ use crate::{
             tex_compile_queue_req::TexCompileQueueReq,
             tex_compile_queue_status::TexCompileQueueStatus,
             tex_del_project_req::TexDelProjectReq,
-            tex_join_project_req::TexJoinProjectReq,
-            tex_project_req::TexProjectReq,
+            tex_join_project_req::TexJoinProjectReq
         },
     },
     service::{
