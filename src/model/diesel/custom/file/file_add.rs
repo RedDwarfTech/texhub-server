@@ -93,7 +93,7 @@ impl TexFileAdd {
             file_type: file_type,
             file_id: uuid_string,
             parent: parent_id.to_string(),
-            main_flag: if file_name.to_string_lossy().into_owned() == main_name.to_owned() {
+            main_flag: if file_name.to_string_lossy().into_owned() == main_name.to_owned() && stored_path == "/" {
                 1
             } else {
                 0

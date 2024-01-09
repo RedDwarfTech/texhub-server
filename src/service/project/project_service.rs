@@ -306,11 +306,11 @@ pub async fn do_proj_copy(
         legacy_proj_id: Some(cp_req.project_id.clone()),
     };
     let main_name: String = proj.main_file.name.clone();
-    let projects = create_cp_project(&main_name, &proj_req, login_user_info).await;
-    match projects {
-        Ok(project) => box_actix_rest_response(project),
+    let project = create_cp_project(&main_name, &proj_req, login_user_info).await;
+    match project {
+        Ok(proj) => box_actix_rest_response(proj),
         Err(e) => {
-            let err = format!("create project failed,{}", e);
+            let err = format!("create copy project failed,{}", e);
             box_error_actix_rest_response(err.clone(), "CREATE_PROJ_FAILED".to_owned(), err)
         }
     }
@@ -481,7 +481,7 @@ fn do_copy_proj_trans(
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
-        error!("Failed to create proj: {}", ce);
+        error!("Failed to create copy proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
@@ -540,7 +540,7 @@ pub fn create_copied_proj_files(legacy_proj_id: &String,
     let proj_dir = get_proj_base_dir_instant(&proj_id);
     match create_directory_if_not_exists(&proj_dir) {
         Ok(()) => {}
-        Err(e) => error!("create project directory before tpl copy failed,{}", e),
+        Err(e) => error!("create copied project directory failed,{}", e),
     }
     let result = copy_dir_recursive(&legacy_proj_dir.as_str(), &proj_dir);
     if let Err(e) = result {
