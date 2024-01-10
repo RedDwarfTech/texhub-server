@@ -14,6 +14,7 @@ use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
 use crate::model::diesel::custom::project::folder::folder_map_add::FolderMapAdd;
+use crate::model::diesel::custom::project::proj_type::ProjType;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
@@ -1574,7 +1575,7 @@ pub fn handle_trash_proj(req: &TrashProjReq, login_user_info: &LoginUserInfo) ->
         .eq(login_user_info.userId.clone())
         .and(tex_project_table::project_id.eq(req.project_id.clone()));
     let update_result = diesel::update(tex_proj_editor.filter(predicate))
-        .set(trash.eq(req.trash))
+        .set(proj_status.eq(ProjType::Trash as i32))
         .get_result::<TexProjEditor>(&mut get_connection())
         .expect("unable to update tex project archive status");
     return update_result;
