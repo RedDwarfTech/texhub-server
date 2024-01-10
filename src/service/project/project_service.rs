@@ -202,7 +202,7 @@ pub fn get_proj_by_type(
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
     if default_folder.is_some() {
         let folder_proj_ids =
-        get_default_folder_proj_ids(query_params, default_folder.unwrap(), login_user_info);
+            get_default_folder_proj_ids(query_params, default_folder.unwrap(), login_user_info);
         proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
     }
     let projects: Vec<TexProject> = proj_query
@@ -295,10 +295,7 @@ pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &Logi
     }
 }
 
-pub async fn do_proj_copy(
-    cp_req: &CopyProjReq,
-    login_user_info: &LoginUserInfo,
-) -> impl Responder {
+pub async fn do_proj_copy(cp_req: &CopyProjReq, login_user_info: &LoginUserInfo) -> impl Responder {
     let project = create_cp_project(cp_req, login_user_info).await;
     match project {
         Ok(proj) => box_actix_rest_response(proj),
@@ -340,8 +337,8 @@ pub async fn create_empty_project(
 ) -> Result<TexProject, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result = connection
-        .transaction(|connection| do_create_proj_trans(proj_req, &user_info, connection));
+    let trans_result =
+        connection.transaction(|connection| do_create_proj_trans(proj_req, &user_info, connection));
     return trans_result;
 }
 
@@ -364,15 +361,16 @@ pub async fn create_cp_project(
     let mut connection = get_connection();
     let proj = get_cached_proj_info(&cp_req.project_id).unwrap();
     let copied_proj_name = format!("{}{}", proj.main.proj_name, "(Copy)");
-    let proj_req:TexProjectReq = TexProjectReq{
+    let proj_req: TexProjectReq = TexProjectReq {
         name: copied_proj_name,
         template_id: None,
         folder_id: Some(cp_req.folder_id),
         legacy_proj_id: Some(cp_req.project_id.clone()),
     };
     let main_name: String = proj.main_file.name.clone();
-    let trans_result = connection
-        .transaction(|connection| do_copy_proj_trans(&main_name, &proj_req, &user_info, connection));
+    let trans_result = connection.transaction(|connection| {
+        do_copy_proj_trans(&main_name, &proj_req, &user_info, connection)
+    });
     return trans_result;
 }
 
@@ -416,15 +414,7 @@ fn do_create_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    create_default_folder( rd_user_info, connection, &proj);
-    if proj_req.folder_id.is_some() {
-        let edit_req: EditProjFolder =EditProjFolder{
-            project_id: proj.project_id.clone(),
-            folder_id: proj_req.folder_id.unwrap(),
-            proj_type: 1,
-        };
-        move_proj_folder(&edit_req, &uid);
-    }
+    do_create_proj_dependencies(proj_req,rd_user_info,connection,&proj);
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
         Ok(file) => {
@@ -447,16 +437,34 @@ fn do_create_proj_trans(
     return Ok(proj);
 }
 
+fn do_create_proj_dependencies(
+    proj_req: &TexProjectReq,
+    rd_user_info: &RdUserInfo,
+    connection: &mut PgConnection,
+    proj: &TexProject
+){
+    create_default_folder(rd_user_info, connection, &proj);
+    if proj_req.folder_id.is_some() {
+        let edit_req: EditProjFolder = EditProjFolder {
+            project_id: proj.project_id.clone(),
+            folder_id: proj_req.folder_id.unwrap(),
+            proj_type: 1,
+        };
+        let uid: i64 = rd_user_info.id.parse().unwrap();
+        move_proj_folder(&edit_req, &uid);
+    }
+}
+
 fn do_create_tpl_proj_trans(
     tpl: &TexTemplate,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
 ) -> Result<Option<TexProject>, Error> {
-    let proj_req:TexProjectReq  = TexProjectReq{
+    let proj_req: TexProjectReq = TexProjectReq {
         name: tpl.name.clone(),
         template_id: Some(tpl.template_id),
         folder_id: None,
-        legacy_proj_id: None
+        legacy_proj_id: None,
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
@@ -464,6 +472,7 @@ fn do_create_tpl_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
+    do_create_proj_dependencies(&proj_req,rd_user_info,connection,&proj);
     do_create_proj_on_disk(&tpl, &proj, rd_user_info);
     return Ok(Some(proj));
 }
@@ -474,7 +483,7 @@ fn do_copy_proj_trans(
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
 ) -> Result<Option<TexProject>, Error> {
-    let proj_req:TexProjectReq  = TexProjectReq{
+    let proj_req: TexProjectReq = TexProjectReq {
         name: cp_req.name.clone(),
         template_id: None,
         folder_id: cp_req.folder_id,
@@ -486,23 +495,22 @@ fn do_copy_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
+    do_create_proj_dependencies(&proj_req,rd_user_info,connection,&proj);
     let legacy_proj_id = cp_req.legacy_proj_id.as_ref().unwrap().clone();
-    do_create_copied_proj_on_disk(&legacy_proj_id,&proj,main_name, rd_user_info);
+    do_create_copied_proj_on_disk(&legacy_proj_id, &proj, main_name, rd_user_info);
     return Ok(Some(proj));
 }
 
 pub fn do_create_copied_proj_on_disk(
     legacy_proj_id: &String,
-    proj: &TexProject, 
+    proj: &TexProject,
     main_name: &String,
-    rd_user_info: &RdUserInfo) {
+    rd_user_info: &RdUserInfo,
+) {
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let create_res = create_copied_proj_files( legacy_proj_id,&proj.project_id, main_name, &uid);
+    let create_res = create_copied_proj_files(legacy_proj_id, &proj.project_id, main_name, &uid);
     if !create_res {
-        error!(
-            "create project files failed, project: {:?}",
-            proj
-        );
+        error!("create project files failed, project: {:?}", proj);
         return;
     }
     let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
@@ -533,10 +541,12 @@ pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info
     }
 }
 
-pub fn create_copied_proj_files(legacy_proj_id: &String, 
-    proj_id: &String, 
+pub fn create_copied_proj_files(
+    legacy_proj_id: &String,
+    proj_id: &String,
     main_name: &String,
-    uid: &i64) -> bool {
+    uid: &i64,
+) -> bool {
     let legacy_proj_dir = get_proj_base_dir(legacy_proj_id);
     let proj_dir = get_proj_base_dir_instant(&proj_id);
     match create_directory_if_not_exists(&proj_dir) {
@@ -646,11 +656,7 @@ pub fn support_sync(file_full_path: &String) -> bool {
     return false;
 }
 
-pub fn copy_files_in_db(
-) -> bool {
-
-
-
+pub fn copy_files_in_db() -> bool {
     return true;
 }
 pub fn create_files_into_db(
@@ -739,8 +745,14 @@ fn read_directory(
             files.push(tex_file);
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", dir_path, dir_name);
-            let recur_result =
-                read_directory(&next_parent, &parent_folder_id, files, uid, proj_id, main_name);
+            let recur_result = read_directory(
+                &next_parent,
+                &parent_folder_id,
+                files,
+                uid,
+                proj_id,
+                main_name,
+            );
             if let Err(err) = recur_result {
                 error!(
                     "read file failed, {}, next parant: {}, dir path: {}",
