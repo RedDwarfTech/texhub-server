@@ -59,6 +59,7 @@ use crate::service::file::file_service::{get_file_by_fid, get_file_tree, get_mai
 use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
+use crate::service::project::project_editor_service::get_default_proj_ids;
 use crate::service::project::project_folder_service::create_proj_default_folder;
 use crate::service::project::project_folder_service::get_proj_default_folder;
 use crate::service::project::project_queue_service::get_proj_queue_list;
@@ -160,10 +161,14 @@ pub fn get_folder_project_impl(
         .iter()
         .map(|item| item.project_id.clone())
         .collect();
+    if proj_ids.len() == 0 {
+        return Vec::new();
+    }
+    let curr_tab_proj_ids = get_default_proj_ids(login_user_info.userId, &proj_ids);
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    query = query.filter(cv_work_table::project_id.eq_any(proj_ids));
+    query = query.filter(cv_work_table::project_id.eq_any(curr_tab_proj_ids));
     let cvs = query.load::<TexProject>(&mut get_connection());
     match cvs {
         Ok(result) => {
