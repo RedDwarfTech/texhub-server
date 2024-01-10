@@ -179,7 +179,7 @@ pub fn get_folder_project_impl(
 pub fn get_proj_by_type(
     query_params: &ProjQueryParams,
     login_user_info: &LoginUserInfo,
-    default_folder: &TexProjFolder,
+    default_folder: Option<&TexProjFolder>,
 ) -> Vec<TexProjResp> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
     let mut query = proj_editor_table::table.into_boxed::<diesel::pg::Pg>();
@@ -200,9 +200,11 @@ pub fn get_proj_by_type(
     use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
     let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
     proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
-    let folder_proj_ids =
-        get_default_folder_proj_ids(query_params, default_folder, login_user_info);
-    proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
+    if default_folder.is_some() {
+        let folder_proj_ids =
+        get_default_folder_proj_ids(query_params, default_folder.unwrap(), login_user_info);
+        proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
+    }
     let projects: Vec<TexProject> = proj_query
         .load::<TexProject>(&mut get_connection())
         .expect("get project editor failed");
