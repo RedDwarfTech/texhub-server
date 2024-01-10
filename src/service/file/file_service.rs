@@ -9,9 +9,9 @@ use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::file_ver_add::TexFileVersionAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion};
+use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::file::edit::move_file_req::MoveFileReq;
-use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::model::request::file::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
@@ -32,7 +32,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::{set_value, sync_get_str, del_redis_key};
+use rust_wheel::config::cache::redis_util::{del_redis_key, set_value, sync_get_str};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
@@ -84,10 +84,16 @@ pub fn get_main_file_list(project_id: &String) -> Option<TexFile> {
             .eq(project_id)
             .and(cv_work_table::main_flag.eq(1)),
     );
-    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
-    match cvs {
-        Ok(result) => {
-            return Some(result[0].to_owned());
+    let tex_files: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    match tex_files {
+        Ok(files) => {
+            let result = if files.len() > 0 {
+                Some(files[0].to_owned())
+            } else {
+                error!("get main files null, pid: {}", project_id);
+                None
+            };
+            return result;
         }
         Err(err) => {
             error!("get main files failed, {}", err);
@@ -121,9 +127,12 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     return contents;
 }
 
-pub fn create_file_ver(add_req: &TexFileVerAddReq, login_user_info: &LoginUserInfo) -> TexFileVersion {
+pub fn create_file_ver(
+    add_req: &TexFileVerAddReq,
+    login_user_info: &LoginUserInfo,
+) -> TexFileVersion {
     use crate::model::diesel::tex::tex_schema::tex_file_version::dsl::*;
-    let new_file = TexFileVersionAdd::gen_tex_file(add_req,login_user_info);
+    let new_file = TexFileVersionAdd::gen_tex_file(add_req, login_user_info);
     let result = diesel::insert_into(tex_file_version)
         .values(&new_file)
         .get_result::<TexFileVersion>(&mut get_connection())
@@ -131,14 +140,17 @@ pub fn create_file_ver(add_req: &TexFileVerAddReq, login_user_info: &LoginUserIn
     return result;
 }
 
-pub fn get_proj_history(history_req: &GetProjHistory, login_user_info: &LoginUserInfo) -> Vec<TexFileVersion> {
+pub fn get_proj_history(
+    history_req: &GetProjHistory,
+    login_user_info: &LoginUserInfo,
+) -> Vec<TexFileVersion> {
     use crate::model::diesel::tex::tex_schema::tex_file_version as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::project_id.eq(history_req.project_id.clone()));
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
     let files: Vec<TexFileVersion> = query
-    .load::<TexFileVersion>(&mut get_connection())
-    .expect("get project version facing error");
+        .load::<TexFileVersion>(&mut get_connection())
+        .expect("get project version facing error");
     return files;
 }
 
@@ -191,7 +203,9 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
             );
         }
     }
-    let set_result = movies.set_filterable_attributes(["name","project_id"]).await;
+    let set_result = movies
+        .set_filterable_attributes(["name", "project_id"])
+        .await;
     match set_result {
         Ok(_) => {}
         Err(se) => {
