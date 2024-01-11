@@ -385,7 +385,7 @@ fn create_default_folder(
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
     proj: &TexProject,
-) {
+) -> TexProjFolder {
     let default_folder = get_proj_default_folder(rd_user_info, connection);
     if default_folder.is_none() {
         let default_add = TexFolderReq {
@@ -406,7 +406,9 @@ fn create_default_folder(
             .values(&new_folder_map)
             .get_result::<TexProjFolderMap>(connection)
             .expect("add default folder map failed");
+        return new_default_folder;
     }
+    return default_folder;
 }
 
 fn do_create_proj_trans(
@@ -443,17 +445,23 @@ fn do_create_proj_dependencies(
     connection: &mut PgConnection,
     proj: &TexProject,
 ) {
-    create_default_folder(rd_user_info, connection, &proj);
-    if proj_req.folder_id.is_some() {
-        let edit_req: EditProjFolder = EditProjFolder {
-            project_id: proj.project_id.clone(),
-            folder_id: proj_req.folder_id.unwrap(),
-            proj_type: 1,
-        };
-        let uid: i64 = rd_user_info.id.parse().unwrap();
-        move_proj_folder(&edit_req, &uid);
-    }
-    let editor_result = create_proj_editor(&proj.project_id.clone(), rd_user_info, RoleType::Owner as i32);
+    let default_folder: TexProjFolder = create_default_folder(rd_user_info, connection, &proj);
+    let edit_req: EditProjFolder = EditProjFolder {
+        project_id: proj.project_id.clone(),
+        folder_id: if proj_req.folder_id.is_some() {
+            proj_req.folder_id.unwrap()
+        } else {
+            default_folder.id
+        },
+        proj_type: 1,
+    };
+    let uid: i64 = rd_user_info.id.parse().unwrap();
+    move_proj_folder(&edit_req, &uid);
+    let editor_result = create_proj_editor(
+        &proj.project_id.clone(),
+        rd_user_info,
+        RoleType::Owner as i32,
+    );
     if let Err(e) = editor_result {
         error!("create editor facing issue, error: {}", e)
     }
