@@ -10,9 +10,9 @@ impl From<ProjType> for i32 {
     fn from(file_type: ProjType) -> Self {
         match file_type {
             ProjType::All => 1,
-            ProjType::Shared => 1,
-            ProjType::Archived => 1,
-            ProjType::Trash => 1,
+            ProjType::Shared => 2,
+            ProjType::Archived => 3,
+            ProjType::Trash => 4,
         }
     }
 }

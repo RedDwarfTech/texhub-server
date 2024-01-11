@@ -16,6 +16,7 @@ use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
 use crate::model::diesel::custom::project::folder::folder_map_add::FolderMapAdd;
 use crate::model::diesel::custom::project::proj_type::ProjType;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
+use crate::model::diesel::custom::project::role_type::RoleType;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
@@ -108,6 +109,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
 
+use super::project_editor_service::create_proj_editor;
 use super::project_folder_map_service::move_proj_folder;
 use super::project_queue_service::get_latest_proj_queue;
 
@@ -458,6 +460,10 @@ fn do_create_proj_dependencies(
         let uid: i64 = rd_user_info.id.parse().unwrap();
         move_proj_folder(&edit_req, &uid);
     }
+    let editor_result = create_proj_editor(&proj.project_id.clone(), rd_user_info, RoleType::Owner as i32);
+    if let Err(e) = editor_result {
+        error!("create editor facing issue, error: {}", e)
+    }
 }
 
 fn do_create_tpl_proj_trans(
@@ -768,20 +774,6 @@ fn read_directory(
     }
 
     Ok(())
-}
-
-fn create_proj_editor(
-    proj_id: &String,
-    rd_user_info: &RdUserInfo,
-    rid: i32,
-) -> Result<TexProjEditor, diesel::result::Error> {
-    use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
-    let uid: i64 = rd_user_info.id.parse().unwrap();
-    let proj_editor = TexProjEditorAdd::from_req(proj_id, &uid, rid);
-    let result = diesel::insert_into(proj_editor_table::dsl::tex_proj_editor)
-        .values(&proj_editor)
-        .get_result::<TexProjEditor>(&mut get_connection());
-    return result;
 }
 
 async fn sync_file_to_yjs(proj: &TexProject, file_id: &String) {
