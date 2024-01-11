@@ -429,13 +429,6 @@ fn do_create_proj_trans(
             task::spawn(async move {
                 sync_file_to_yjs(&file_create_proj, &file.file_id).await;
             });
-            let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
-            match editor_result {
-                Ok(_) => {}
-                Err(error) => {
-                    error!("create editor error: {}", error);
-                }
-            }
         }
         Err(e) => {
             error!("create file failed,{}", e)
@@ -524,13 +517,6 @@ pub fn do_create_copied_proj_on_disk(
         error!("create project files failed, project: {:?}", proj);
         return;
     }
-    let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
-    match editor_result {
-        Ok(_) => {}
-        Err(error) => {
-            error!("create editor error: {}", error);
-        }
-    }
 }
 
 pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info: &RdUserInfo) {
@@ -542,13 +528,6 @@ pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info
             tpl, proj
         );
         return;
-    }
-    let editor_result = create_proj_editor(&proj.project_id, rd_user_info, 1);
-    match editor_result {
-        Ok(_) => {}
-        Err(error) => {
-            error!("create editor error: {}", error);
-        }
     }
 }
 
