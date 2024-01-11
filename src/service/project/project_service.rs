@@ -408,7 +408,7 @@ fn create_default_folder(
             .expect("add default folder map failed");
         return new_default_folder;
     }
-    return default_folder;
+    return default_folder.unwrap();
 }
 
 fn do_create_proj_trans(
