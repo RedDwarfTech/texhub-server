@@ -85,10 +85,7 @@ impl TexFileAdd {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
         let f_name = file_name.to_string_lossy().into_owned();
-        let is_main_file = f_name == main_name.to_owned() && stored_path == "/";
-        if f_name == "main.tex" {
-            warn!("f_name: {}, is_main_file: {}, stored path: {}", f_name, is_main_file, stored_path);
-        }
+        let is_main_file = f_name == main_name.to_owned() && (stored_path == "/" || stored_path.is_empty());
         Self {
             name: file_name.to_string_lossy().into_owned(),
             created_time: get_current_millisecond(),
