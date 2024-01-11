@@ -419,7 +419,7 @@ fn do_create_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    do_create_proj_dependencies(proj_req,rd_user_info,connection,&proj);
+    do_create_proj_dependencies(proj_req, rd_user_info, connection, &proj);
     let result = create_main_file(&proj.project_id, connection, &uid);
     match result {
         Ok(file) => {
@@ -446,8 +446,8 @@ fn do_create_proj_dependencies(
     proj_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
-    proj: &TexProject
-){
+    proj: &TexProject,
+) {
     create_default_folder(rd_user_info, connection, &proj);
     if proj_req.folder_id.is_some() {
         let edit_req: EditProjFolder = EditProjFolder {
@@ -477,7 +477,7 @@ fn do_create_tpl_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    do_create_proj_dependencies(&proj_req,rd_user_info,connection,&proj);
+    do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
     do_create_proj_on_disk(&tpl, &proj, rd_user_info);
     return Ok(Some(proj));
 }
@@ -500,7 +500,7 @@ fn do_copy_proj_trans(
         return Err(ce);
     }
     let proj = create_result.unwrap();
-    do_create_proj_dependencies(&proj_req,rd_user_info,connection,&proj);
+    do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
     let legacy_proj_id = cp_req.legacy_proj_id.as_ref().unwrap().clone();
     do_create_copied_proj_on_disk(&legacy_proj_id, &proj, main_name, rd_user_info);
     return Ok(Some(proj));
