@@ -4,6 +4,7 @@
 use std::ffi::OsString;
 
 use actix_multipart::form::tempfile::TempFile;
+use log::warn;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use serde::Serialize;
@@ -83,6 +84,11 @@ impl TexFileAdd {
     ) ->Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
+        let f_name = file_name.to_string_lossy().into_owned();
+        let is_main_file = f_name == main_name.to_owned() && stored_path == "/";
+        if f_name == "main.tex" {
+            warn!("f_name: {}, is_main_file: {}, stored path: {}", f_name, is_main_file, stored_path);
+        }
         Self {
             name: file_name.to_string_lossy().into_owned(),
             created_time: get_current_millisecond(),
@@ -93,7 +99,7 @@ impl TexFileAdd {
             file_type: file_type,
             file_id: uuid_string,
             parent: parent_id.to_string(),
-            main_flag: if file_name.to_string_lossy().into_owned() == main_name.to_owned() && stored_path == "/" {
+            main_flag: if is_main_file {
                 1
             } else {
                 0
