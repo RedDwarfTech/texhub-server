@@ -1009,6 +1009,14 @@ pub async fn del_project_cache(del_project_id: &String) {
     }
 }
 
+pub fn del_project_logic(
+    del_project_id: &String,
+    login_user_info: &LoginUserInfo,
+) -> TexProjEditor {
+    let delete_result = logic_del_project_impl(del_project_id, login_user_info);
+    return delete_result;
+}
+
 pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
     let result = connection.transaction(|connection| {
@@ -1073,6 +1081,22 @@ pub fn del_project_impl(
         .and(tex_project_table::user_id.eq(login_user_info.userId));
     let delete_result =
         diesel::delete(tex_project_table::dsl::tex_project.filter(predicate)).execute(connection);
+    return delete_result;
+}
+
+pub fn logic_del_project_impl(
+    del_project_id: &String,
+    login_user_info: &LoginUserInfo,
+) -> TexProjEditor {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as tex_project_table;
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
+    let predicate = tex_project_table::project_id
+        .eq(del_project_id)
+        .and(tex_project_table::user_id.eq(login_user_info.userId));
+    let delete_result = diesel::update(tex_proj_editor.filter(predicate))
+        .set(proj_status.eq(ProjType::Deleted as i32))
+        .get_result::<TexProjEditor>(&mut get_connection())
+        .expect("update project status facing error");
     return delete_result;
 }
 

@@ -19,7 +19,9 @@ use crate::service::file::file_service::{
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
-    handle_archive_proj, handle_compress_proj, handle_trash_proj, proj_search_impl, get_proj_folders, handle_folder_create, get_folder_project_impl, rename_proj_collection_folder, del_proj_collection_folder, do_proj_copy,
+    del_proj_collection_folder, del_project_logic, do_proj_copy, get_folder_project_impl,
+    get_proj_folders, handle_archive_proj, handle_compress_proj, handle_folder_create,
+    handle_trash_proj, proj_search_impl, rename_proj_collection_folder,
 };
 use crate::{
     model::{
@@ -40,16 +42,15 @@ use crate::{
             tex_compile_queue_req::TexCompileQueueReq,
             tex_compile_queue_status::TexCompileQueueStatus,
             tex_del_project_req::TexDelProjectReq,
-            tex_join_project_req::TexJoinProjectReq
+            tex_join_project_req::TexJoinProjectReq,
         },
     },
     service::{
         project::project_service::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
-            create_tpl_project, del_project, edit_proj, get_cached_proj_info,
-            get_cached_queue_status, get_comp_log_stream, get_compiled_log, get_pdf_pos,
-            get_proj_by_type, get_proj_latest_pdf, get_src_pos, join_project, save_proj_file,
-            send_render_req,
+            create_tpl_project, edit_proj, get_cached_proj_info, get_cached_queue_status,
+            get_comp_log_stream, get_compiled_log, get_pdf_pos, get_proj_by_type,
+            get_proj_latest_pdf, get_src_pos, join_project, save_proj_file, send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -82,8 +83,8 @@ pub async fn get_projects(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
-    let default_folder = folders.iter().find(|folder| folder.default_folder ==1);
-    let projects:Vec<TexProjResp> = get_proj_by_type(&params.0, &login_user_info, default_folder);
+    let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
+    let projects: Vec<TexProjResp> = get_proj_by_type(&params.0, &login_user_info, default_folder);
     let resp: ProjResp = ProjResp::from_req(folders, projects);
     let res = ApiResponse {
         result: resp,
@@ -162,11 +163,19 @@ pub async fn create_project_by_tpl(
 }
 
 pub async fn del_proj(
+    _form: web::Json<TexDelProjectReq>,
+    _login_user_info: LoginUserInfo,
+) -> impl Responder {
+    // del_project(&form.project_id.clone(), &login_user_info);
+    box_actix_rest_response("ok")
+}
+
+pub async fn logic_del_proj(
     form: web::Json<TexDelProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    del_project(&form.project_id.clone(), &login_user_info);
-    box_actix_rest_response("ok")
+    let proj_editor_result = del_project_logic(&form.project_id.clone(), &login_user_info);
+    box_actix_rest_response(proj_editor_result)
 }
 
 pub async fn join_proj(
@@ -355,19 +364,19 @@ pub async fn trash_project(
 }
 
 /**
- * facing content type error
- * https://stackoverflow.com/questions/77738477/content-type-error-when-using-rust-actix-download-file
- * curl http://localhost:8000/tex/project/download?project_id=1&version=1
- * curl http://localhost:8000/tex/project/compress?project_id=1&version=1
- * curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "1","version": "1"}' -o filename.zip http://localhost:8000/tex/project/download?project_id=1&version=1
- * curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "5ef2057551c24b5aa4d0e2cdadcbc524","version": "1"}'  -H "Authorization: Bearer eyJhbGciOiJIxxx" -o filename1.zip https://tex.poemhub.top/tex/project/download
+* facing content type error
+* https://stackoverflow.com/questions/77738477/content-type-error-when-using-rust-actix-download-file
+* curl http://localhost:8000/tex/project/download?project_id=1&version=1
+* curl http://localhost:8000/tex/project/compress?project_id=1&version=1
+* curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "1","version": "1"}' -o filename.zip http://localhost:8000/tex/project/download?project_id=1&version=1
+* curl -H "Content-Type: application/json" -X PUT -d '{"project_id": "5ef2057551c24b5aa4d0e2cdadcbc524","version": "1"}'  -H "Authorization: Bearer eyJhbGciOiJIxxx" -o filename1.zip https://tex.poemhub.top/tex/project/download
 
- */
+*/
 pub async fn download_project(
     req: HttpRequest,
     form: web::Json<DownloadProj>,
 ) -> actix_web::Result<impl actix_web::Responder> {
-    let path =  handle_compress_proj(&form.0);
+    let path = handle_compress_proj(&form.0);
     match NamedFile::open(&path) {
         Ok(file) => {
             let content_type: Mime = "application/zip".parse().unwrap();
@@ -419,7 +428,7 @@ pub async fn cp_proj(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     return do_proj_copy(&form.0, &login_user_info).await;
-} 
+}
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -430,6 +439,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/add", web::post().to(create_project))
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
             .route("/del", web::delete().to(del_proj))
+            .route("/", web::delete().to(logic_del_proj))
             .route("/latest/pdf", web::get().to(get_latest_pdf))
             .route("/pos/pdf", web::get().to(get_pdf_position))
             .route("/pos/src", web::get().to(get_src_position))
@@ -460,6 +470,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/perfolder", web::get().to(get_folder_projects))
             .route("/folder/rename", web::patch().to(rename_collect_folder))
             .route("/folder/del", web::delete().to(del_collect_folder))
-            .route("/copy",web::post().to(cp_proj))
+            .route("/copy", web::post().to(cp_proj)),
     );
 }
