@@ -162,7 +162,7 @@ pub async fn create_project_by_tpl(
     }
 }
 
-pub async fn del_proj(
+pub async fn _del_proj(
     _form: web::Json<TexDelProjectReq>,
     _login_user_info: LoginUserInfo,
 ) -> impl Responder {
@@ -438,7 +438,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/history", web::get().to(get_proj_his))
             .route("/add", web::post().to(create_project))
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
-            .route("/del", web::delete().to(del_proj))
             .route("/", web::delete().to(logic_del_proj))
             .route("/latest/pdf", web::get().to(get_latest_pdf))
             .route("/pos/pdf", web::get().to(get_pdf_position))
