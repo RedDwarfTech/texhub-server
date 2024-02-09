@@ -136,3 +136,14 @@ pub struct TexProjFolderMap {
     pub user_id: i64,
     pub proj_type: i32,
 }
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_snippet)]
+pub struct TexSnippet {
+    pub id: i64,
+    pub snippet: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub sort: i32,
+}

@@ -430,13 +430,6 @@ pub async fn cp_proj(
     return do_proj_copy(&form.0, &login_user_info).await;
 }
 
-pub async fn snippet_list(
-    form: actix_web_validator::Json<CopyProjReq>,
-    login_user_info: LoginUserInfo,
-) -> impl Responder {
-    return do_proj_copy(&form.0, &login_user_info).await;
-}
-
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -477,6 +470,5 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/folder/rename", web::patch().to(rename_collect_folder))
             .route("/folder/del", web::delete().to(del_collect_folder))
             .route("/copy", web::post().to(cp_proj))
-            .route("/code",web::get().to(snippet_list))
     );
 }

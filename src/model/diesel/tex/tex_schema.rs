@@ -104,6 +104,17 @@ table! {
 }
 
 table! {
+    tex_snippet (id) {
+        id -> Int8,
+        snippet -> Varchar,
+        created_time -> Int8,
+        updated_time -> Int8,
+        user_id -> Int8,
+        sort -> Int4,
+    }
+}
+
+table! {
     tex_template (id) {
         id -> Int8,
         name -> Varchar,
@@ -135,5 +146,6 @@ allow_tables_to_appear_in_same_query!(
     tex_proj_folder,
     tex_proj_folder_map,
     tex_project,
+    tex_snippet,
     tex_template,
 );
