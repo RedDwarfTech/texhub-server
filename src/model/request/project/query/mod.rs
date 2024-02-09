@@ -6,3 +6,4 @@ pub mod search_proj_params;
 pub mod get_proj_history;
 pub mod download_proj;
 pub mod folder_proj_params;
+pub mod snippet_query_params;
