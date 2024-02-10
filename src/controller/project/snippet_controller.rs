@@ -1,9 +1,9 @@
 use crate::{
     model::request::{
         project::query::snippet_query_params::SnippetQueryParams,
-        snippet::del::snippet_del::SnippetDel,
+        snippet::{del::snippet_del::SnippetDel, edit::snippet_req::SnippetReq},
     },
-    service::project::snippet_service::{del_snippet_impl, get_snippets},
+    service::project::snippet_service::{del_snippet_impl, edit_snippet_impl, get_snippets},
 };
 use actix_web::{web, Responder};
 use log::error;
@@ -21,10 +21,10 @@ pub async fn snippet_list(
 }
 
 pub async fn edit_snippet(
-    form: actix_web_validator::Json<SnippetQueryParams>,
+    form: actix_web_validator::Json<SnippetReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let snippets = get_snippets(form.0, &login_user_info).await;
+    let snippets = edit_snippet_impl(&form.0, &login_user_info);
     box_actix_rest_response(snippets)
 }
 

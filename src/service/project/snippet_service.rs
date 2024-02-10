@@ -1,5 +1,6 @@
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::tex::custom_tex_models::TexSnippet;
+use crate::model::request::snippet::edit::snippet_req::SnippetReq;
 use crate::{
     common::database::get_connection,
     model::request::project::query::snippet_query_params::SnippetQueryParams,
@@ -38,4 +39,22 @@ pub fn del_snippet_impl(
     let delete_result = diesel::delete(tex_project_table::dsl::tex_snippet.filter(predicate))
         .execute(&mut get_connection());
     return delete_result;
+}
+
+pub fn edit_snippet_impl(edit_req: &SnippetReq, login_user_info: &LoginUserInfo) -> TexSnippet {
+    use crate::model::diesel::tex::tex_schema::tex_snippet as tex_file_table;
+    use tex_file_table::dsl::*;
+    let predicate = tex_file_table::id
+        .eq(edit_req.id.clone())
+        .and(tex_file_table::user_id.eq(login_user_info.userId));
+    let update_msg = format!(
+        "unable to update tex file name, user id: {}, file_id: {}",
+        login_user_info.userId,
+        edit_req.id.clone()
+    );
+    let update_result = diesel::update(tex_snippet.filter(predicate))
+        .set(snippet.eq(edit_req.name.clone()))
+        .get_result::<TexSnippet>(&mut get_connection())
+        .expect(&update_msg);
+    return update_result;
 }
