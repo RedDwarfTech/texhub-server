@@ -293,7 +293,7 @@ pub fn rename_proj_collection_folder(
 pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
     let trans_result =
-        connection.transaction(|connection| do_folder_del(del_req, login_user_info, connection));
+        connection.transaction(|connection| do_folder_del(del_req, login_user_info));
     match trans_result {
         Ok(_) => {}
         Err(e) => {
@@ -316,7 +316,6 @@ pub async fn do_proj_copy(cp_req: &CopyProjReq, login_user_info: &LoginUserInfo)
 pub fn do_folder_del(
     del_req: &DelFolderReq,
     login_user_info: &LoginUserInfo,
-    connection: &mut PgConnection,
 ) -> Result<usize, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_folder as cv_work_table;
     // use crate::model::diesel::tex::tex_schema::tex_proj_folder::dsl::*;

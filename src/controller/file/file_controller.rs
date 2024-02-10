@@ -2,7 +2,7 @@ use crate::{
     model::{
         request::file::{
             add::file_add_req::TexFileAddReq, add::file_add_ver_req::TexFileVerAddReq,
-            edit::move_file_req::MoveFileReq, file_del::TexFileDelReq,
+            edit::move_file_req::MoveFileReq, del::file_del::TexFileDelReq,
             file_rename::TexFileRenameReq, query::file_query_params::FileQueryParams,
         },
         response::file::ws_file_detail::WsFileDetail,

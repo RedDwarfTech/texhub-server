@@ -12,7 +12,7 @@ use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion};
 use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::file::edit::move_file_req::MoveFileReq;
-use crate::model::request::file::file_del::TexFileDelReq;
+use crate::model::request::file::del::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;

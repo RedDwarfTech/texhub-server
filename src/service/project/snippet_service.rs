@@ -4,7 +4,7 @@ use crate::{
     common::database::get_connection,
     model::request::project::query::snippet_query_params::SnippetQueryParams,
 };
-use diesel::{ExpressionMethods, QueryDsl};
+use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl};
 use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
@@ -25,4 +25,17 @@ pub async fn get_snippets(
             return Vec::new();
         }
     }
+}
+
+pub fn del_snippet_impl(
+    del_id: &i64,
+    login_user_info: &LoginUserInfo,
+) -> Result<usize, diesel::result::Error> {
+    use crate::model::diesel::tex::tex_schema::tex_snippet as tex_project_table;
+    let predicate = tex_project_table::id
+        .eq(del_id)
+        .and(tex_project_table::user_id.eq(login_user_info.userId));
+    let delete_result = diesel::delete(tex_project_table::dsl::tex_snippet.filter(predicate))
+        .execute(&mut get_connection());
+    return delete_result;
 }
