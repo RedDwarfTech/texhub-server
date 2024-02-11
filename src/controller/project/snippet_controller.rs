@@ -13,7 +13,7 @@ use rust_wheel::{
 };
 
 pub async fn snippet_list(
-    form: actix_web_validator::Json<SnippetQueryParams>,
+    form: web::Query<SnippetQueryParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let snippets = get_snippets(form.0, &login_user_info).await;
