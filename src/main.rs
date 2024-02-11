@@ -2,14 +2,16 @@ extern crate openssl;
 #[macro_use]
 extern crate diesel;
 
+use crate::controller::profile::profile_controller;
 use actix_web::{App, HttpServer};
 use controller::{
-    collar::collar_controller, file::file_controller, project::{project_controller, proj_event_handler::consume_sys_events},
+    collar::collar_controller,
+    file::file_controller,
+    project::{proj_event_handler::consume_sys_events, project_controller, snippet_controller},
     template::template_controller,
 };
 use monitor::health_controller;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use crate::controller::profile::profile_controller;
 
 pub mod common;
 pub mod controller;
@@ -36,6 +38,7 @@ async fn main() -> std::io::Result<()> {
             .configure(template_controller::config)
             .configure(file_controller::config)
             .configure(profile_controller::config)
+            .configure(snippet_controller::config)
     })
     .bind(address)?
     .run()
