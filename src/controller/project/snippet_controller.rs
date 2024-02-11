@@ -43,7 +43,7 @@ pub async fn del_snippet(
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/snippet")
-            .route("/code", web::get().to(snippet_list))
+            .route("/list", web::get().to(snippet_list))
             .route("/edit", web::put().to(edit_snippet))
             .route("/del", web::delete().to(del_snippet)),
     );
