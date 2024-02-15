@@ -15,6 +15,7 @@ use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::del::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
+use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
@@ -22,17 +23,19 @@ use actix_web::HttpResponse;
 use chrono::Duration;
 use diesel::result::Error;
 use diesel::{
-    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
+    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl, QueryResult,
 };
 use log::error;
+use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
-use rust_wheel::common::util::model_convert::map_entity;
+use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
 use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{del_redis_key, set_value, sync_get_str};
+use rust_wheel::model::response::pagination_response::PaginationResponse;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
@@ -152,6 +155,21 @@ pub fn get_proj_history(
         .load::<TexFileVersion>(&mut get_connection())
         .expect("get project version facing error");
     return files;
+}
+
+pub fn get_proj_history_page_impl(params: &GetProjPageHistory) -> PaginationResponse<Vec<TexFileVersion>> {
+    use crate::model::diesel::tex::tex_schema::tex_file_version as cv_tpl_table;
+    let mut query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
+    let query = query
+        .paginate(params.page_num.unwrap_or(1).clone())
+        .per_page(params.page_size.unwrap_or(9).clone());
+    let page_result:QueryResult<(Vec<TexFileVersion>, i64, i64)> = query.load_and_count_pages_total::<TexFileVersion>(&mut get_connection());
+    let page_map_result = map_pagination_res(
+        page_result,
+        params.page_num.unwrap_or(1),
+        params.page_size.unwrap_or(10),
+    );
+    return page_map_result;
 }
 
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {

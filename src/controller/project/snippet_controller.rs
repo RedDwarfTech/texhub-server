@@ -28,6 +28,14 @@ pub async fn edit_snippet(
     box_actix_rest_response(snippets)
 }
 
+pub async fn add_snippet(
+    form: actix_web_validator::Json<SnippetReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let snippets = edit_snippet_impl(&form.0, &login_user_info);
+    box_actix_rest_response(snippets)
+}
+
 pub async fn del_snippet(
     form: actix_web_validator::Json<SnippetDel>,
     login_user_info: LoginUserInfo,
@@ -45,6 +53,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/tex/snippet")
             .route("/list", web::get().to(snippet_list))
             .route("/edit", web::put().to(edit_snippet))
+            .route("/add", web::put().to(edit_snippet))
             .route("/del", web::delete().to(del_snippet)),
     );
 }

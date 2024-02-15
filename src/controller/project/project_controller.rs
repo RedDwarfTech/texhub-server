@@ -11,11 +11,12 @@ use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::folder_proj_params::FolderProjParams;
 use crate::model::request::project::query::get_proj_history::GetProjHistory;
+use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::service::file::file_service::{
-    get_file_by_fid, get_proj_history, push_to_fulltext_search,
+    get_file_by_fid, get_proj_history, get_proj_history_page_impl, push_to_fulltext_search
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
@@ -347,6 +348,13 @@ pub async fn get_proj_his(
     box_actix_rest_response(proj_history)
 }
 
+pub async fn get_proj_his_page(
+    params: web::Query<GetProjPageHistory>
+) -> impl Responder {
+    let proj_history = get_proj_history_page_impl(&params.0);
+    box_actix_rest_response(proj_history)
+}
+
 pub async fn archive_project(
     form: web::Json<ArchiveProjReq>,
     login_user_info: LoginUserInfo,
@@ -436,6 +444,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/list", web::get().to(get_projects))
             .route("/info", web::get().to(get_project))
             .route("/history", web::get().to(get_proj_his))
+            .route("/history/page", web::get().to(get_proj_his_page))
             .route("/add", web::post().to(create_project))
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
             .route("/", web::delete().to(logic_del_proj))
