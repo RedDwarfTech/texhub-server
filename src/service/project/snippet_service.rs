@@ -62,10 +62,6 @@ pub fn edit_snippet_impl(edit_req: &SnippetReq, login_user_info: &LoginUserInfo)
 pub fn add_snippet_impl(edit_req: &SnippetReq, login_user_info: &LoginUserInfo) -> TexSnippet {
     use crate::model::diesel::tex::tex_schema::tex_snippet as tex_file_table;
     use tex_file_table::dsl::*;
-    let predicate = tex_file_table::id
-        .eq(edit_req.id.clone())
-        .and(tex_file_table::user_id.eq(login_user_info.userId));
-    
     let update_result = diesel::insert_into(tex_snippet)
         .values(snippet.eq(edit_req.name.clone()))
         .get_result::<TexSnippet>(&mut get_connection())
