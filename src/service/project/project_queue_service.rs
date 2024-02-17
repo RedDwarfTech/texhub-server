@@ -36,6 +36,9 @@ pub fn get_latest_proj_queue(req: &Vec<i32>,uid: &i64, project_id: &String) -> O
         Ok(rec) => {
             return Some(rec);
         },
+        Err(diesel::result::Error::NotFound) => {
+            return None;
+        },
         Err(e) => {
             error!("search newest queue error {}, uid: {}, project id: {}", e, uid, project_id);
             return None;
