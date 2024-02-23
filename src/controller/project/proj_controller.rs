@@ -131,6 +131,9 @@ pub async fn create_project(
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
         return box_error_actix_rest_response("", "TOO_MUCH_PROJ".to_owned(), "too much project for non-vip".to_owned());
     }
+    if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
+        return box_error_actix_rest_response("", "TOO_MUCH_PROJ".to_owned(), "too much project for vip".to_owned());
+    }
     let projects = create_empty_project(&form.0, &login_user_info).await;
     match projects {
         Ok(project) => box_actix_rest_response(project),
