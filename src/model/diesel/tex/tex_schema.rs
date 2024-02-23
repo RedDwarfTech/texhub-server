@@ -59,6 +59,7 @@ table! {
         trash -> Int4,
         archive_status -> Int4,
         proj_status -> Int4,
+        nickname -> Varchar,
     }
 }
 

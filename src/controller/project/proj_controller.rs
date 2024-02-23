@@ -22,8 +22,9 @@ use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
     del_proj_collection_folder, del_project_logic, do_proj_copy, get_folder_project_impl,
     get_proj_folders, handle_archive_proj, handle_compress_proj, handle_folder_create,
-    handle_trash_proj, proj_search_impl, rename_proj_collection_folder,
+    handle_trash_proj, proj_search_impl, rename_proj_collection_folder, TexProjectService,
 };
+use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{
     model::{
         diesel::custom::{
@@ -51,7 +52,7 @@ use crate::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
             create_tpl_project, edit_proj, get_cached_proj_info, get_cached_queue_status,
             get_comp_log_stream, get_compiled_log, get_pdf_pos, get_proj_by_type,
-            get_proj_latest_pdf, get_src_pos, join_project, save_proj_file, send_render_req,
+            get_proj_latest_pdf, get_src_pos, join_project, save_proj_file, send_render_req
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -66,6 +67,7 @@ use actix_web::{
 use log::{error, warn};
 use meilisearch_sdk::SearchResult;
 use mime::Mime;
+use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::{
     common::{
         util::net::{sse_message::SSEMessage, sse_stream::SseStream},
@@ -124,6 +126,11 @@ pub async fn create_project(
     form: actix_web_validator::Json<TexProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let ps = TexProjectService {};
+    let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
+    if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
+        return box_error_actix_rest_response("", "TOO_MUCH_PROJ".to_owned(), "too much project for non-vip".to_owned());
+    }
     let projects = create_empty_project(&form.0, &login_user_info).await;
     match projects {
         Ok(project) => box_actix_rest_response(project),
@@ -183,7 +190,7 @@ pub async fn join_proj(
     form: web::Json<TexJoinProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let result = join_project(&form.0, &login_user_info);
+    let result = join_project(&form.0, &login_user_info).await;
     let res = ApiResponse {
         result: result.unwrap(),
         ..Default::default()

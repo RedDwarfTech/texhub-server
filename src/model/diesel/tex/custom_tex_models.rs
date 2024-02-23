@@ -95,6 +95,7 @@ pub struct TexProjEditor {
     pub trash: i32,
     pub archive_status: i32,
     pub proj_status: i32,
+    pub nickname: String
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]

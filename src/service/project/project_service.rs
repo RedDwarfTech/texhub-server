@@ -108,10 +108,22 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
-
 use super::project_editor_service::create_proj_editor;
 use super::project_folder_map_service::move_proj_folder;
 use super::project_queue_service::get_latest_proj_queue;
+use super::spec::proj_spec::ProjSpec;
+
+pub struct TexProjectService {}
+
+impl ProjSpec for TexProjectService {
+    fn get_proj_count_by_uid(&self, uid: &i64) -> i64 {
+        use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
+        let cr: Result<i64, Error> = tex_project.filter(user_id.eq(uid))
+        .count()
+        .get_result(&mut get_connection());
+        cr.unwrap()
+    }
+}
 
 pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
     use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
@@ -984,11 +996,12 @@ fn get_file_relative_path(file_full_path: String, proj_dir: String) -> String {
     }
 }
 
-pub fn join_project(
+pub async fn join_project(
     req: &TexJoinProjectReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProjEditor, Error> {
-    let new_proj_editor = TexProjEditorAdd::from_req(&req.project_id, &login_user_info.userId, 2);
+    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let new_proj_editor = TexProjEditorAdd::from_req(&req.project_id, &login_user_info.userId, 2,&user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
     let result = diesel::insert_into(tex_proj_editor)
         .values(&new_proj_editor)

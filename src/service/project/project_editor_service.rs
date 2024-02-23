@@ -26,7 +26,7 @@ pub fn create_proj_editor(
 ) -> Result<TexProjEditor, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let proj_editor = TexProjEditorAdd::from_req(proj_id, &uid, rid);
+    let proj_editor = TexProjEditorAdd::from_req(proj_id, &uid, rid, &rd_user_info.nickname);
     let result = diesel::insert_into(proj_editor_table::dsl::tex_proj_editor)
         .values(&proj_editor)
         .get_result::<TexProjEditor>(&mut get_connection());
