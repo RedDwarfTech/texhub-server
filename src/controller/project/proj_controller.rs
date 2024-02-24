@@ -16,7 +16,7 @@ use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::service::file::file_service::{
-    get_file_by_fid, get_proj_history, get_proj_history_page_impl, push_to_fulltext_search
+    get_file_by_fid, get_proj_history, get_proj_history_page_impl, push_to_fulltext_search,
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
@@ -51,8 +51,8 @@ use crate::{
         project::project_service::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
             create_tpl_project, edit_proj, get_cached_proj_info, get_cached_queue_status,
-            get_comp_log_stream, get_compiled_log, get_pdf_pos, get_proj_by_type,
-            get_proj_latest_pdf, get_src_pos, join_project, save_proj_file, send_render_req
+            get_comp_log_stream, get_compiled_log, get_pdf_pos, get_proj_latest_pdf, get_src_pos,
+            join_project, save_proj_file, send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -87,7 +87,8 @@ pub async fn get_projects(
 ) -> impl Responder {
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
-    let projects: Vec<TexProjResp> = get_proj_by_type(&params.0, &login_user_info, default_folder);
+    let ps = TexProjectService {};
+    let projects: Vec<TexProjResp> = ps.get_proj_by_type(&params.0, &login_user_info, default_folder);
     let resp: ProjResp = ProjResp::from_req(folders, projects);
     let res = ApiResponse {
         result: resp,
@@ -129,10 +130,18 @@ pub async fn create_project(
     let ps = TexProjectService {};
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
-        return box_error_actix_rest_response("", "TOO_MUCH_PROJ".to_owned(), "too much project for non-vip".to_owned());
+        return box_error_actix_rest_response(
+            "",
+            "TOO_MUCH_PROJ".to_owned(),
+            "too much project for non-vip".to_owned(),
+        );
     }
     if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
-        return box_error_actix_rest_response("", "TOO_MUCH_PROJ".to_owned(), "too much project for vip".to_owned());
+        return box_error_actix_rest_response(
+            "",
+            "TOO_MUCH_PROJ".to_owned(),
+            "too much project for vip".to_owned(),
+        );
     }
     let projects = create_empty_project(&form.0, &login_user_info).await;
     match projects {
@@ -358,9 +367,7 @@ pub async fn get_proj_his(
     box_actix_rest_response(proj_history)
 }
 
-pub async fn get_proj_his_page(
-    params: web::Query<GetProjPageHistory>
-) -> impl Responder {
+pub async fn get_proj_his_page(params: web::Query<GetProjPageHistory>) -> impl Responder {
     let proj_history = get_proj_history_page_impl(&params.0);
     box_actix_rest_response(proj_history)
 }
@@ -488,6 +495,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/perfolder", web::get().to(get_folder_projects))
             .route("/folder/rename", web::patch().to(rename_collect_folder))
             .route("/folder/del", web::delete().to(del_collect_folder))
-            .route("/copy", web::post().to(cp_proj))
+            .route("/copy", web::post().to(cp_proj)),
     );
 }

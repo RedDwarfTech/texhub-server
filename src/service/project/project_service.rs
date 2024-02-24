@@ -1,3 +1,7 @@
+use super::project_editor_service::create_proj_editor;
+use super::project_folder_map_service::move_proj_folder;
+use super::project_queue_service::get_latest_proj_queue;
+use super::spec::proj_spec::ProjSpec;
 use crate::common::interop::synctex::synctex_node_visible_h;
 use crate::common::interop::synctex::synctex_node_visible_v;
 use crate::common::interop::synctex::synctex_scanner_get_name;
@@ -108,20 +112,61 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
-use super::project_editor_service::create_proj_editor;
-use super::project_folder_map_service::move_proj_folder;
-use super::project_queue_service::get_latest_proj_queue;
-use super::spec::proj_spec::ProjSpec;
 
 pub struct TexProjectService {}
 
 impl ProjSpec for TexProjectService {
     fn get_proj_count_by_uid(&self, uid: &i64) -> i64 {
         use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
-        let cr: Result<i64, Error> = tex_project.filter(user_id.eq(uid))
-        .count()
-        .get_result(&mut get_connection());
+        let cr: Result<i64, Error> = tex_project
+            .filter(user_id.eq(uid))
+            .count()
+            .get_result(&mut get_connection());
         cr.unwrap()
+    }
+
+    fn get_proj_by_type(
+        &self,
+        query_params: &ProjQueryParams,
+        login_user_info: &LoginUserInfo,
+        default_folder: Option<&TexProjFolder>,
+    ) -> Vec<TexProjResp> {
+        use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
+        let mut query = proj_editor_table::table.into_boxed::<diesel::pg::Pg>();
+        if query_params.role_id.is_some() {
+            let rid = query_params.role_id.unwrap();
+            query = query.filter(proj_editor_table::role_id.eq(rid));
+        }
+        query = query.filter(proj_editor_table::proj_status.eq(query_params.proj_type));
+        query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
+        let editors: Vec<TexProjEditor> = query
+            .load::<TexProjEditor>(&mut get_connection())
+            .expect("get project editor failed");
+        if editors.len() == 0 {
+            return Vec::new();
+        }
+        let proj_ids: Vec<String> = editors.iter().map(|item| item.project_id.clone()).collect();
+        use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
+        let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
+        proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
+        if default_folder.is_some() {
+            let folder_proj_ids =
+                get_default_folder_proj_ids(query_params, default_folder.unwrap(), login_user_info);
+            proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
+        }
+        let projects: Vec<TexProject> = proj_query
+            .load::<TexProject>(&mut get_connection())
+            .expect("get project editor failed");
+        let mut proj_resp: Vec<TexProjResp> = map_entity(projects);
+        proj_resp.iter_mut().for_each(|item1| {
+            if let Some(item2) = editors
+                .iter()
+                .find(|item2| item1.project_id == item2.project_id)
+            {
+                item1.role_id = item2.role_id.clone();
+            }
+        });
+        return proj_resp;
     }
 }
 
@@ -196,49 +241,6 @@ pub fn get_folder_project_impl(
     }
 }
 
-pub fn get_proj_by_type(
-    query_params: &ProjQueryParams,
-    login_user_info: &LoginUserInfo,
-    default_folder: Option<&TexProjFolder>,
-) -> Vec<TexProjResp> {
-    use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
-    let mut query = proj_editor_table::table.into_boxed::<diesel::pg::Pg>();
-    if query_params.role_id.is_some() {
-        let rid = query_params.role_id.unwrap();
-        query = query.filter(proj_editor_table::role_id.eq(rid));
-    }
-    query = query.filter(proj_editor_table::proj_status.eq(query_params.proj_type));
-    query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
-    let editors: Vec<TexProjEditor> = query
-        .load::<TexProjEditor>(&mut get_connection())
-        .expect("get project editor failed");
-    if editors.len() == 0 {
-        return Vec::new();
-    }
-    let proj_ids: Vec<String> = editors.iter().map(|item| item.project_id.clone()).collect();
-    use crate::model::diesel::tex::tex_schema::tex_project as tex_project_table;
-    let mut proj_query = tex_project_table::table.into_boxed::<diesel::pg::Pg>();
-    proj_query = proj_query.filter(tex_project_table::project_id.eq_any(proj_ids));
-    if default_folder.is_some() {
-        let folder_proj_ids =
-            get_default_folder_proj_ids(query_params, default_folder.unwrap(), login_user_info);
-        proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
-    }
-    let projects: Vec<TexProject> = proj_query
-        .load::<TexProject>(&mut get_connection())
-        .expect("get project editor failed");
-    let mut proj_resp: Vec<TexProjResp> = map_entity(projects);
-    proj_resp.iter_mut().for_each(|item1| {
-        if let Some(item2) = editors
-            .iter()
-            .find(|item2| item1.project_id == item2.project_id)
-        {
-            item1.role_id = item2.role_id.clone();
-        }
-    });
-    return proj_resp;
-}
-
 pub fn get_default_folder_proj_ids(
     query_params: &ProjQueryParams,
     default_folder: &TexProjFolder,
@@ -304,8 +306,7 @@ pub fn rename_proj_collection_folder(
 
 pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
-    let trans_result =
-        connection.transaction(|connection| do_folder_del(del_req, login_user_info));
+    let trans_result = connection.transaction(|connection| do_folder_del(del_req, login_user_info));
     match trans_result {
         Ok(_) => {}
         Err(e) => {
@@ -1001,7 +1002,12 @@ pub async fn join_project(
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProjEditor, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
-    let new_proj_editor = TexProjEditorAdd::from_req(&req.project_id, &login_user_info.userId, 2,&user_info.nickname);
+    let new_proj_editor = TexProjEditorAdd::from_req(
+        &req.project_id,
+        &login_user_info.userId,
+        2,
+        &user_info.nickname,
+    );
     use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
     let result = diesel::insert_into(tex_proj_editor)
         .values(&new_proj_editor)
