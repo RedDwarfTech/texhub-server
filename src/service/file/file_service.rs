@@ -146,20 +146,6 @@ pub fn create_file_ver(
     return result;
 }
 
-pub fn get_proj_history(
-    history_req: &GetProjHistory,
-    login_user_info: &LoginUserInfo,
-) -> Vec<TexFileVersion> {
-    use crate::model::diesel::tex::tex_schema::tex_file_version as cv_work_table;
-    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::project_id.eq(history_req.project_id.clone()));
-    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    let files: Vec<TexFileVersion> = query
-        .load::<TexFileVersion>(&mut get_connection())
-        .expect("get project version facing error");
-    return files;
-}
-
 pub fn get_proj_history_page_impl(params: &GetProjPageHistory) -> PaginationResponse<Vec<TexFileVersion>> {
     use crate::model::diesel::tex::tex_schema::tex_file_version as cv_tpl_table;
     let query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();

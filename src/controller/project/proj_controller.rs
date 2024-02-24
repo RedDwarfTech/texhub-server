@@ -16,7 +16,7 @@ use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::service::file::file_service::{
-    get_file_by_fid, get_proj_history, get_proj_history_page_impl, push_to_fulltext_search,
+    get_file_by_fid, get_proj_history_page_impl, push_to_fulltext_search,
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
@@ -88,7 +88,8 @@ pub async fn get_projects(
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
     let ps = TexProjectService {};
-    let projects: Vec<TexProjResp> = ps.get_proj_by_type(&params.0, &login_user_info, default_folder);
+    let projects: Vec<TexProjResp> =
+        ps.get_proj_by_type(&params.0, &login_user_info, default_folder);
     let resp: ProjResp = ProjResp::from_req(folders, projects);
     let res = ApiResponse {
         result: resp,
@@ -359,14 +360,6 @@ async fn update_proj_nickname(form: web::Json<TexFileIdxReq>) -> HttpResponse {
     box_actix_rest_response(pos)
 }
 
-pub async fn get_proj_his(
-    params: web::Query<GetProjHistory>,
-    login_user_info: LoginUserInfo,
-) -> impl Responder {
-    let proj_history = get_proj_history(&params.0, &login_user_info);
-    box_actix_rest_response(proj_history)
-}
-
 pub async fn get_proj_his_page(params: web::Query<GetProjPageHistory>) -> impl Responder {
     let proj_history = get_proj_history_page_impl(&params.0);
     box_actix_rest_response(proj_history)
@@ -460,7 +453,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/tex/project")
             .route("/list", web::get().to(get_projects))
             .route("/info", web::get().to(get_project))
-            .route("/history", web::get().to(get_proj_his))
             .route("/history/page", web::get().to(get_proj_his_page))
             .route("/add", web::post().to(create_project))
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
