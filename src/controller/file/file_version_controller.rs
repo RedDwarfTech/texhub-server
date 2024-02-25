@@ -57,7 +57,7 @@ pub async fn del_snippet(
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/tex/file/version")
+        web::scope("/tex/fileversion")
             .route("/", web::get().to(proj_version))
             .route("/edit", web::put().to(edit_snippet))
             .route("/add", web::put().to(edit_snippet))
