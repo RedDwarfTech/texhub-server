@@ -147,10 +147,11 @@ pub fn create_file_ver(
 }
 
 pub fn get_proj_history_page_impl(params: &GetProjPageHistory) -> PaginationResponse<Vec<TexFileVersion>> {
-    use crate::model::diesel::tex::tex_schema::tex_file_version as cv_tpl_table;
-    let query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
+    use crate::model::diesel::tex::tex_schema::tex_file_version as file_version_table;
+    let mut query = file_version_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(file_version_table::project_id.eq(params.project_id.clone()));
     let query = query
-        .order_by(cv_tpl_table::created_time.desc())
+        .order_by(file_version_table::created_time.desc())
         .paginate(params.page_num.unwrap_or(1).clone())
         .per_page(params.page_size.unwrap_or(9).clone());
     let page_result:QueryResult<(Vec<TexFileVersion>, i64, i64)> = query.load_and_count_pages_total::<TexFileVersion>(&mut get_connection());

@@ -28,7 +28,7 @@ pub fn get_proj_history(
             return None;
         },
         Err(e) => {
-            error!("search newest queue error {}", e);
+            error!("get file snapshot error {}", e);
             return None;
         },
     }
