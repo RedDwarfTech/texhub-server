@@ -177,7 +177,7 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
     if !cvs.is_empty() {
         return box_error_actix_rest_response(
             "already exists",
-            "ALREADY_EXISTS".to_owned(),
+            "RESOURCE_ALREADY_EXISTS".to_owned(),
             "file/folder already exists".to_owned(),
         );
     }
