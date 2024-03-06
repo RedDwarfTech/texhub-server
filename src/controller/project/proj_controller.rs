@@ -133,14 +133,14 @@ pub async fn create_project(
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
         return box_error_actix_rest_response(
             "",
-            "TOO_MUCH_PROJ".to_owned(),
+            "NON_VIP_TOO_MUCH_PROJ".to_owned(),
             "too much project for non-vip".to_owned(),
         );
     }
     if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
         return box_error_actix_rest_response(
             "",
-            "TOO_MUCH_PROJ".to_owned(),
+            "VIP_TOO_MUCH_PROJ".to_owned(),
             "too much project for vip".to_owned(),
         );
     }
