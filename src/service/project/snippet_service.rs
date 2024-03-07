@@ -59,7 +59,7 @@ pub fn edit_snippet_impl(edit_req: &SnippetReq, login_user_info: &LoginUserInfo)
     return update_result;
 }
 
-pub fn add_snippet_impl(edit_req: &SnippetReq, login_user_info: &LoginUserInfo) -> TexSnippet {
+pub fn add_snippet_impl(edit_req: &SnippetReq) -> TexSnippet {
     use crate::model::diesel::tex::tex_schema::tex_snippet as tex_file_table;
     use tex_file_table::dsl::*;
     let update_result = diesel::insert_into(tex_snippet)

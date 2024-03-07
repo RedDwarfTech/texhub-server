@@ -356,8 +356,9 @@ pub async fn create_empty_project(
 ) -> Result<TexProject, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result =
-        connection.transaction(|connection| do_create_proj_trans(proj_req, &user_info, connection));
+    let trans_result = connection.transaction(|connection| {
+        do_create_proj_trans(proj_req, &user_info, connection, login_user_info)
+    });
     return trans_result;
 }
 
@@ -367,8 +368,9 @@ pub async fn create_tpl_project(
 ) -> Result<Option<TexProject>, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result = connection
-        .transaction(|connection| do_create_tpl_proj_trans(&tex_tpl, &user_info, connection));
+    let trans_result = connection.transaction(|connection| {
+        do_create_tpl_proj_trans(&tex_tpl, &user_info, connection, login_user_info)
+    });
     return trans_result;
 }
 
@@ -388,7 +390,13 @@ pub async fn create_cp_project(
     };
     let main_name: String = proj.main_file.name.clone();
     let trans_result = connection.transaction(|connection| {
-        do_copy_proj_trans(&main_name, &proj_req, &user_info, connection)
+        do_copy_proj_trans(
+            &main_name,
+            &proj_req,
+            &user_info,
+            connection,
+            login_user_info,
+        )
     });
     return trans_result;
 }
@@ -427,6 +435,7 @@ fn do_create_proj_trans(
     proj_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
+    login_user_info: &LoginUserInfo,
 ) -> Result<TexProject, Error> {
     let uid: i64 = rd_user_info.id.parse().unwrap();
     let create_result = create_proj(proj_req, connection, rd_user_info);
@@ -440,8 +449,9 @@ fn do_create_proj_trans(
     match result {
         Ok(file) => {
             let file_create_proj = proj.clone();
+            let u_copy = login_user_info.clone();
             task::spawn(async move {
-                sync_file_to_yjs(&file_create_proj, &file.file_id).await;
+                sync_file_to_yjs(&file_create_proj, &file.file_id, &u_copy).await;
             });
         }
         Err(e) => {
@@ -483,6 +493,7 @@ fn do_create_tpl_proj_trans(
     tpl: &TexTemplate,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
+    login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
     let proj_req: TexProjectReq = TexProjectReq {
         name: tpl.name.clone(),
@@ -497,7 +508,7 @@ fn do_create_tpl_proj_trans(
     }
     let proj = create_result.unwrap();
     do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
-    do_create_proj_on_disk(&tpl, &proj, rd_user_info);
+    do_create_proj_on_disk(&tpl, &proj, rd_user_info, login_user_info);
     return Ok(Some(proj));
 }
 
@@ -506,6 +517,7 @@ fn do_copy_proj_trans(
     cp_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
+    login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
     let proj_req: TexProjectReq = TexProjectReq {
         name: cp_req.name.clone(),
@@ -521,7 +533,13 @@ fn do_copy_proj_trans(
     let proj = create_result.unwrap();
     do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
     let legacy_proj_id = cp_req.legacy_proj_id.as_ref().unwrap().clone();
-    do_create_copied_proj_on_disk(&legacy_proj_id, &proj, main_name, rd_user_info);
+    do_create_copied_proj_on_disk(
+        &legacy_proj_id,
+        &proj,
+        main_name,
+        rd_user_info,
+        login_user_info,
+    );
     return Ok(Some(proj));
 }
 
@@ -530,18 +548,30 @@ pub fn do_create_copied_proj_on_disk(
     proj: &TexProject,
     main_name: &String,
     rd_user_info: &RdUserInfo,
+    login_user_info: &LoginUserInfo,
 ) {
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let create_res = create_copied_proj_files(legacy_proj_id, &proj.project_id, main_name, &uid);
+    let create_res = create_copied_proj_files(
+        legacy_proj_id,
+        &proj.project_id,
+        main_name,
+        &uid,
+        login_user_info,
+    );
     if !create_res {
         error!("create project files failed, project: {:?}", proj);
         return;
     }
 }
 
-pub fn do_create_proj_on_disk(tpl: &TexTemplate, proj: &TexProject, rd_user_info: &RdUserInfo) {
+pub fn do_create_proj_on_disk(
+    tpl: &TexTemplate,
+    proj: &TexProject,
+    rd_user_info: &RdUserInfo,
+    login_user_info: &LoginUserInfo,
+) {
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    let create_res = create_proj_files(tpl, &proj.project_id, &uid);
+    let create_res = create_proj_files(tpl, &proj.project_id, &uid, login_user_info);
     if !create_res {
         error!(
             "create project files failed,tpl: {:?}, project: {:?}",
@@ -556,6 +586,7 @@ pub fn create_copied_proj_files(
     proj_id: &String,
     main_name: &String,
     uid: &i64,
+    login_user_info: &LoginUserInfo,
 ) -> bool {
     let legacy_proj_dir = get_proj_base_dir(legacy_proj_id);
     let proj_dir = get_proj_base_dir_instant(&proj_id);
@@ -571,10 +602,15 @@ pub fn create_copied_proj_files(
         );
         return false;
     }
-    return create_files_into_db(&proj_dir, proj_id, uid, main_name);
+    return create_files_into_db(&proj_dir, proj_id, uid, main_name, login_user_info);
 }
 
-pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool {
+pub fn create_proj_files(
+    tpl: &TexTemplate,
+    proj_id: &String,
+    uid: &i64,
+    login_user_info: &LoginUserInfo,
+) -> bool {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
     let proj_dir = get_proj_base_dir_instant(&proj_id);
@@ -590,7 +626,13 @@ pub fn create_proj_files(tpl: &TexTemplate, proj_id: &String, uid: &i64) -> bool
         );
         return false;
     }
-    return create_files_into_db(&proj_dir, proj_id, uid, &tpl.main_file_name);
+    return create_files_into_db(
+        &proj_dir,
+        proj_id,
+        uid,
+        &tpl.main_file_name,
+        login_user_info,
+    );
 }
 
 fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
@@ -622,7 +664,7 @@ fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
+pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>, login_user_info: &LoginUserInfo) {
     for file in files {
         let proj_base_dir = get_proj_base_dir_instant(&file.project_id);
         let file_full_path = join_paths(&[
@@ -639,7 +681,13 @@ pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>) {
                 );
                 return;
             }
-            initial_file_request(&file.project_id, &file.file_id, &file_content.unwrap()).await;
+            initial_file_request(
+                &file.project_id,
+                &file.file_id,
+                &file_content.unwrap(),
+                login_user_info,
+            )
+            .await;
         }
     }
 }
@@ -674,6 +722,7 @@ pub fn create_files_into_db(
     proj_id: &String,
     uid: &i64,
     main_name: &String,
+    login_user_info: &LoginUserInfo,
 ) -> bool {
     let mut files: Vec<TexFileAdd> = Vec::new();
     let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, &main_name);
@@ -699,10 +748,11 @@ pub fn create_files_into_db(
         error!("write files into db facing issue,{}", err);
         return false;
     }
+    let u_copy = login_user_info.clone();
     task::spawn_blocking({
         move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(init_project_into_yjs(&files));
+            rt.block_on(init_project_into_yjs(&files, &u_copy));
         }
     });
     return true;
@@ -775,14 +825,14 @@ fn read_directory(
     Ok(())
 }
 
-async fn sync_file_to_yjs(proj: &TexProject, file_id: &String) {
+async fn sync_file_to_yjs(proj: &TexProject, file_id: &String, login_user_info: &LoginUserInfo) {
     let file_folder = get_proj_base_dir(&proj.project_id);
     match create_directory_if_not_exists(&file_folder) {
         Ok(()) => {}
         Err(e) => error!("create directory failed,{}", e),
     }
     let default_tex = get_app_config("texhub.default_tex_document");
-    initial_file_request(&proj.project_id, file_id, &default_tex).await;
+    initial_file_request(&proj.project_id, file_id, &default_tex, login_user_info).await;
 }
 
 fn create_main_file(
