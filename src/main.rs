@@ -41,6 +41,7 @@ async fn main() -> std::io::Result<()> {
             .configure(snippet_controller::config)
             .configure(file_version_controller::config)
     })
+    .workers(3)
     .bind(address)?
     .run()
     .await
