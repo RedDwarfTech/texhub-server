@@ -1,3 +1,4 @@
+use crate::common::database::get_connection;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
@@ -421,7 +422,7 @@ pub async fn mv_proj_folder(
     form: actix_web_validator::Json<EditProjFolder>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    move_proj_folder(&form.0, &login_user_info.userId);
+    move_proj_folder(&form.0, &login_user_info.userId, &mut get_connection());
     box_actix_rest_response("ok")
 }
 

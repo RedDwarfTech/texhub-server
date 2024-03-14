@@ -455,7 +455,7 @@ fn do_create_proj_trans(
             });
         }
         Err(e) => {
-            error!("create file failed,{}", e)
+            error!("create main file failed,{}", e)
         }
     }
     return Ok(proj);
@@ -478,11 +478,12 @@ fn do_create_proj_dependencies(
         proj_type: 1,
     };
     let uid: i64 = rd_user_info.id.parse().unwrap();
-    move_proj_folder(&edit_req, &uid);
+    move_proj_folder(&edit_req, &uid, connection);
     let editor_result = create_proj_editor(
         &proj.project_id.clone(),
         rd_user_info,
         RoleType::Owner as i32,
+        connection
     );
     if let Err(e) = editor_result {
         error!("create editor facing issue, error: {}", e)
