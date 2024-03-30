@@ -57,10 +57,26 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     }
     let file = &files[0];
     let file_json = serde_json::to_string(file).unwrap();
-    let one_day = Duration::days(1);
-    let seconds_in_one_day = one_day.num_seconds();
+    let one_day = Duration::try_days(1);
+    let seconds_in_one_day = one_day.unwrap().num_seconds();
     set_value(&file_cached_key, &file_json, seconds_in_one_day as usize).unwrap();
     return Some(file.to_owned());
+}
+
+pub fn get_file_by_ids(ids: &Vec<String>) -> Vec<TexFile> {
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::file_id.eq_any(ids));
+    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return result;
+        }
+        Err(err) => {
+            error!("get files failed, {}", err);
+            return Vec::new();
+        }
+    }
 }
 
 pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
@@ -391,18 +407,20 @@ fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error>
     Ok(())
 }
 
-pub async fn mv_file_impl(
-    edit_req: &MoveFileReq,
+pub fn mv_file_impl(
+    move_req: &MoveFileReq,
     login_user_info: &LoginUserInfo,
+    src_file: &TexFile,
+    dist_file: &TexFile,
 ) -> Result<Option<TexFile>, Error> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
     let mut connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> = connection.transaction(|connection| {
-        let proj_dir = get_proj_base_dir(&edit_req.project_id);
-        if edit_req.file_type == ThFileType::Folder as i32 {
-            let src_dir = join_paths(&[proj_dir.clone(), edit_req.src_path.clone()]);
-            let dist_dir = join_paths(&[proj_dir.clone(), edit_req.dist_path.clone()]);
+        let proj_dir = get_proj_base_dir(&move_req.project_id);
+        if src_file.file_type == ThFileType::Folder as i32 {
+            let src_dir = join_paths(&[proj_dir.clone(), src_file.file_path.clone()]);
+            let dist_dir = join_paths(&[proj_dir.clone(), dist_file.file_path.clone()]);
             let m_result = move_directory(&src_dir, &dist_dir);
             if let Err(err) = m_result {
                 error!(
@@ -414,13 +432,13 @@ pub async fn mv_file_impl(
         } else {
             let src_path = join_paths(&[
                 proj_dir.clone(),
-                edit_req.src_path.clone(),
-                edit_req.file_name.clone(),
+                src_file.file_path.clone(),
+                src_file.name.clone(),
             ]);
             let dist_path = join_paths(&[
                 proj_dir.clone(),
-                edit_req.dist_path.clone(),
-                edit_req.file_name.clone(),
+                dist_file.file_path.clone(),
+                dist_file.name.clone(),
             ]);
             let fm = fs::rename(&src_path, &dist_path);
             if let Err(err) = fm {
@@ -432,17 +450,17 @@ pub async fn mv_file_impl(
             }
         }
         let predicate = tex_file_table::file_id
-            .eq(edit_req.file_id.clone())
+            .eq(move_req.file_id.clone())
             .and(tex_file_table::user_id.eq(login_user_info.userId))
-            .and(tex_file_table::project_id.eq(edit_req.project_id.clone()));
-        let new_relative_path = if edit_req.file_type == ThFileType::Folder as i32 {
-            join_paths(&[edit_req.dist_path.clone(), edit_req.file_name.clone()])
+            .and(tex_file_table::project_id.eq(move_req.project_id.clone()));
+        let new_relative_path = if src_file.file_type == ThFileType::Folder as i32 {
+            join_paths(&[dist_file.file_path.clone(), dist_file.name.clone()])
         } else {
-            edit_req.dist_path.clone()
+            dist_file.file_path.clone()
         };
         let update_result = diesel::update(tex_file.filter(predicate))
             .set((
-                parent.eq(edit_req.parent_id.clone()),
+                parent.eq(src_file.parent.clone()),
                 file_path.eq(new_relative_path),
             ))
             .get_result::<TexFile>(connection)

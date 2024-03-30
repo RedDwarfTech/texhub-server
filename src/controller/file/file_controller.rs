@@ -1,16 +1,18 @@
 use crate::{
     model::{
         request::file::{
-            add::file_add_req::TexFileAddReq, add::file_add_ver_req::TexFileVerAddReq,
-            edit::move_file_req::MoveFileReq, del::file_del::TexFileDelReq,
-            file_rename::TexFileRenameReq, query::file_query_params::FileQueryParams,
+            add::{file_add_req::TexFileAddReq, file_add_ver_req::TexFileVerAddReq},
+            del::file_del::TexFileDelReq,
+            edit::move_file_req::MoveFileReq,
+            file_rename::TexFileRenameReq,
+            query::file_query_params::FileQueryParams,
         },
         response::file::ws_file_detail::WsFileDetail,
     },
     service::{
         file::file_service::{
             create_file, create_file_ver, delete_file_recursive, file_init_complete,
-            get_file_by_fid, get_file_list, get_file_tree, get_main_file_list,
+            get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
             get_text_file_code, mv_file_impl, rename_trans,
         },
         project::project_service::{del_project_cache, get_cached_proj_info},
@@ -124,7 +126,22 @@ pub async fn move_node(
     form: actix_web_validator::Json<MoveFileReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let move_result = mv_file_impl(&form.0, &login_user_info).await;
+    let mut ids = Vec::new();
+    ids.push(form.0.file_id.clone());
+    ids.push(form.0.dist_file_id.clone());
+    let db_files = get_file_by_ids(&ids);
+    let src_file = db_files.clone()
+        .into_iter()
+        .find(|f| f.file_id.eq(&form.0.file_id.clone()));
+    let dist_file = db_files
+        .into_iter()
+        .find(|f| f.file_id.eq(&form.0.dist_file_id.clone()));
+    let move_result = mv_file_impl(
+        &form.0,
+        &login_user_info,
+        &src_file.unwrap(),
+        &dist_file.unwrap(),
+    );
     if let Err(err) = &move_result {
         error!("move file failed,{}", err);
         box_error_actix_rest_response("failed", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
