@@ -464,7 +464,7 @@ pub fn mv_file_impl(
         };
         let update_result = diesel::update(tex_file.filter(predicate))
             .set((
-                parent.eq(src_file.parent.clone()),
+                parent.eq(dist_file.file_id.clone()),
                 file_path.eq(new_relative_path),
             ))
             .get_result::<TexFile>(connection)
