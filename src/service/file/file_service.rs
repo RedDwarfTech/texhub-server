@@ -8,7 +8,7 @@ use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::file_ver_add::TexFileVersionAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
-use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion};
+use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion, TexFolderTree};
 use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::file::del::file_del::TexFileDelReq;
@@ -16,6 +16,7 @@ use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
+use crate::model::response::file::folder_tree_resp::FolderTreeResp;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_web::HttpResponse;
@@ -543,7 +544,7 @@ pub fn get_file_tree(parent_id: &String) -> Vec<FileTreeResp> {
     }
 }
 
-pub fn get_folder_tree(parent_id: &String) -> Vec<FileTreeResp> {
+pub fn get_folder_tree(parent_id: &String) -> Vec<FolderTreeResp> {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::parent.eq(parent_id));
@@ -562,7 +563,7 @@ pub fn get_folder_tree(parent_id: &String) -> Vec<FileTreeResp> {
 pub fn find_folder_sub_menu_cte_impl(
     _root_menus: &Vec<TexFile>,
     root_id: &String,
-) -> Vec<FileTreeResp> {
+) -> Vec<FolderTreeResp> {
     let mut connection = get_connection();
     let cte_query_sub_menus = format!(
         " with recursive sub_files as (
@@ -613,10 +614,10 @@ pub fn find_folder_sub_menu_cte_impl(
         root_id
     );
     let cte_menus = sql_query(cte_query_sub_menus)
-        .load::<TexFile>(&mut connection)
+        .load::<TexFolderTree>(&mut connection)
         .expect("Error find file");
-    let menu_resource_resp: Vec<FileTreeResp> = map_entity(cte_menus);
-    return convert_to_tree_impl(&menu_resource_resp, root_id);
+    let menu_resource_resp: Vec<FolderTreeResp> = map_entity(cte_menus);
+    return convert_folder_to_tree_impl(&menu_resource_resp, root_id);
 }
 
 pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> Vec<FileTreeResp> {
@@ -692,6 +693,19 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
 }
 
 fn convert_to_tree_impl(contents: &Vec<FileTreeResp>, root_id: &str) -> Vec<FileTreeResp> {
+    let root_element: Vec<_> = contents
+        .iter()
+        .filter(|content| content.parent == root_id)
+        .collect();
+    let sub_element: Vec<_> = contents
+        .iter()
+        .filter(|content| content.parent != root_id)
+        .collect();
+    let result = convert_to_tree(&root_element, &sub_element);
+    return result;
+}
+
+fn convert_folder_to_tree_impl(contents: &Vec<FolderTreeResp>, root_id: &str) -> Vec<FolderTreeResp> {
     let root_element: Vec<_> = contents
         .iter()
         .filter(|content| content.parent == root_id)

@@ -81,6 +81,20 @@ pub struct TexFile {
     pub file_path: String
 }
 
+#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
+#[diesel(table_name = tex_file)]
+#[serde(default)]
+pub struct TexFolderTree {
+    pub id: i64,
+    pub name: String,
+    pub project_id: String,
+    pub file_type: i32,
+    pub file_id: String,
+    pub parent: String,
+    pub sort: i32,
+    pub file_path: String
+}
+
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
 #[diesel(table_name = tex_proj_editor)]
 pub struct TexProjEditor {
