@@ -442,7 +442,7 @@ pub fn mv_file_impl(
             let dist_path = join_paths(&[
                 proj_dir.clone(),
                 dist_file.file_path.clone(),
-                dist_file.name.clone(),
+                "/".to_owned(),
             ]);
             let fm = fs::rename(&src_path, &dist_path);
             if let Err(err) = fm {
