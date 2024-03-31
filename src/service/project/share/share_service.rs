@@ -8,7 +8,7 @@ use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub async fn get_collar_users(
-    params: ShareQueryParams,
+    _params: ShareQueryParams,
     login_user_info: &LoginUserInfo,
 ) -> Vec<TexProjEditor> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as cv_work_table;

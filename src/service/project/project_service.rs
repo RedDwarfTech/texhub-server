@@ -306,7 +306,7 @@ pub fn rename_proj_collection_folder(
 
 pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
-    let trans_result = connection.transaction(|connection| do_folder_del(del_req, login_user_info));
+    let trans_result = connection.transaction(|_connection| do_folder_del(del_req, login_user_info));
     match trans_result {
         Ok(_) => {}
         Err(e) => {

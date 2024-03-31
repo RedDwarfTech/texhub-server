@@ -10,7 +10,7 @@ use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub async fn get_snippets(
-    params: SnippetQueryParams,
+    _params: SnippetQueryParams,
     login_user_info: &LoginUserInfo,
 ) -> Vec<TexSnippet> {
     use crate::model::diesel::tex::tex_schema::tex_snippet as cv_work_table;

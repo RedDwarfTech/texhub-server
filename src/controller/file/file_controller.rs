@@ -11,9 +11,7 @@ use crate::{
     },
     service::{
         file::file_service::{
-            create_file, create_file_ver, delete_file_recursive, file_init_complete,
-            get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
-            get_text_file_code, mv_file_impl, rename_trans,
+            create_file, create_file_ver, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_folder_tree, get_main_file_list, get_text_file_code, mv_file_impl, rename_trans
         },
         project::project_service::{del_project_cache, get_cached_proj_info},
     },
@@ -77,6 +75,11 @@ pub async fn get_file_code(params: web::Query<FileCodeParams>) -> impl Responder
 
 pub async fn get_files_tree(params: web::Query<AppParams>) -> impl Responder {
     let docs = get_file_tree(&params.parent);
+    box_actix_rest_response(docs)
+}
+
+pub async fn get_proj_folder_tree(params: web::Query<AppParams>) -> impl Responder {
+    let docs = get_folder_tree(&params.parent);
     box_actix_rest_response(docs)
 }
 
@@ -165,6 +168,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/list", web::get().to(get_files))
             .route("/add", web::post().to(add_file))
             .route("/tree", web::get().to(get_files_tree))
+            .route("/folder/tree", web::get().to(get_proj_folder_tree))
             .route("/ver/add", web::post().to(add_file_version))
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))

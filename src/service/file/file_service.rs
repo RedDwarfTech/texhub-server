@@ -14,7 +14,6 @@ use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::del::file_del::TexFileDelReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
-use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
@@ -540,6 +539,95 @@ pub fn get_file_tree(parent_id: &String) -> Vec<FileTreeResp> {
     }
 }
 
+pub fn get_folder_tree(parent_id: &String) -> Vec<FileTreeResp> {
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::parent.eq(parent_id));
+    let cvs = query.load::<TexFile>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return find_folder_sub_menu_cte_impl(&result, parent_id);
+        }
+        Err(err) => {
+            error!("get project folder failed, {}", err);
+            return Vec::new();
+        }
+    }
+}
+
+pub fn find_folder_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> Vec<FileTreeResp> {
+    let mut connection = get_connection();
+    let cte_query_sub_menus = format!(
+        " with recursive sub_files as (
+        select 
+          id, 
+          name, 
+          file_id, 
+          sort,
+          created_time,
+          updated_time,
+          user_id,
+          doc_status,
+          project_id,
+          file_type,
+          parent,
+          main_flag,
+          yjs_initial,
+          file_path 
+        from 
+          tex_file mr 
+        where 
+          parent = '{}'
+          and file_type = 0
+        union all 
+        select 
+          origin.id, 
+          origin.name, 
+          origin.file_id, 
+          origin.sort,
+          origin.created_time,
+          origin.updated_time,
+          origin.user_id,
+          origin.doc_status,
+          origin.project_id,
+          origin.file_type,
+          origin.parent,
+          origin.main_flag,
+          origin.yjs_initial,
+          origin.file_path 
+        from 
+          sub_files 
+          join tex_file origin on origin.parent = sub_files.file_id
+      ) 
+      select 
+        id, 
+        name, 
+        file_id, 
+        sort,
+        created_time,
+        updated_time,
+        user_id,
+        doc_status,
+        project_id,
+        file_type,
+        parent,
+        main_flag,
+        yjs_initial,
+        file_path 
+      from 
+        sub_files 
+      order by 
+        sort asc;      
+    ",
+        root_id
+    );
+    let cte_menus = sql_query(cte_query_sub_menus)
+        .load::<TexFile>(&mut connection)
+        .expect("Error find file");
+    let menu_resource_resp: Vec<FileTreeResp> = map_entity(cte_menus);
+    return convert_to_tree_impl(&menu_resource_resp, root_id);
+}
+
 pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> Vec<FileTreeResp> {
     let mut connection = get_connection();
     let cte_query_sub_menus = format!(
@@ -562,7 +650,7 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
         from 
           tex_file mr 
         where 
-          parent = '{}' 
+          parent = '{}'
         union all 
         select 
           origin.id, 

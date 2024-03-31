@@ -11,7 +11,6 @@ use crate::model::request::project::edit::rename_proj_folder::RenameProjFolder;
 use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::folder_proj_params::FolderProjParams;
-use crate::model::request::project::query::get_proj_history::GetProjHistory;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::response::project::proj_resp::ProjResp;
