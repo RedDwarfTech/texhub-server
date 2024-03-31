@@ -158,8 +158,7 @@ pub async fn move_node(
         );
     }
     del_project_cache(&db_file.clone().unwrap().project_id).await;
-    let proj_file_tree = get_file_tree(&db_file.unwrap().project_id);
-    box_actix_rest_response(proj_file_tree)
+    box_actix_rest_response("ok")
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
