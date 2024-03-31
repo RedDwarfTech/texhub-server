@@ -11,8 +11,8 @@ use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion};
 use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
-use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::del::file_del::TexFileDelReq;
+use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
@@ -22,7 +22,8 @@ use actix_web::HttpResponse;
 use chrono::Duration;
 use diesel::result::Error;
 use diesel::{
-    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl, QueryResult,
+    sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
+    QueryResult,
 };
 use log::error;
 use rust_wheel::common::query::pagination::Paginate;
@@ -161,7 +162,9 @@ pub fn create_file_ver(
     return result;
 }
 
-pub fn get_proj_history_page_impl(params: &GetProjPageHistory) -> PaginationResponse<Vec<TexFileVersion>> {
+pub fn get_proj_history_page_impl(
+    params: &GetProjPageHistory,
+) -> PaginationResponse<Vec<TexFileVersion>> {
     use crate::model::diesel::tex::tex_schema::tex_file_version as file_version_table;
     let mut query = file_version_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(file_version_table::project_id.eq(params.project_id.clone()));
@@ -169,7 +172,8 @@ pub fn get_proj_history_page_impl(params: &GetProjPageHistory) -> PaginationResp
         .order_by(file_version_table::created_time.desc())
         .paginate(params.page_num.unwrap_or(1).clone())
         .per_page(params.page_size.unwrap_or(9).clone());
-    let page_result:QueryResult<(Vec<TexFileVersion>, i64, i64)> = query.load_and_count_pages_total::<TexFileVersion>(&mut get_connection());
+    let page_result: QueryResult<(Vec<TexFileVersion>, i64, i64)> =
+        query.load_and_count_pages_total::<TexFileVersion>(&mut get_connection());
     let page_map_result = map_pagination_res(
         page_result,
         params.page_num.unwrap_or(1),
@@ -555,69 +559,56 @@ pub fn get_folder_tree(parent_id: &String) -> Vec<FileTreeResp> {
     }
 }
 
-pub fn find_folder_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> Vec<FileTreeResp> {
+pub fn find_folder_sub_menu_cte_impl(
+    _root_menus: &Vec<TexFile>,
+    root_id: &String,
+) -> Vec<FileTreeResp> {
     let mut connection = get_connection();
     let cte_query_sub_menus = format!(
         " with recursive sub_files as (
-        select 
-          id, 
-          name, 
-          file_id, 
-          sort,
-          created_time,
-          updated_time,
-          user_id,
-          doc_status,
-          project_id,
-          file_type,
-          parent,
-          main_flag,
-          yjs_initial,
-          file_path 
-        from 
-          tex_file mr 
-        where 
-          parent = '{}'
-          and file_type = 0
-        union all 
-        select 
-          origin.id, 
-          origin.name, 
-          origin.file_id, 
-          origin.sort,
-          origin.created_time,
-          origin.updated_time,
-          origin.user_id,
-          origin.doc_status,
-          origin.project_id,
-          origin.file_type,
-          origin.parent,
-          origin.main_flag,
-          origin.yjs_initial,
-          origin.file_path 
-        from 
-          sub_files 
-          join tex_file origin on origin.parent = sub_files.file_id
-      ) 
-      select 
-        id, 
-        name, 
-        file_id, 
-        sort,
-        created_time,
-        updated_time,
-        user_id,
-        doc_status,
-        project_id,
-        file_type,
-        parent,
-        main_flag,
-        yjs_initial,
-        file_path 
-      from 
-        sub_files 
-      order by 
-        sort asc;      
+            select 
+              id, 
+              name, 
+              sort,
+              file_id, 
+              project_id,
+              file_type,
+              parent,
+              file_path 
+            from 
+              tex_file mr 
+            where 
+              parent = '{}'
+              and file_type = 0
+            union all 
+            select 
+              origin.id, 
+              origin.name,
+              origin.sort,
+              origin.file_id,           
+              origin.project_id,
+              origin.file_type,
+              origin.parent,
+              origin.file_path 
+            from 
+              sub_files
+            join tex_file origin 
+            on origin.parent = sub_files.file_id
+            where origin.file_type = 0
+          ) 
+          select 
+            id, 
+            name, 
+            sort,
+            file_id, 
+            project_id,
+            file_type,
+            parent,
+            file_path 
+          from 
+            sub_files 
+          order by 
+            sort asc;      
     ",
         root_id
     );
