@@ -443,6 +443,7 @@ pub fn mv_file_impl(
                 proj_dir.clone(),
                 dist_file.file_path.clone(),
                 "/".to_owned(),
+                src_file.name.clone()
             ]);
             let fm = fs::rename(&src_path, &dist_path);
             if let Err(err) = fm {
