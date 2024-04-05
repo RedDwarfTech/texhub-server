@@ -17,4 +17,5 @@ COPY --from=builder /home/rust/src/log4rs.yaml /app
 COPY --from=builder /home/rust/src/target/x86_64-unknown-linux-musl/release/texhub-server /app/
 RUN apk update && apk add curl websocat zlib zlib-dev openssl-dev openssl tzdata
 ENV TZ=Asia/Shanghai
+RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 CMD ["./texhub-server"]
