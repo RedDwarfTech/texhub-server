@@ -18,4 +18,6 @@ COPY --from=builder /home/rust/src/target/x86_64-unknown-linux-musl/release/texh
 RUN apk update && apk add curl websocat zlib zlib-dev openssl-dev openssl tzdata musl-locales
 ENV TZ=Asia/Shanghai
 RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+RUN echo 'export LC_ALL=en_GB.UTF-8' >> /etc/profile.d/locale.sh && \
+  sed -i 's|LANG=C.UTF-8|LANG=en_GB.UTF-8|' /etc/profile.d/locale.sh
 CMD ["./texhub-server"]
