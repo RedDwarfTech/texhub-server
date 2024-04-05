@@ -136,6 +136,12 @@ pub async fn move_node(
     let src_file = db_files.clone()
         .into_iter()
         .find(|f| f.file_id.eq(&form.0.file_id.clone()));
+    if src_file.is_none() {
+        return box_error_actix_rest_response("failed", "FILE_NOT_FOUND".to_owned(), "".to_owned());
+    }
+    if src_file.clone().unwrap().main_flag == 1 {
+        return box_error_actix_rest_response("failed", "CANNOT_MOVE_MAIN".to_owned(), "".to_owned());
+    }
     let dist_file = db_files
         .into_iter()
         .find(|f| f.file_id.eq(&form.0.dist_file_id.clone()));
@@ -147,7 +153,7 @@ pub async fn move_node(
     );
     if let Err(err) = &move_result {
         error!("move file failed,{}", err);
-        box_error_actix_rest_response("failed", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
+        return box_error_actix_rest_response("failed", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
     }
     let db_file = move_result.unwrap();
     if db_file.is_none() {

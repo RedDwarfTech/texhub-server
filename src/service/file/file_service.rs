@@ -439,6 +439,7 @@ pub fn mv_file_impl(
                 src_file.file_path.clone(),
                 src_file.name.clone(),
             ]);
+            // https://stackoverflow.com/questions/78251705/is-a-directory-os-error-21-when-using-rust-to-move-a-file
             let dist_path = join_paths(&[
                 proj_dir.clone(),
                 dist_file.file_path.clone(),
