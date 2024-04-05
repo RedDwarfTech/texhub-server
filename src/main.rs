@@ -1,6 +1,10 @@
 extern crate openssl;
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate rust_i18n;
+
+i18n!("locales");
 
 use crate::controller::profile::profile_controller;
 use actix_web::{App, HttpServer};

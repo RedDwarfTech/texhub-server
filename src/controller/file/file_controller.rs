@@ -22,6 +22,7 @@ use rust_wheel::{
     common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
+use rust_i18n::t;
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
@@ -137,10 +138,12 @@ pub async fn move_node(
         .into_iter()
         .find(|f| f.file_id.eq(&form.0.file_id.clone()));
     if src_file.is_none() {
-        return box_error_actix_rest_response("failed", "FILE_NOT_FOUND".to_owned(), "".to_owned());
+        return box_error_actix_rest_response("failed", "FILE_NOT_FOUND".to_owned(), "文件未找到".to_owned());
     }
     if src_file.clone().unwrap().main_flag == 1 {
-        return box_error_actix_rest_response("failed", "CANNOT_MOVE_MAIN".to_owned(), "".to_owned());
+        return box_error_actix_rest_response("failed", 
+        "CANNOT_MOVE_MAIN".to_owned(), 
+        t!("err_cannot_mv_main").to_string());
     }
     let dist_file = db_files
         .into_iter()

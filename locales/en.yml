@@ -1,0 +1,2 @@
+hello: 'Hello world'
+err_cannot_mv_main: 'Can not move main file'

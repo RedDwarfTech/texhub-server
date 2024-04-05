@@ -1,0 +1,2 @@
+hello: '你好'
+err_cannot_mv_main: '不能移动主文件'
