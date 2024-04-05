@@ -30,6 +30,7 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    rust_i18n::set_locale("zh-CN");
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     let port: u16 = get_app_config("texhub.port").parse().unwrap();
     let address = ("0.0.0.0", port);
