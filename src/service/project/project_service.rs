@@ -306,7 +306,8 @@ pub fn rename_proj_collection_folder(
 
 pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
-    let trans_result = connection.transaction(|_connection| do_folder_del(del_req, login_user_info));
+    let trans_result =
+        connection.transaction(|_connection| do_folder_del(del_req, login_user_info));
     match trans_result {
         Ok(_) => {}
         Err(e) => {
@@ -483,7 +484,7 @@ fn do_create_proj_dependencies(
         &proj.project_id.clone(),
         rd_user_info,
         RoleType::Owner as i32,
-        connection
+        connection,
     );
     if let Err(e) = editor_result {
         error!("create editor facing issue, error: {}", e)
@@ -856,8 +857,12 @@ pub async fn save_proj_file(
     let proj_id = proj_upload.project_id.clone();
     let parent = proj_upload.parent.clone();
     for tmp_file in proj_upload.files {
-        if tmp_file.size > 1024*1024 {
-            return box_error_actix_rest_response("", "LIMIT".to_owned(), "exceed limit".to_owned());
+        if tmp_file.size > 1024 * 1024 {
+            return box_error_actix_rest_response(
+                "",
+                "001002P001".to_owned(),
+                "exceed limit".to_owned(),
+            );
         }
         let db_file = get_file_by_fid(&proj_upload.parent).unwrap();
         let store_file_path = get_proj_base_dir(&proj_upload.project_id);
