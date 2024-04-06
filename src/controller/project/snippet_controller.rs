@@ -37,7 +37,7 @@ pub async fn add_snippet(
 }
 
 pub async fn del_snippet(
-    form: actix_web_validator::Json<SnippetDel>,
+    form: actix_web_validator::Query<SnippetDel>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let result = del_snippet_impl(&form.0.id, &login_user_info);
