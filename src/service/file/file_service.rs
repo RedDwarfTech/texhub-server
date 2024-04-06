@@ -41,6 +41,21 @@ use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
 
+use super::spec::file_spec::FileSpec;
+
+pub struct TexFileService {}
+
+impl FileSpec for TexFileService {
+    fn get_proj_file_count(&self, proj_id: &str) -> i64{
+        use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;  
+        let count = cv_work_table::table
+        .filter(cv_work_table::project_id.eq(proj_id))
+        .count()
+        .get_result(&mut get_connection()).unwrap(); 
+        return count;
+    }
+}
+
 pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);

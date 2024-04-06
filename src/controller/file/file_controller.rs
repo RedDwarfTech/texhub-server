@@ -10,19 +10,24 @@ use crate::{
         response::file::ws_file_detail::WsFileDetail,
     },
     service::{
-        file::file_service::{
-            create_file, create_file_ver, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_folder_tree, get_main_file_list, get_text_file_code, mv_file_impl, rename_trans
+        file::{
+            file_service::{
+                create_file, create_file_ver, delete_file_recursive, file_init_complete,
+                get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_folder_tree,
+                get_main_file_list, get_text_file_code, mv_file_impl, rename_trans, TexFileService,
+            },
+            spec::file_spec::FileSpec,
         },
         project::project_service::{del_project_cache, get_cached_proj_info},
     },
 };
 use actix_web::{web, HttpResponse, Responder};
 use log::error;
+use rust_i18n::t;
 use rust_wheel::{
     common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
-use rust_i18n::t;
 
 #[derive(serde::Deserialize)]
 pub struct AppParams {
@@ -88,6 +93,15 @@ pub async fn add_file(
     form: actix_web_validator::Json<TexFileAddReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let fs = TexFileService {};
+    let file_count = fs.get_proj_file_count(&form.0.project_id);
+    if file_count > 1000 {
+        return box_error_actix_rest_response(
+            "",
+            "001002D001".to_owned(),
+            "exceed the file limit".to_owned(),
+        );
+    }
     return create_file(&form.0, &login_user_info).await;
 }
 
@@ -134,16 +148,23 @@ pub async fn move_node(
     ids.push(form.0.file_id.clone());
     ids.push(form.0.dist_file_id.clone());
     let db_files = get_file_by_ids(&ids);
-    let src_file = db_files.clone()
+    let src_file = db_files
+        .clone()
         .into_iter()
         .find(|f| f.file_id.eq(&form.0.file_id.clone()));
     if src_file.is_none() {
-        return box_error_actix_rest_response("failed", "FILE_NOT_FOUND".to_owned(), "文件未找到".to_owned());
+        return box_error_actix_rest_response(
+            "failed",
+            "FILE_NOT_FOUND".to_owned(),
+            "文件未找到".to_owned(),
+        );
     }
     if src_file.clone().unwrap().main_flag == 1 {
-        return box_error_actix_rest_response("", 
-        "001001P001".to_owned(), 
-        t!("err_cannot_mv_main").to_string());
+        return box_error_actix_rest_response(
+            "",
+            "001001P001".to_owned(),
+            t!("err_cannot_mv_main").to_string(),
+        );
     }
     let dist_file = db_files
         .into_iter()
@@ -156,7 +177,11 @@ pub async fn move_node(
     );
     if let Err(err) = &move_result {
         error!("move file failed,{}", err);
-        return box_error_actix_rest_response("failed", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
+        return box_error_actix_rest_response(
+            "failed",
+            "MOVE_FILE_FAILED".to_owned(),
+            "".to_owned(),
+        );
     }
     let db_file = move_result.unwrap();
     if db_file.is_none() {
