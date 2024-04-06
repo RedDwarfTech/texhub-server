@@ -53,7 +53,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/tex/snippet")
             .route("/list", web::get().to(snippet_list))
             .route("/edit", web::put().to(edit_snippet))
-            .route("/add", web::put().to(add_snippet))
+            .route("/add", web::post().to(add_snippet))
             .route("/del", web::delete().to(del_snippet)),
     );
 }
