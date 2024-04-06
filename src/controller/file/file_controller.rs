@@ -141,8 +141,8 @@ pub async fn move_node(
         return box_error_actix_rest_response("failed", "FILE_NOT_FOUND".to_owned(), "文件未找到".to_owned());
     }
     if src_file.clone().unwrap().main_flag == 1 {
-        return box_error_actix_rest_response("failed", 
-        "CANNOT_MOVE_MAIN".to_owned(), 
+        return box_error_actix_rest_response("", 
+        "001001P001".to_owned(), 
         t!("err_cannot_mv_main").to_string());
     }
     let dist_file = db_files

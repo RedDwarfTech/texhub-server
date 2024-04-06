@@ -1,5 +1,7 @@
 use crate::diesel::RunQueryDsl;
+use crate::model::diesel::custom::project::snippet::snippet_add::SnippetAdd;
 use crate::model::diesel::tex::custom_tex_models::TexSnippet;
+use crate::model::request::snippet::add::add_snippet_req::AddSnippetReq;
 use crate::model::request::snippet::edit::snippet_req::SnippetReq;
 use crate::{
     common::database::get_connection,
@@ -59,11 +61,12 @@ pub fn edit_snippet_impl(edit_req: &SnippetReq, login_user_info: &LoginUserInfo)
     return update_result;
 }
 
-pub fn add_snippet_impl(edit_req: &SnippetReq) -> TexSnippet {
+pub fn add_snippet_impl(add_req: &AddSnippetReq, login_user_info: &LoginUserInfo) -> TexSnippet {
     use crate::model::diesel::tex::tex_schema::tex_snippet as tex_file_table;
     use tex_file_table::dsl::*;
+    let new_file = SnippetAdd::gen_snippet(add_req, login_user_info);
     let update_result = diesel::insert_into(tex_snippet)
-        .values(snippet.eq(edit_req.name.clone()))
+        .values(&new_file)
         .get_result::<TexSnippet>(&mut get_connection())
         .expect("add snippet failed");
     return update_result;

@@ -6,3 +6,4 @@ pub mod upload;
 pub mod folder;
 pub mod proj_type;
 pub mod role_type;
+pub mod snippet;

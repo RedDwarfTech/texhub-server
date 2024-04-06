@@ -161,4 +161,5 @@ pub struct TexSnippet {
     pub updated_time: i64,
     pub user_id: i64,
     pub sort: i32,
+    pub title: String,
 }

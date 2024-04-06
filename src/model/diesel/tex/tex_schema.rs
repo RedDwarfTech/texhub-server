@@ -112,6 +112,7 @@ table! {
         updated_time -> Int8,
         user_id -> Int8,
         sort -> Int4,
+        title -> Varchar,
     }
 }
 

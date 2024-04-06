@@ -1,9 +1,9 @@
 use crate::{
     model::request::{
         project::query::snippet_query_params::SnippetQueryParams,
-        snippet::{del::snippet_del::SnippetDel, edit::snippet_req::SnippetReq},
+        snippet::{add::add_snippet_req::AddSnippetReq, del::snippet_del::SnippetDel, edit::snippet_req::SnippetReq},
     },
-    service::project::snippet_service::{del_snippet_impl, edit_snippet_impl, get_snippets},
+    service::project::snippet_service::{add_snippet_impl, del_snippet_impl, edit_snippet_impl, get_snippets},
 };
 use actix_web::{web, Responder};
 use log::error;
@@ -29,10 +29,10 @@ pub async fn edit_snippet(
 }
 
 pub async fn add_snippet(
-    form: actix_web_validator::Json<SnippetReq>,
+    form: actix_web_validator::Json<AddSnippetReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let snippets = edit_snippet_impl(&form.0, &login_user_info);
+    let snippets = add_snippet_impl(&form.0, &login_user_info);
     box_actix_rest_response(snippets)
 }
 
@@ -53,7 +53,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/tex/snippet")
             .route("/list", web::get().to(snippet_list))
             .route("/edit", web::put().to(edit_snippet))
-            .route("/add", web::put().to(edit_snippet))
+            .route("/add", web::put().to(add_snippet))
             .route("/del", web::delete().to(del_snippet)),
     );
 }
