@@ -852,11 +852,13 @@ fn create_main_file(
 pub async fn save_proj_file(
     proj_upload: ProjUploadFile,
     login_user_info: &LoginUserInfo,
-) -> Vec<TexFile> {
+) -> HttpResponse {
     let proj_id = proj_upload.project_id.clone();
     let parent = proj_upload.parent.clone();
-    let mut files: Vec<TexFile> = Vec::new();
     for tmp_file in proj_upload.files {
+        if tmp_file.size > 1024*1024 {
+            return box_error_actix_rest_response("", "LIMIT".to_owned(), "exceed limit".to_owned());
+        }
         let db_file = get_file_by_fid(&proj_upload.parent).unwrap();
         let store_file_path = get_proj_base_dir(&proj_upload.project_id);
         let f_name = tmp_file.file_name;
@@ -873,12 +875,11 @@ pub async fn save_proj_file(
                 "Failed to save upload file to disk,{}, file path: {}",
                 e, file_path
             );
-            return files;
+            // return box_error_actix_rest_response("", "", msg);
         }
         let copy_result = fs::copy(&temp_path, &file_path.as_str());
         if let Err(e) = copy_result {
             error!("copy file failed, {}", e);
-            return files;
         } else {
             fs::remove_file(temp_path).expect("remove file failed");
         }
@@ -891,12 +892,10 @@ pub async fn save_proj_file(
         );
         if let Err(e) = create_result {
             error!("create project file failed,{}", e);
-            return files;
         }
         del_project_cache(&proj_id).await;
-        files.push(create_result.unwrap());
     }
-    return files;
+    return box_actix_rest_response("ok");
 }
 
 fn create_proj_file_impl(

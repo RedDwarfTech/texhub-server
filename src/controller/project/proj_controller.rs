@@ -309,8 +309,7 @@ async fn upload_proj_file(
     MultipartForm(form): MultipartForm<ProjUploadFile>,
     login_user_info: LoginUserInfo,
 ) -> HttpResponse {
-    let files = save_proj_file(form, &login_user_info).await;
-    box_actix_rest_response(files)
+    return save_proj_file(form, &login_user_info).await;
 }
 
 async fn get_pdf_position(form: web::Query<GetPdfPosParams>) -> HttpResponse {
