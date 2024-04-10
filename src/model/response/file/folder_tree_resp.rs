@@ -1,4 +1,4 @@
-use crate::model::diesel::tex::custom_tex_models::TexFolderTree;
+use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFolderTree};
 use rust_wheel::common::util::convert_to_tree_generic::IntoTree;
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +41,21 @@ impl From<&TexFolderTree> for FolderTreeResp {
             file_path: p.file_path.clone(),
             file_id: p.file_id.clone(),
             parent: p.parent.clone(),
+        }
+    }
+}
+
+impl FolderTreeResp {
+    pub fn new_virtual_root(tex_file: &TexFile, children: Vec<FolderTreeResp>) -> Self {
+        Self {
+            children: children,
+            id: tex_file.id,
+            name: tex_file.name.clone(),
+            project_id: tex_file.project_id.to_string(),
+            file_type: tex_file.file_type,
+            file_path: tex_file.file_path.to_string(),
+            file_id: tex_file.file_id.to_string(),
+            parent: tex_file.parent.to_string(),
         }
     }
 }
