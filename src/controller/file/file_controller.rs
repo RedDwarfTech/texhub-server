@@ -13,8 +13,8 @@ use crate::{
         file::{
             file_service::{
                 create_file, create_file_ver, delete_file_recursive, file_init_complete,
-                get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_folder_tree,
-                get_main_file_list, get_text_file_code, mv_file_impl, rename_trans, TexFileService,
+                get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
+                get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService,
             },
             spec::file_spec::FileSpec,
         },
@@ -85,7 +85,7 @@ pub async fn get_files_tree(params: web::Query<AppParams>) -> impl Responder {
 }
 
 pub async fn get_proj_folder_tree(params: web::Query<AppParams>) -> impl Responder {
-    let docs = get_folder_tree(&params.parent);
+    let docs = proj_folder_tree(&params.parent);
     box_actix_rest_response(docs)
 }
 

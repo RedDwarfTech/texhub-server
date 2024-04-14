@@ -561,18 +561,10 @@ pub fn get_file_tree(parent_id: &String) -> Vec<FileTreeResp> {
     }
 }
 
-pub fn get_folder_tree(parent_id: &String) -> Option<FolderTreeResp> {
-    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
-    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::file_id.eq(parent_id));
-    let cvs = query.first::<TexFile>(&mut get_connection());
-    if let Err(err) = cvs {
-        error!("get project folder failed, {}", err);
-        return None;
-    }
+pub fn proj_folder_tree(parent_id: &String) -> Option<FolderTreeResp> {
     let sub_tree = find_folder_sub_menu_cte_impl( parent_id);
     // add the virtual root node
-    let virtual_root_node = FolderTreeResp::new_virtual_root(&cvs.unwrap(), sub_tree);
+    let virtual_root_node = FolderTreeResp::new_virtual_root(parent_id, sub_tree);
     return Some(virtual_root_node);
 }
 
