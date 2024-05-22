@@ -1,7 +1,10 @@
 use crate::{
-    model::request::{
-        project::query::share_query_params::ShareQueryParams,
-        snippet::{del::snippet_del::SnippetDel, edit::snippet_req::SnippetReq},
+    model::{
+        request::{
+            project::query::share_query_params::ShareQueryParams,
+            snippet::{del::snippet_del::SnippetDel, edit::snippet_req::SnippetReq},
+        },
+        response::project::share::tex_proj_share_resp::TexProjShareResp,
     },
     service::project::{
         share::share_service::get_collar_users,
@@ -11,7 +14,10 @@ use crate::{
 use actix_web::{web, Responder};
 use log::error;
 use rust_wheel::{
-    common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
+    common::{
+        util::model_convert::map_entity,
+        wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
+    },
     model::user::login_user_info::LoginUserInfo,
 };
 
@@ -19,8 +25,9 @@ pub async fn proj_share_list(
     form: web::Query<ShareQueryParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let collar_users = get_collar_users(form.0, &login_user_info).await;
-    box_actix_rest_response(collar_users)
+    let collar_users = get_collar_users(&form.0, &login_user_info).await;
+    let resp: Vec<TexProjShareResp> = map_entity(collar_users);
+    box_actix_rest_response(resp)
 }
 
 pub async fn edit_snippet(

@@ -11,7 +11,7 @@ use actix_web::{App, HttpServer};
 use controller::{
     collar::collar_controller,
     file::{file_controller, file_version_controller},
-    project::{proj_controller, proj_event_handler::consume_sys_events, snippet_controller},
+    project::{proj_controller, proj_event_handler::consume_sys_events, share::proj_share_controller, snippet_controller},
     template::template_controller,
 };
 use monitor::health_controller;
@@ -44,6 +44,7 @@ async fn main() -> std::io::Result<()> {
             .configure(file_controller::config)
             .configure(profile_controller::config)
             .configure(snippet_controller::config)
+            .configure(proj_share_controller::config)
             .configure(file_version_controller::config)
     })
     .workers(3)

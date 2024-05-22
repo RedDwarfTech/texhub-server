@@ -1,18 +1,18 @@
-use crate::model::diesel::tex::custom_tex_models::{TexCompQueue, TexProjEditor};
+use crate::model::diesel::tex::custom_tex_models::TexProjEditor;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Default)]
 #[allow(non_snake_case)]
 pub struct TexProjShareResp {
     pub collar_status: i32,
-    pub queue: TexCompQueue,
+    pub nickname: String,
 }
 
-impl From<(TexProjEditor, TexCompQueue)> for TexProjShareResp {
-    fn from(items: (TexProjEditor, TexCompQueue)) -> Self {
+impl From<&TexProjEditor> for TexProjShareResp {
+    fn from(item: &TexProjEditor) -> Self {
         Self {
-            collar_status: 1,
-            queue: items.1,
+            collar_status: item.collar_status,
+            nickname: item.nickname.clone(),
         }
     }
 }

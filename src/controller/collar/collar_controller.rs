@@ -15,5 +15,8 @@ pub async fn get_demo(_params: web::Query<AppParams>) -> impl Responder {
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/alt/app").route("/list", web::get().to(get_demo)));
+    cfg.service(
+        web::scope("/collar")
+            .route("/list", web::get().to(get_demo)),
+    );
 }
