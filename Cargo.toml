@@ -9,7 +9,7 @@ edition = "2021"
 validator = { version = "0.16.1", features = ["derive"] }
 serde = { version = "1.0.64", features = ["derive"] }
 serde_json = "1.0.64"
-rust_wheel = { git = "https://github.com/jiangxiaoqiang/rust_wheel.git", branch = "diesel2.0", features = [
+rust_wheel = { git = "https://github.com/jiangxiaoqiang/rust_wheel.git", branch = "main", features = [
     "model",
     "common",
     "rwconfig",

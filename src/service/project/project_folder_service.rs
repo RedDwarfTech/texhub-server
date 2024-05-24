@@ -10,7 +10,7 @@ pub fn get_proj_default_folder(
 ) -> Option<TexProjFolder> {
     use crate::model::diesel::tex::tex_schema::tex_proj_folder as folder_table;
     let mut query = folder_table::table.into_boxed::<diesel::pg::Pg>();
-    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id;
     query = query.filter(folder_table::user_id.eq(uid));
     query = query.filter(folder_table::default_folder.eq(1));
     query = query.filter(folder_table::proj_type.eq(1));
@@ -31,7 +31,7 @@ pub fn create_proj_default_folder(
     rd_user_info: &RdUserInfo,
     folder_add: &TexFolderReq,
 ) -> TexProjFolder {
-    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id;
     let new_proj = FolderAdd::from_req(folder_add, &uid);
     use crate::model::diesel::tex::tex_schema::tex_proj_folder::dsl::*;
     let result = diesel::insert_into(tex_proj_folder)

@@ -415,7 +415,7 @@ fn create_default_folder(
             default_folder: 1,
         };
         let new_default_folder = create_proj_default_folder(connection, rd_user_info, &default_add);
-        let uid: i64 = rd_user_info.id.parse().unwrap();
+        let uid: i64 = rd_user_info.id;
         let map_add = EditProjFolder {
             proj_type: 1,
             project_id: proj.project_id.clone(),
@@ -438,7 +438,7 @@ fn do_create_proj_trans(
     connection: &mut PgConnection,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProject, Error> {
-    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id;
     let create_result = create_proj(proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
@@ -478,7 +478,7 @@ fn do_create_proj_dependencies(
         },
         proj_type: 1,
     };
-    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id;
     move_proj_folder(&edit_req, &uid, connection);
     let editor_result = create_proj_editor(
         &proj.project_id.clone(),
@@ -552,7 +552,7 @@ pub fn do_create_copied_proj_on_disk(
     rd_user_info: &RdUserInfo,
     login_user_info: &LoginUserInfo,
 ) {
-    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id;
     let create_res = create_copied_proj_files(
         legacy_proj_id,
         &proj.project_id,
@@ -572,8 +572,7 @@ pub fn do_create_proj_on_disk(
     rd_user_info: &RdUserInfo,
     login_user_info: &LoginUserInfo,
 ) {
-    let uid: i64 = rd_user_info.id.parse().unwrap();
-    let create_res = create_proj_files(tpl, &proj.project_id, &uid, login_user_info);
+    let create_res = create_proj_files(tpl, &proj.project_id, &rd_user_info.id, login_user_info);
     if !create_res {
         error!(
             "create project files failed,tpl: {:?}, project: {:?}",
@@ -929,7 +928,7 @@ fn create_proj(
     connection: &mut PgConnection,
     rd_user_info: &RdUserInfo,
 ) -> Result<TexProject, diesel::result::Error> {
-    let uid: i64 = rd_user_info.id.parse().unwrap();
+    let uid: i64 = rd_user_info.id;
     let new_proj = TexProjectAdd::from_req(&proj_req.name, &uid, &rd_user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)

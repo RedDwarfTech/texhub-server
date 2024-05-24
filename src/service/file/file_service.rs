@@ -60,8 +60,8 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
     let cached_file = sync_get_str(&file_cached_key).unwrap();
-    if cached_file.is_some() {
-        let tf: TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
+    if !cached_file.is_empty() {
+        let tf: TexFile = serde_json::from_str(&cached_file).unwrap();
         return Some(tf);
     }
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
