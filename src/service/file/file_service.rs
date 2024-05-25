@@ -61,8 +61,12 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
     let cached_file = sync_get_str(&file_cached_key).unwrap();
     if !cached_file.is_empty() {
-        let tf: TexFile = serde_json::from_str(&cached_file).unwrap();
-        return Some(tf);
+        let tf = serde_json::from_str(&cached_file);
+        if let Err(e) = tf {
+            error!("parse cached file facing issue,{}", e);
+        }else{
+            return Some(tf.unwrap());
+        }
     }
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
