@@ -322,7 +322,7 @@ async fn get_src_position(form: web::Query<GetSrcPosParams>) -> HttpResponse {
     box_actix_rest_response(pos)
 }
 
-async fn proj_search(form: web::Query<SearchProjParams>) -> HttpResponse {
+async fn proj_search(form: actix_web_validator::Query<SearchProjParams>) -> HttpResponse {
     let pos = proj_search_impl(&form.0).await;
     if pos.is_some() {
         let searched_files = pos.unwrap().clone();
