@@ -132,7 +132,7 @@ pub async fn create_project(
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
         return box_error_actix_rest_response(
-            "",
+            "too much project for non-vip",
             "NON_VIP_TOO_MUCH_PROJ".to_owned(),
             "too much project for non-vip".to_owned(),
         );
