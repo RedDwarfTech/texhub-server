@@ -139,7 +139,7 @@ pub async fn create_project(
     }
     if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
         return box_error_actix_rest_response(
-            "oo much project for vip",
+            "too much project for vip",
             "VIP_TOO_MUCH_PROJ".to_owned(),
             "too much project for vip".to_owned(),
         );
