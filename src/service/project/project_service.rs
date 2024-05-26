@@ -190,10 +190,12 @@ pub fn get_proj_folders(
     query_params: &ProjQueryParams,
     login_user_info: &LoginUserInfo,
 ) -> Vec<TexProjFolder> {
-    use crate::model::diesel::tex::tex_schema::tex_proj_folder as cv_work_table;
-    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    query = query.filter(cv_work_table::proj_type.eq(query_params.proj_type));
+    use crate::model::diesel::tex::tex_schema::tex_proj_folder as proj_folder_table;
+    let mut query = proj_folder_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query
+        .order_by(proj_folder_table::created_time.desc())
+        .filter(proj_folder_table::user_id.eq(login_user_info.userId));
+    query = query.filter(proj_folder_table::proj_type.eq(query_params.proj_type));
     let cvs = query.load::<TexProjFolder>(&mut get_connection());
     match cvs {
         Ok(result) => {
@@ -298,7 +300,10 @@ pub fn rename_proj_collection_folder(
         .eq(edit_req.folder_id.clone())
         .and(cv_work_table::user_id.eq(login_user_info.userId));
     let update_result = diesel::update(tex_proj_folder.filter(predicate))
-        .set(folder_name.eq(&edit_req.folder_name))
+        .set((
+            folder_name.eq(&edit_req.folder_name),
+            updated_time.eq(get_current_millisecond()),
+        ))
         .get_result::<TexProjFolder>(&mut get_connection())
         .expect("unable to rename project folder name");
     return update_result;
