@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct TexProjShareResp {
     pub collar_status: i32,
     pub nickname: String,
+    pub created_time: i64,
+    pub role_id: i32,
 }
 
 impl From<&TexProjEditor> for TexProjShareResp {
@@ -13,6 +15,8 @@ impl From<&TexProjEditor> for TexProjShareResp {
         Self {
             collar_status: item.collar_status,
             nickname: item.nickname.clone(),
+            created_time: item.created_time,
+            role_id: item.role_id
         }
     }
 }
