@@ -5,15 +5,13 @@ use crate::{
 };
 use diesel::{ExpressionMethods, QueryDsl};
 use log::error;
-use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub async fn get_collar_users(
-    _params: &ShareQueryParams,
-    login_user_info: &LoginUserInfo,
+    params: &ShareQueryParams,
 ) -> Vec<TexProjEditor> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
+    query = query.filter(cv_work_table::project_id.eq(params.project_id.clone()));
     let cvs = query.load::<TexProjEditor>(&mut get_connection());
     match cvs {
         Ok(result) => {

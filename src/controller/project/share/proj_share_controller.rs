@@ -23,9 +23,8 @@ use rust_wheel::{
 
 pub async fn proj_share_list(
     form: web::Query<ShareQueryParams>,
-    login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let collar_users = get_collar_users(&form.0, &login_user_info).await;
+    let collar_users = get_collar_users(&form.0).await;
     let resp: Vec<TexProjShareResp> = map_entity(collar_users);
     box_actix_rest_response(resp)
 }
