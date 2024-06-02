@@ -14,13 +14,13 @@ use crate::common::interop::synctex::{
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::zip::compress::gen_zip;
 use crate::diesel::RunQueryDsl;
+use crate::model::dict::role_type::RoleType;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
 use crate::model::diesel::custom::project::folder::folder_map_add::FolderMapAdd;
 use crate::model::diesel::custom::project::proj_type::ProjType;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
-use crate::model::diesel::custom::project::role_type::RoleType;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
