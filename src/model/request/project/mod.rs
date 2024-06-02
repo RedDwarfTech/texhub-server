@@ -9,3 +9,4 @@ pub mod query;
 pub mod edit;
 pub mod add;
 pub mod del;
+pub mod share;

@@ -1,15 +1,11 @@
 use crate::{
     model::{
-        request::{
-            project::query::share_query_params::ShareQueryParams,
-            snippet::{del::snippet_del::SnippetDel, edit::snippet_req::SnippetReq},
+        request::project::{
+            query::share_query_params::ShareQueryParams, share::share_del::ShareDel,
         },
         response::project::share::tex_proj_share_resp::TexProjShareResp,
     },
-    service::project::{
-        share::share_service::get_collar_users,
-        snippet_service::{del_snippet_impl, edit_snippet_impl},
-    },
+    service::project::share::share_service::{del_share_bind_impl, get_collar_users},
 };
 use actix_web::{web, Responder};
 use log::error;
@@ -21,41 +17,23 @@ use rust_wheel::{
     model::user::login_user_info::LoginUserInfo,
 };
 
-pub async fn proj_share_list(
-    form: web::Query<ShareQueryParams>,
-) -> impl Responder {
+pub async fn proj_share_list(form: web::Query<ShareQueryParams>) -> impl Responder {
     let collar_users = get_collar_users(&form.0).await;
     let resp: Vec<TexProjShareResp> = map_entity(collar_users);
     box_actix_rest_response(resp)
 }
 
-pub async fn edit_snippet(
-    form: actix_web_validator::Json<SnippetReq>,
+pub async fn del_share_bind(
+    params: actix_web_validator::Query<ShareDel>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let snippets = edit_snippet_impl(&form.0, &login_user_info);
-    box_actix_rest_response(snippets)
-}
-
-pub async fn add_snippet(
-    form: actix_web_validator::Json<SnippetReq>,
-    login_user_info: LoginUserInfo,
-) -> impl Responder {
-    let snippets = edit_snippet_impl(&form.0, &login_user_info);
-    box_actix_rest_response(snippets)
-}
-
-pub async fn del_snippet(
-    form: actix_web_validator::Json<SnippetDel>,
-    login_user_info: LoginUserInfo,
-) -> impl Responder {
-    let result = del_snippet_impl(&form.0.id, &login_user_info);
+    let result = del_share_bind_impl(&params.0, &login_user_info);
     if let Err(e) = result {
-        error!("del snippet failed, {}", e);
+        error!("del share bind, {}", e);
         return box_error_actix_rest_response(
             "",
             "del_failed".to_owned(),
-            "del snippet failed".to_owned(),
+            "del share bind failed".to_owned(),
         );
     }
     box_actix_rest_response("ok")
@@ -65,8 +43,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/share")
             .route("/list", web::get().to(proj_share_list))
-            .route("/edit", web::put().to(edit_snippet))
-            .route("/add", web::put().to(edit_snippet))
-            .route("/del", web::delete().to(del_snippet)),
+            .route("/del", web::delete().to(del_share_bind)),
     );
 }
