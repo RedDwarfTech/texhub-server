@@ -46,12 +46,13 @@ use super::spec::file_spec::FileSpec;
 pub struct TexFileService {}
 
 impl FileSpec for TexFileService {
-    fn get_proj_file_count(&self, proj_id: &str) -> i64{
-        use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;  
+    fn get_proj_file_count(&self, proj_id: &str) -> i64 {
+        use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
         let count = cv_work_table::table
-        .filter(cv_work_table::project_id.eq(proj_id))
-        .count()
-        .get_result(&mut get_connection()).unwrap(); 
+            .filter(cv_work_table::project_id.eq(proj_id))
+            .count()
+            .get_result(&mut get_connection())
+            .unwrap();
         return count;
     }
 }
@@ -64,7 +65,7 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
         let tf = serde_json::from_str(&cached_file.unwrap());
         if let Err(e) = tf {
             error!("parse cached file facing issue,{}", e);
-        }else{
+        } else {
             return Some(tf.unwrap());
         }
     }
@@ -83,19 +84,14 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     return Some(file.to_owned());
 }
 
-pub fn get_path_content_by_fid(filter_id: &String) -> Option<String>{
-    let tex_file:Option<TexFile> = get_file_by_fid(filter_id);
-    if tex_file.is_some() {
-        let dl_file = tex_file.unwrap();
-        let download_dir = get_proj_base_dir(&dl_file.project_id);
-        let archive_file_path = join_paths(&[
-            download_dir,
-            dl_file.file_path,
-            dl_file.name
-        ]);
-        return Some(archive_file_path);
-    }
-    return None;
+pub fn get_path_content_by_fid(dl_file: &TexFile) -> Option<String> {
+    let download_dir = get_proj_base_dir(&dl_file.project_id);
+    let archive_file_path = join_paths(&[
+        download_dir,
+        dl_file.file_path.clone(),
+        dl_file.name.clone(),
+    ]);
+    return Some(archive_file_path);
 }
 
 pub fn get_file_by_ids(ids: &Vec<String>) -> Vec<TexFile> {
@@ -478,7 +474,7 @@ pub fn mv_file_impl(
                 proj_dir.clone(),
                 dist_file.file_path.clone(),
                 "/".to_owned(),
-                src_file.name.clone()
+                src_file.name.clone(),
             ]);
             let fm = fs::rename(&src_path, &dist_path);
             if let Err(err) = fm {
@@ -581,15 +577,13 @@ pub fn get_file_tree(parent_id: &String) -> Vec<FileTreeResp> {
 }
 
 pub fn proj_folder_tree(parent_id: &String) -> Option<FolderTreeResp> {
-    let sub_tree = find_folder_sub_menu_cte_impl( parent_id);
+    let sub_tree = find_folder_sub_menu_cte_impl(parent_id);
     // add the virtual root node
     let virtual_root_node = FolderTreeResp::new_virtual_root(parent_id, sub_tree);
     return Some(virtual_root_node);
 }
 
-pub fn find_folder_sub_menu_cte_impl(
-    root_id: &String,
-) -> Vec<FolderTreeResp> {
+pub fn find_folder_sub_menu_cte_impl(root_id: &String) -> Vec<FolderTreeResp> {
     let mut connection = get_connection();
     let cte_query_sub_menus = format!(
         " with recursive sub_files as (
@@ -731,7 +725,10 @@ fn convert_to_tree_impl(contents: &Vec<FileTreeResp>, root_id: &str) -> Vec<File
     return result;
 }
 
-fn convert_folder_to_tree_impl(contents: &Vec<FolderTreeResp>, root_id: &str) -> Vec<FolderTreeResp> {
+fn convert_folder_to_tree_impl(
+    contents: &Vec<FolderTreeResp>,
+    root_id: &str,
+) -> Vec<FolderTreeResp> {
     let root_element: Vec<_> = contents
         .iter()
         .filter(|content| content.parent == root_id)

@@ -1,6 +1,8 @@
 use crate::common::database::get_connection;
+use crate::model::dict::collar_status::CollarStatus;
 use crate::model::dict::role_type::RoleType;
 use crate::model::diesel::tex::custom_tex_models::TexProjEditor;
+use crate::model::request::project::share::collar_query_params::CollarQueryParams;
 use crate::model::request::project::share::share_del::ShareDel;
 use crate::{
     diesel::RunQueryDsl, model::request::project::query::share_query_params::ShareQueryParams,
@@ -22,6 +24,24 @@ pub async fn get_collar_users(params: &ShareQueryParams) -> Vec<TexProjEditor> {
         Err(err) => {
             error!("get collarboration user failed, {}", err);
             return Vec::new();
+        }
+    }
+}
+
+pub async fn get_collar_relation(params: &CollarQueryParams) -> Option<Vec<TexProjEditor>> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::project_id.eq(params.project_id.clone()));
+    query = query.filter(cv_work_table::user_id.eq(params.user_id));
+    query = query.filter(cv_work_table::collar_status.eq(CollarStatus::Normal as i32));
+    let cvs = query.load::<TexProjEditor>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return Some(result);
+        }
+        Err(err) => {
+            error!("get collarboration user failed, {}", err);
+            return Some(Vec::new());
         }
     }
 }
