@@ -6,8 +6,9 @@ use crate::{
             edit::move_file_req::MoveFileReq,
             file_rename::TexFileRenameReq,
             query::{
-                file_code_params::FileCodeParams, file_query_params::FileQueryParams,
-                main_file_params::MainFileParams, sub_file_query_params::SubFileQueryParams,
+                download_file_query::DownloadFileQuery, file_code_params::FileCodeParams,
+                file_query_params::FileQueryParams, main_file_params::MainFileParams,
+                sub_file_query_params::SubFileQueryParams,
             },
         },
         response::file::ws_file_detail::WsFileDetail,
@@ -15,15 +16,20 @@ use crate::{
     service::{
         file::{
             file_service::{
-                create_file, create_file_ver, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_by_ids, get_file_content_by_fid, get_file_list, get_file_tree, get_main_file_list, get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService
+                create_file, create_file_ver, delete_file_recursive, file_init_complete,
+                get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
+                get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree,
+                rename_trans, TexFileService,
             },
             spec::file_spec::FileSpec,
         },
         project::project_service::{del_project_cache, get_cached_proj_info},
     },
 };
-use actix_web::{web, HttpResponse, Responder};
+use actix_files::NamedFile;
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use log::error;
+use mime::Mime;
 use rust_i18n::t;
 use rust_wheel::{
     common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
@@ -35,9 +41,24 @@ pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
     box_actix_rest_response(docs)
 }
 
-pub async fn download_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_file_content_by_fid(&params.file_id).unwrap();
-    box_actix_rest_response(docs)
+pub async fn download_file(
+    req: HttpRequest,
+    params: web::Query<DownloadFileQuery>,
+) -> impl Responder {
+    let path = get_path_content_by_fid(&params.file_id);
+    if path.is_none() {
+        return Err(actix_web::error::ErrorBadRequest("File not Found"));
+    }
+    match NamedFile::open(&path.unwrap()) {
+        Ok(file) => {
+            let content_type: Mime = "application/octet-stream".parse().unwrap();
+            Ok(NamedFile::set_content_type(file, content_type).into_response(&req))
+        }
+        Err(e) => {
+            error!("Error open file,{}", e);
+            return Err(actix_web::error::ErrorBadRequest("File not Found"));
+        }
+    }
 }
 
 pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {

@@ -17,7 +17,7 @@ use crate::model::request::file::query::file_code_params::FileCodeParams;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::model::response::file::folder_tree_resp::FolderTreeResp;
-use crate::service::global::proj::proj_util::get_proj_base_dir;
+use crate::service::global::proj::proj_util::{get_proj_base_dir, get_proj_download_base_dir};
 use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_web::HttpResponse;
 use chrono::Duration;
@@ -83,31 +83,19 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     return Some(file.to_owned());
 }
 
-pub fn get_file_content_by_fid(filter_id: &String) -> Option<TexFile> {
-    let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
-    let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
-    let cached_file = sync_get_str(&file_cached_key);
-    if cached_file.is_some() {
-        let tf = serde_json::from_str(&cached_file.unwrap());
-        if let Err(e) = tf {
-            error!("parse cached file facing issue,{}", e);
-        }else{
-            return Some(tf.unwrap());
-        }
+pub fn get_path_content_by_fid(filter_id: &String) -> Option<String>{
+    let tex_file:Option<TexFile> = get_file_by_fid(filter_id);
+    if tex_file.is_some() {
+        let dl_file = tex_file.unwrap();
+        let download_dir = get_proj_download_base_dir(&dl_file.project_id);
+        let archive_file_path = join_paths(&[
+            download_dir,
+            dl_file.file_path,
+            dl_file.name
+        ]);
+        return Some(archive_file_path);
     }
-    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
-    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::file_id.eq(filter_id));
-    let files = query.load::<TexFile>(&mut get_connection()).unwrap();
-    if files.len() == 0 {
-        return None;
-    }
-    let file = &files[0];
-    let file_json = serde_json::to_string(file).unwrap();
-    let one_day = Duration::try_days(1);
-    let seconds_in_one_day = one_day.unwrap().num_seconds();
-    set_value(&file_cached_key, &file_json, seconds_in_one_day as usize).unwrap();
-    return Some(file.to_owned());
+    return None;
 }
 
 pub fn get_file_by_ids(ids: &Vec<String>) -> Vec<TexFile> {
