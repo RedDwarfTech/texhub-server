@@ -49,13 +49,13 @@ pub async fn download_file(
     if path.is_none() {
         return Err(actix_web::error::ErrorBadRequest("File not Found"));
     }
-    match NamedFile::open(&path.unwrap()) {
+    match NamedFile::open(&path.clone().unwrap()) {
         Ok(file) => {
             let content_type: Mime = "application/octet-stream".parse().unwrap();
             Ok(NamedFile::set_content_type(file, content_type).into_response(&req))
         }
         Err(e) => {
-            error!("Error open file,{}", e);
+            error!("Error open file {},{}", path.unwrap(), e);
             return Err(actix_web::error::ErrorBadRequest("File not Found"));
         }
     }
