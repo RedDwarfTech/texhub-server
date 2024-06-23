@@ -3,7 +3,6 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 
 use crate::common::database::get_connection;
-use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::file_ver_add::TexFileVersionAdd;
@@ -14,6 +13,7 @@ use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::file::del::file_del::TexFileDelReq;
 use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
+use crate::model::request::file::query::file_code_params::FileCodeParams;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::model::response::file::folder_tree_resp::FolderTreeResp;
@@ -57,6 +57,33 @@ impl FileSpec for TexFileService {
 }
 
 pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
+    let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
+    let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
+    let cached_file = sync_get_str(&file_cached_key);
+    if cached_file.is_some() {
+        let tf = serde_json::from_str(&cached_file.unwrap());
+        if let Err(e) = tf {
+            error!("parse cached file facing issue,{}", e);
+        }else{
+            return Some(tf.unwrap());
+        }
+    }
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::file_id.eq(filter_id));
+    let files = query.load::<TexFile>(&mut get_connection()).unwrap();
+    if files.len() == 0 {
+        return None;
+    }
+    let file = &files[0];
+    let file_json = serde_json::to_string(file).unwrap();
+    let one_day = Duration::try_days(1);
+    let seconds_in_one_day = one_day.unwrap().num_seconds();
+    set_value(&file_cached_key, &file_json, seconds_in_one_day as usize).unwrap();
+    return Some(file.to_owned());
+}
+
+pub fn get_file_content_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
     let cached_file = sync_get_str(&file_cached_key);

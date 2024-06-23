@@ -5,16 +5,17 @@ use crate::{
             del::file_del::TexFileDelReq,
             edit::move_file_req::MoveFileReq,
             file_rename::TexFileRenameReq,
-            query::file_query_params::FileQueryParams,
+            query::{
+                file_code_params::FileCodeParams, file_query_params::FileQueryParams,
+                main_file_params::MainFileParams, sub_file_query_params::SubFileQueryParams,
+            },
         },
         response::file::ws_file_detail::WsFileDetail,
     },
     service::{
         file::{
             file_service::{
-                create_file, create_file_ver, delete_file_recursive, file_init_complete,
-                get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
-                get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService,
+                create_file, create_file_ver, delete_file_recursive, file_init_complete, get_file_by_fid, get_file_by_ids, get_file_content_by_fid, get_file_list, get_file_tree, get_main_file_list, get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService
             },
             spec::file_spec::FileSpec,
         },
@@ -29,23 +30,13 @@ use rust_wheel::{
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
 
-#[derive(serde::Deserialize)]
-pub struct AppParams {
-    parent: String,
-}
-
-#[derive(serde::Deserialize)]
-pub struct MainFileParams {
-    pub project_id: String,
-}
-
-#[derive(serde::Deserialize)]
-pub struct FileCodeParams {
-    pub file_id: String,
-}
-
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
     let docs = get_file_by_fid(&params.file_id).unwrap();
+    box_actix_rest_response(docs)
+}
+
+pub async fn download_file(params: web::Query<FileQueryParams>) -> impl Responder {
+    let docs = get_file_content_by_fid(&params.file_id).unwrap();
     box_actix_rest_response(docs)
 }
 
@@ -64,7 +55,7 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
     box_actix_rest_response(file_detail)
 }
 
-pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
+pub async fn get_files(params: web::Query<SubFileQueryParams>) -> impl Responder {
     let docs = get_file_list(&params.parent);
     box_actix_rest_response(docs)
 }
@@ -79,12 +70,12 @@ pub async fn get_file_code(params: web::Query<FileCodeParams>) -> impl Responder
     box_actix_rest_response(file_text)
 }
 
-pub async fn get_files_tree(params: web::Query<AppParams>) -> impl Responder {
+pub async fn get_files_tree(params: web::Query<SubFileQueryParams>) -> impl Responder {
     let docs = get_file_tree(&params.parent);
     box_actix_rest_response(docs)
 }
 
-pub async fn get_proj_folder_tree(params: web::Query<AppParams>) -> impl Responder {
+pub async fn get_proj_folder_tree(params: web::Query<SubFileQueryParams>) -> impl Responder {
     let docs = proj_folder_tree(&params.parent);
     box_actix_rest_response(docs)
 }
@@ -210,6 +201,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/inited", web::put().to(update_file_init))
             .route("/rename", web::patch().to(rename_file))
             .route("/detail", web::get().to(get_file))
+            .route("/download", web::get().to(download_file))
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }
