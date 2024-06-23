@@ -87,7 +87,7 @@ pub fn get_path_content_by_fid(filter_id: &String) -> Option<String>{
     let tex_file:Option<TexFile> = get_file_by_fid(filter_id);
     if tex_file.is_some() {
         let dl_file = tex_file.unwrap();
-        let download_dir = get_proj_download_base_dir(&dl_file.project_id);
+        let download_dir = get_proj_base_dir(&dl_file.project_id);
         let archive_file_path = join_paths(&[
             download_dir,
             dl_file.file_path,
