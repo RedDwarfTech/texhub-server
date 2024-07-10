@@ -1,0 +1,73 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: texhub-web-route
+  namespace: reddwarf-pro
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`tex.poemhub.top`) && PathPrefix(`/tex`)
+      middlewares:
+        - name: jwt-token-auth
+      priority: 2
+      services:
+        - name: tex-service
+          port: 8000
+    - kind: Rule
+      match: >-
+        Host(`tex.poemhub.top`) && PathPrefix(`/tex`) &&
+        (PathPrefix(`/tex/tpl/partial/page`) || PathPrefix(`/tex/tpl/detail`))
+      priority: 6
+      services:
+        - name: tex-service
+          port: 8000
+    - kind: Rule
+      match: Host(`tex.poemhub.top`) && (PathPrefix(`/texpub`))
+      priority: 4
+      services:
+        - name: dolphin-post-service
+          port: 11014
+    - kind: Rule
+      match: Host(`tex.poemhub.top`) && (PathPrefix(`/infra`))
+      middlewares:
+        - name: jwt-token-auth
+      priority: 4
+      services:
+        - name: infra-server-service
+          port: 8081
+    - kind: Rule
+      match: >-
+        Host(`tex.poemhub.top`) && (PathPrefix(`/texpub/user/login`) ||
+        PathPrefix(`/texpub/user/reg`) ||
+        PathPrefix(`/post/wechat/login/getQRCodeUrl`) ||
+        PathPrefix(`/post/alipay/login/getQRCodeUrl`) ||
+        PathPrefix(`/texpub/auth/access-token/refresh`) ||
+        PathPrefix(`/texpub/user/pwd/send-verify-code`) ||
+        PathPrefix(`/texpub/user/verify`) ||
+        PathPrefix(`/texpub/user/pwd/reset`))
+      priority: 5
+      services:
+        - name: dolphin-post-service
+          port: 11014
+    - kind: Rule
+      match: Host(`tex.poemhub.top`) && PathPrefix(`/post`)
+      priority: 7
+      services:
+        - name: dolphin-post-service
+          port: 11014
+    - kind: Rule
+      match: >-
+        Host(`tex.poemhub.top`) && (PathPrefix(`/infra/user/login`) ||
+        PathPrefix(`/infra/auth/access-token/refresh`))
+      priority: 8
+      services:
+        - name: infra-server-service
+          port: 8081
+    - kind: Rule
+      match: Host(`tex.poemhub.top`)
+      priority: 1
+      services:
+        - name: texhub-web-service
+          port: 80

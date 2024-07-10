@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tex-websocket-route
+  namespace: reddwarf-pro
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`ws.poemhub.top`)
+      priority: 1
+      services:
+        - name: tex-websocket-service
+          port: 1234

@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=dolphinjiang/rust-musl-builder:latest
+ARG BASE_IMAGE=dolphinjiang/rust-musl-builder:1.78.0
 FROM ${BASE_IMAGE} AS builder
 ADD --chown=rust:rust . ./
 RUN git clone --depth 1 --branch 91d69b73e2fc9c65953c04debe0f06fbd1e51299 https://github.com/jlaurens/synctex.git
