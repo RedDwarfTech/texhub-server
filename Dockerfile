@@ -20,4 +20,5 @@ ENV TZ=Asia/Shanghai
 RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 RUN echo 'export LC_ALL=en_GB.UTF-8' >> /etc/profile.d/locale.sh && \
   sed -i 's|LANG=C.UTF-8|LANG=en_GB.UTF-8|' /etc/profile.d/locale.sh
+RUN export MALLOC_CONF=prof:true
 CMD ["./texhub-server"]
