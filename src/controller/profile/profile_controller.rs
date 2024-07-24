@@ -10,12 +10,21 @@ const PROF_DUMP: &'static [u8] = b"prof.dump\0";
 const PROFILE_OUTPUT: &'static [u8] = b"/opt/data/dump/profile.out\0";
 
 pub async fn do_dump() -> HttpResponse {
+    set_prof_active(true);
     let name = PROF_DUMP.name();
     let result = name.write(PROFILE_OUTPUT);
     if let Err(err) = result {
         error!("write dump file failed,{}", err);
     }
     box_actix_rest_response("ok")
+}
+
+fn set_prof_active(active: bool) {
+    let name = PROF_ACTIVE.name();
+    let result = name.write(active);
+    if let Err(err) = result {
+        error!("set_prof_active write active info failed,{}", err);
+    }
 }
 
 pub async fn do_active(form: web::Query<ProfileActiveReq>) -> HttpResponse {
