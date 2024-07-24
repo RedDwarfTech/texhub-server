@@ -10,6 +10,7 @@ FROM alpine:3.18.2
 LABEL maintainer="jiangtingqiang@gmail.com"
 WORKDIR /app
 ENV ROCKET_ADDRESS=0.0.0.0
+ENV MALLOC_CONF=prof:true
 COPY --from=builder /home/rust/src/settings.toml /app
 COPY --from=builder /home/rust/src/src/so/libsynctex_parser.so /app
 COPY --from=builder /home/rust/src/src/so/libsynctex_parser.so /usr/lib/
@@ -20,5 +21,4 @@ ENV TZ=Asia/Shanghai
 RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 RUN echo 'export LC_ALL=en_GB.UTF-8' >> /etc/profile.d/locale.sh && \
   sed -i 's|LANG=C.UTF-8|LANG=en_GB.UTF-8|' /etc/profile.d/locale.sh
-RUN export MALLOC_CONF=prof:true
 CMD ["./texhub-server"]
