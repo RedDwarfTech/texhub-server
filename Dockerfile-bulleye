@@ -13,7 +13,8 @@ LABEL maintainer="jiangtingqiang@gmail.com"
 WORKDIR /app
 ENV ROCKET_ADDRESS=0.0.0.0
 # generate the dump file when every time increase 16MB
-ENV MALLOC_CONF="prof:true,lg_prof_interval:24,prof_prefix:texhub.out"
+# 每分配 256K 内存记录堆栈信息
+ENV MALLOC_CONF="prof:true,lg_prof_interval:24,prof_prefix:texhub.out,lg_prof_sample:18"
 COPY --from=builder /app/settings.toml /app
 COPY --from=builder /app/log4rs.yaml /app
 COPY --from=builder /app/target/release/texhub-server /app/
