@@ -67,9 +67,9 @@ bindgen = "0.65.1"
 
 [profile.release]
 # https://stackoverflow.com/questions/29008127/why-are-rust-executables-so-huge
-opt-level = 'z'     # Optimize for size
-lto = true          # Enable link-time optimization
-codegen-units = 1   # Reduce number of codegen units to increase optimizations
-panic = 'abort'     # Abort on panic
-strip = true        # Strip symbols from binary*
+# opt-level = 'z'     # Optimize for size
+# lto = true          # Enable link-time optimization
+# codegen-units = 1   # Reduce number of codegen units to increase optimizations
+# panic = 'abort'     # Abort on panic
+# strip = true        # Strip symbols from binary*
 debug = true
