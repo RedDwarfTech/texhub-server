@@ -42,7 +42,7 @@ pub async fn metrics() -> HttpResponse {
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/tex/profile")
+        web::scope("/inner-tex/profile")
             .route("/dump", web::get().to(do_dump))
             .route("/active", web::get().to(do_active))
             .route("/metrics", web::get().to(metrics)),
