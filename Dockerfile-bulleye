@@ -21,5 +21,5 @@ COPY --from=builder /app/target/release/texhub-server /app/
 COPY --from=builder /app/src/so/libsynctex_parser.so /app/
 COPY --from=builder /app/src/so/libsynctex_parser.so /usr/lib/
 # RUN apt-get update -y && apt-get install curl libpq5 -y
-RUN apt-get update -y && apt-get install curl libpq5 vim -y
+RUN apt-get update -y && apt-get install curl libpq5 vim ghostscript graphviz binutils libjemalloc-dev -y
 CMD ["./texhub-server"]
