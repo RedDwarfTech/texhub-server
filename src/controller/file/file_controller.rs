@@ -1,16 +1,21 @@
 use crate::{
     model::{
-        diesel::tex::{self, custom_tex_models::TexFile}, request::{file::{
-            add::{file_add_req::TexFileAddReq, file_add_ver_req::TexFileVerAddReq},
-            del::file_del::TexFileDelReq,
-            edit::move_file_req::MoveFileReq,
-            file_rename::TexFileRenameReq,
-            query::{
-                download_file_query::DownloadFileQuery, file_code_params::FileCodeParams,
-                file_query_params::FileQueryParams, main_file_params::MainFileParams,
-                sub_file_query_params::SubFileQueryParams,
+        diesel::tex::custom_tex_models::TexFile,
+        request::{
+            file::{
+                add::{file_add_req::TexFileAddReq, file_add_ver_req::TexFileVerAddReq},
+                del::file_del::TexFileDelReq,
+                edit::move_file_req::MoveFileReq,
+                file_rename::TexFileRenameReq,
+                query::{
+                    download_file_query::DownloadFileQuery, file_code_params::FileCodeParams,
+                    file_query_params::FileQueryParams, main_file_params::MainFileParams,
+                    sub_file_query_params::SubFileQueryParams,
+                },
             },
-        }, project::share::collar_query_params::CollarQueryParams}, response::file::ws_file_detail::WsFileDetail
+            project::share::collar_query_params::CollarQueryParams,
+        },
+        response::file::ws_file_detail::WsFileDetail,
     },
     service::{
         file::{
@@ -22,7 +27,10 @@ use crate::{
             },
             spec::file_spec::FileSpec,
         },
-        project::{project_service::{del_project_cache, get_cached_proj_info}, share::share_service::get_collar_relation},
+        project::{
+            project_service::{del_project_cache, get_cached_proj_info},
+            share::share_service::get_collar_relation,
+        },
     },
 };
 use actix_files::NamedFile;
@@ -45,15 +53,15 @@ pub async fn download_file(
     params: web::Query<DownloadFileQuery>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let tex_file:Option<TexFile> = get_file_by_fid(&params.file_id);
+    let tex_file: Option<TexFile> = get_file_by_fid(&params.file_id);
     if tex_file.is_none() {
         return Err(actix_web::error::ErrorBadRequest("File not Found"));
     }
     let t_file = tex_file.unwrap();
-    let collar_params :CollarQueryParams = CollarQueryParams{ 
+    let collar_params: CollarQueryParams = CollarQueryParams {
         project_id: t_file.project_id.clone(),
-         user_id: login_user_info.userId
-     };
+        user_id: login_user_info.userId,
+    };
     let collar_params = get_collar_relation(&collar_params).await;
     if collar_params.is_none() || collar_params.unwrap().is_empty() {
         return Err(actix_web::error::ErrorBadRequest("lack of privilleage"));

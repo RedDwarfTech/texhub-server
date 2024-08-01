@@ -7,15 +7,21 @@ extern crate rust_i18n;
 i18n!("locales");
 
 use crate::controller::profile::profile_controller;
-use actix_web::{App, HttpServer};
+use actix_multipart::{form::MultipartFormConfig, MultipartError};
+use actix_web::{App, HttpRequest, HttpServer};
 use controller::{
     collar::collar_controller,
     file::{file_controller, file_version_controller},
-    project::{proj_controller, proj_event_handler::consume_sys_events, share::proj_share_controller, snippet_controller},
+    project::{
+        proj_controller, proj_event_handler::consume_sys_events, share::proj_share_controller,
+        snippet_controller,
+    },
     template::template_controller,
 };
+use log::error;
 use monitor::health_controller;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
+use actix_web::Error;
 
 pub mod common;
 pub mod controller;
@@ -37,6 +43,12 @@ async fn main() -> std::io::Result<()> {
     consume_sys_events();
     HttpServer::new(|| {
         App::new()
+            .app_data(
+                MultipartFormConfig::default()
+                    .total_limit(10) // 10 MB
+                    .memory_limit(10) // 10 MB
+                    .error_handler(handle_multipart_error),
+            )
             .configure(collar_controller::config)
             .configure(health_controller::config)
             .configure(proj_controller::config)
@@ -51,4 +63,9 @@ async fn main() -> std::io::Result<()> {
     .bind(address)?
     .run()
     .await
+}
+
+fn handle_multipart_error(err: MultipartError, _req: &HttpRequest) -> Error {
+    error!("Multipart error: {}", err);
+    return Error::from(err);
 }

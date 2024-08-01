@@ -17,7 +17,7 @@ use crate::model::request::file::query::file_code_params::FileCodeParams;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::model::response::file::folder_tree_resp::FolderTreeResp;
-use crate::service::global::proj::proj_util::{get_proj_base_dir, get_proj_download_base_dir};
+use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_web::HttpResponse;
 use chrono::Duration;
