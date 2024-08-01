@@ -44,9 +44,10 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .app_data(
+                // https://stackoverflow.com/questions/71714621/actix-web-limit-upload-file-size
                 MultipartFormConfig::default()
-                    .total_limit(10) // 10 MB
-                    .memory_limit(10) // 10 MB
+                    .total_limit(2 * 1024) // 1 MB
+                    .memory_limit(1024) // 1 MB
                     .error_handler(handle_multipart_error),
             )
             .configure(collar_controller::config)
