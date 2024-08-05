@@ -396,7 +396,7 @@ pub fn rename_file_impl(
         .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
     if update_result.file_type == ThFileType::Folder as i32 {
-        handle_folder_rename(proj_dir, &t_file.unwrap().name, &edit_req.name);
+        handle_folder_rename(proj_dir, &t_file.unwrap(), &update_result);
     } else {
         handle_file_rename(proj_dir, &update_result, edit_req);
     }
@@ -409,9 +409,9 @@ pub fn rename_file_impl(
     return Some(update_result);
 }
 
-fn handle_folder_rename(proj_dir: String, legacy_name: &String, new_name: &String) {
-    let legacy_path = join_paths(&[proj_dir.clone(), legacy_name.to_string()]);
-    let new_path = join_paths(&[proj_dir, new_name.to_string()]);
+fn handle_folder_rename(proj_dir: String, legacy_file: &TexFile, new_file: &TexFile) {
+    let legacy_path = join_paths(&[proj_dir.clone(), legacy_file.file_path.to_string()]);
+    let new_path = join_paths(&[proj_dir, new_file.file_path.to_string()]);
     match fs::rename(legacy_path.clone(), new_path.clone()) {
         Ok(()) => {}
         Err(e) => {
