@@ -16,7 +16,7 @@ use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::service::file::file_service::{
-    get_file_by_fid, get_proj_history_page_impl, push_to_fulltext_search,
+    get_cached_file_by_fid, get_proj_history_page_impl, push_to_fulltext_search,
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
@@ -64,7 +64,7 @@ use actix_web::{
     http::header::{CacheControl, CacheDirective},
     web, HttpResponse, Responder,
 };
-use log::{error, warn};
+use log::error;
 use meilisearch_sdk::SearchResult;
 use mime::Mime;
 use rust_wheel::common::util::time_util::get_current_millisecond;
@@ -326,7 +326,6 @@ async fn proj_search(form: actix_web_validator::Query<SearchProjParams>) -> Http
     let pos = proj_search_impl(&form.0).await;
     if pos.is_some() {
         let searched_files = pos.unwrap().clone();
-        warn!("project search result: {:?}", searched_files);
         let ftr: Vec<SearchFileResp> = get_fulltext_result(searched_files.hits);
         box_actix_rest_response(ftr)
     } else {
@@ -348,13 +347,13 @@ fn get_fulltext_result(inputs: Vec<SearchResult<SearchFile>>) -> Vec<SearchFileR
 }
 
 async fn update_idx(form: web::Json<TexFileIdxReq>) -> HttpResponse {
-    let tex_file = get_file_by_fid(&form.0.file_id);
+    let tex_file = get_cached_file_by_fid(&form.0.file_id);
     let pos = push_to_fulltext_search(&tex_file.unwrap(), &form.0.content).await;
     box_actix_rest_response(pos)
 }
 
 async fn update_proj_nickname(form: web::Json<TexFileIdxReq>) -> HttpResponse {
-    let tex_file = get_file_by_fid(&form.0.file_id);
+    let tex_file = get_cached_file_by_fid(&form.0.file_id);
     let pos = push_to_fulltext_search(&tex_file.unwrap(), &form.0.content).await;
     box_actix_rest_response(pos)
 }

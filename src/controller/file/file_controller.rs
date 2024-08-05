@@ -21,7 +21,7 @@ use crate::{
         file::{
             file_service::{
                 create_file, create_file_ver, delete_file_recursive, file_init_complete,
-                get_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
+                get_cached_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
                 get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree,
                 rename_trans, TexFileService,
             },
@@ -44,7 +44,7 @@ use rust_wheel::{
 };
 
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_file_by_fid(&params.file_id).unwrap();
+    let docs = get_cached_file_by_fid(&params.file_id).unwrap();
     box_actix_rest_response(docs)
 }
 
@@ -53,7 +53,7 @@ pub async fn download_file(
     params: web::Query<DownloadFileQuery>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let tex_file: Option<TexFile> = get_file_by_fid(&params.file_id);
+    let tex_file: Option<TexFile> = get_cached_file_by_fid(&params.file_id);
     if tex_file.is_none() {
         return Err(actix_web::error::ErrorBadRequest("File not Found"));
     }
@@ -83,7 +83,7 @@ pub async fn download_file(
 }
 
 pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_file_by_fid(&params.file_id).unwrap();
+    let docs = get_cached_file_by_fid(&params.file_id).unwrap();
     let proj = get_cached_proj_info(&docs.project_id);
     let file_detail = WsFileDetail {
         file_path: docs.file_path,
@@ -152,7 +152,7 @@ pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder
 }
 
 pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
-    let db_file = get_file_by_fid(&form.file_id).unwrap();
+    let db_file = get_cached_file_by_fid(&form.file_id).unwrap();
     if db_file.main_flag == 1 {
         let res = ApiResponse {
             result: "main file could not be delete",

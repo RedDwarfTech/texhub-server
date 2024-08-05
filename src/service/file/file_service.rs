@@ -55,9 +55,25 @@ impl FileSpec for TexFileService {
             .unwrap();
         return count;
     }
+
+    fn get_file_by_id(&self, fid: &str) -> Option<TexFile> {
+        use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+        let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+        query = query.filter(cv_work_table::file_id.eq(fid));
+        let cvs: Result<TexFile, Error> = query.first::<TexFile>(&mut get_connection());
+        match cvs {
+            Ok(result) => {
+                return Some(result);
+            }
+            Err(err) => {
+                error!("get files failed, {}", err);
+                return None;
+            }
+        }
+    }
 }
 
-pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
+pub fn get_cached_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
     let cached_file = sync_get_str(&file_cached_key);
@@ -301,7 +317,7 @@ fn create_disk_file(file_path: &str) -> std::io::Result<()> {
 }
 
 pub fn get_file_path(add_req: &TexFileAddReq) -> String {
-    match get_file_by_fid(&add_req.parent) {
+    match get_cached_file_by_fid(&add_req.parent) {
         None => {
             if add_req.file_type == 0 {
                 format!("/{}", add_req.name)
@@ -339,7 +355,7 @@ pub async fn rename_trans(
     let trans_result: Result<Option<TexFile>, Error> =
         rename_connection.transaction(|connection| {
             let tex_file = rename_file_impl(&edit_req_copy, login_user_info, connection);
-            Ok(Some(tex_file))
+            Ok(tex_file)
         });
     if let Err(e) = trans_result {
         error!("rename file failed,{}", e);
@@ -357,7 +373,7 @@ pub fn rename_file_impl(
     edit_req: &TexFileRenameReq,
     login_user_info: &LoginUserInfo,
     connection: &mut PgConnection,
-) -> TexFile {
+) -> Option<TexFile> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
     let predicate = tex_file_table::file_id
@@ -368,13 +384,19 @@ pub fn rename_file_impl(
         login_user_info.userId,
         edit_req.file_id.clone()
     );
+    let fs = TexFileService {};
+    let t_file = fs.get_file_by_id(&edit_req.file_id);
+    if t_file.is_none() {
+        error!("could not found file, {:?}", &edit_req);
+        return None;
+    }
     let update_result = diesel::update(tex_file.filter(predicate))
         .set(name.eq(edit_req.name.clone()))
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
     if update_result.file_type == ThFileType::Folder as i32 {
-        handle_folder_rename(proj_dir, &update_result);
+        handle_folder_rename(proj_dir, &t_file.unwrap().name, &edit_req.name);
     } else {
         handle_file_rename(proj_dir, &update_result, edit_req);
     }
@@ -384,12 +406,12 @@ pub fn rename_file_impl(
     if let Err(e) = del_cache_result {
         error!("failed to delete file cache,{}", e);
     }
-    return update_result;
+    return Some(update_result);
 }
 
-fn handle_folder_rename(proj_dir: String, update_result: &TexFile) {
-    let legacy_path = join_paths(&[proj_dir.clone(), update_result.file_path.clone()]);
-    let new_path = join_paths(&[proj_dir, update_result.file_path.clone()]);
+fn handle_folder_rename(proj_dir: String, legacy_name: &String, new_name: &String) {
+    let legacy_path = join_paths(&[proj_dir.clone(), legacy_name.to_string()]);
+    let new_path = join_paths(&[proj_dir, new_name.to_string()]);
     match fs::rename(legacy_path.clone(), new_path.clone()) {
         Ok(()) => {}
         Err(e) => {

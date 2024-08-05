@@ -61,7 +61,7 @@ use crate::model::response::project::src_pos_resp::SrcPosResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
-use crate::service::file::file_service::{get_file_by_fid, get_file_tree, get_main_file_list};
+use crate::service::file::file_service::{get_cached_file_by_fid, get_file_tree, get_main_file_list};
 use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
@@ -868,7 +868,7 @@ pub async fn save_proj_file(
                 "exceed limit".to_owned(),
             );
         }
-        let db_file = get_file_by_fid(&proj_upload.parent).unwrap();
+        let db_file = get_cached_file_by_fid(&proj_upload.parent).unwrap();
         let store_file_path = get_proj_base_dir(&proj_upload.project_id);
         let f_name = tmp_file.file_name;
         let file_path = join_paths(&[
