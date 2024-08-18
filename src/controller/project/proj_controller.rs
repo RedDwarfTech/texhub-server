@@ -68,6 +68,7 @@ use log::error;
 use meilisearch_sdk::SearchResult;
 use mime::Mime;
 use rust_wheel::common::util::time_util::get_current_millisecond;
+use rust_wheel::common::wrapper::actix_http_resp::box_err_actix_rest_response;
 use rust_wheel::{
     common::{
         util::net::{sse_message::SSEMessage, sse_stream::SseStream},
@@ -239,7 +240,14 @@ pub async fn get_latest_pdf(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let pdf_info = get_proj_latest_pdf(&params.0.project_id, &login_user_info.userId).await;
-    box_actix_rest_response(pdf_info)
+    match pdf_info {
+        Ok(pdf) => {
+            box_actix_rest_response(pdf)
+        },
+        Err(e) => {
+            box_err_actix_rest_response(e)
+        }
+    }
 }
 
 /**

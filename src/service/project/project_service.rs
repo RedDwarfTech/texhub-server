@@ -94,6 +94,7 @@ use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{
     del_redis_key, get_str_default, push_to_stream, set_value,
 };
+use rust_wheel::model::error::infra_error::InfraError;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
@@ -1348,9 +1349,12 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
     return contents;
 }
 
-pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> LatestCompile {
+pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> Result<LatestCompile,InfraError> {
     let proj_info = get_cached_proj_info(proj_id).unwrap();
     let main_file = proj_info.main_file;
+    if main_file.user_id != uid.to_owned() {
+        return Err(InfraError::AccessResourceDenied);
+    }
     let mut req = Vec::new();
     req.push(CompileResult::Success as i32);
     let newest_queue = get_latest_proj_queue(&req, uid, proj_id);
@@ -1370,7 +1374,7 @@ pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> LatestCompile {
         path: join_paths(&[proj_relative_path, pdf_name.to_string()]),
         project_id: proj_id.clone(),
     };
-    return pdf_result;
+    return Ok(pdf_result);
 }
 
 pub async fn get_project_pdf(proj_id: &String) -> String {
@@ -1441,8 +1445,12 @@ pub async fn comp_log_file_read(
             let msg_content = format!("{}\n", line.to_owned());
             if msg_content.contains("====END====") {
                 let cr = get_proj_latest_pdf(&params.project_id, uid).await;
+                if let Err(err) = cr {
+                    error!("get compile log failed,{}", err);
+                    return;
+                }
                 let queue = get_cached_queue_status(params.qid).await;
-                let comp_resp = CompileResp::from((cr, queue.unwrap()));
+                let comp_resp = CompileResp::from((cr.unwrap(), queue.unwrap()));
                 let end_json = serde_json::to_string(&comp_resp).unwrap();
                 do_msg_send_sync(&end_json, &tx, &"TEX_COMP_END".to_string());
                 break;
