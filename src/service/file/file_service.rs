@@ -26,7 +26,7 @@ use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
     QueryResult,
 };
-use log::error;
+use log::{error, warn};
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
@@ -412,6 +412,7 @@ pub fn rename_file_impl(
 fn handle_folder_rename(proj_dir: String, legacy_file: &TexFile, new_file: &TexFile) {
     let legacy_path = join_paths(&[proj_dir.clone(), legacy_file.file_path.to_string()]);
     let new_path = join_paths(&[proj_dir, new_file.file_path.to_string()]);
+    warn!("rename file folder,legacy:{}, new:{}", legacy_path, new_path);
     match fs::rename(legacy_path.clone(), new_path.clone()) {
         Ok(()) => {}
         Err(e) => {
