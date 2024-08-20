@@ -395,7 +395,7 @@ pub fn rename_file_impl(
     let parent_path = Path::new(old_path_str).parent().unwrap();
     let new_path:PathBuf = parent_path.join(edit_req.name.clone());
     let update_result = diesel::update(tex_file.filter(predicate))
-        .set((name.eq(edit_req.name.clone()), file_path.eq(new_path.file_name().unwrap().to_string_lossy())))
+        .set((name.eq(edit_req.name.clone()), file_path.eq(new_path.to_str().unwrap())))
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
