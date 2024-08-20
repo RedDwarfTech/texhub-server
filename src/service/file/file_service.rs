@@ -395,6 +395,7 @@ pub fn rename_file_impl(
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
+    warn!("update result: {:?}", update_result);
     if update_result.file_type == ThFileType::Folder as i32 {
         handle_folder_rename(proj_dir, &t_file.unwrap(), &update_result);
     } else {
