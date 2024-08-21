@@ -22,12 +22,12 @@ use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_web::HttpResponse;
 use chrono::Duration;
-use diesel::result::Error;
+use diesel::result::Error::{self, NotFound};
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
     QueryResult,
 };
-use log::{error, warn};
+use log::error;
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
@@ -355,8 +355,7 @@ pub async fn rename_trans(
     let mut rename_connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> =
         rename_connection.transaction(|connection| {
-            let tex_file = rename_file_impl(&edit_req_copy, login_user_info, connection);
-            Ok(tex_file)
+            return rename_file_impl(&edit_req_copy, login_user_info, connection);
         });
     if let Err(e) = trans_result {
         error!("rename file failed,{}", e);
@@ -374,7 +373,7 @@ pub fn rename_file_impl(
     edit_req: &TexFileRenameReq,
     login_user_info: &LoginUserInfo,
     connection: &mut PgConnection,
-) -> Option<TexFile> {
+) -> Result<Option<TexFile>, Error> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
     let predicate = tex_file_table::file_id
@@ -389,20 +388,35 @@ pub fn rename_file_impl(
     let legacy_file = fs.get_file_by_id(&edit_req.file_id);
     if legacy_file.is_none() {
         error!("could not found file, {:?}", &edit_req);
-        return None;
+        return Err(NotFound);
     }
-    let old_path_str = legacy_file.as_ref().unwrap().file_path.trim_end_matches('/');
+    let old_path_str = legacy_file
+        .as_ref()
+        .unwrap()
+        .file_path
+        .trim_end_matches('/');
     let parent_path = Path::new(old_path_str).parent().unwrap();
-    let new_path:PathBuf = parent_path.join(edit_req.name.clone());
+    let new_path: PathBuf = parent_path.join(edit_req.name.clone());
     let update_result = diesel::update(tex_file.filter(predicate))
-        .set((name.eq(edit_req.name.clone()), file_path.eq(new_path.to_str().unwrap())))
+        .set((
+            name.eq(edit_req.name.clone()),
+            file_path.eq(new_path.to_str().unwrap()),
+        ))
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
     if update_result.file_type == ThFileType::Folder as i32 {
-        handle_folder_rename(proj_dir, &legacy_file.unwrap(), &update_result);
+        let rename_result = handle_folder_rename(proj_dir, &legacy_file.unwrap(), &update_result);
+        if let Err(err) = rename_result {
+            error!("folder file err,{}", err);
+            return Err(NotFound);
+        }
     } else {
-        handle_file_rename(proj_dir, &update_result, edit_req);
+        let rename_result = handle_file_rename(proj_dir, &update_result, edit_req);
+        if let Err(err) = rename_result {
+            error!("rename file err,{}", err);
+            return Err(NotFound);
+        }
     }
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &edit_req.file_id.clone());
@@ -410,24 +424,24 @@ pub fn rename_file_impl(
     if let Err(e) = del_cache_result {
         error!("failed to delete file cache,{}", e);
     }
-    return Some(update_result);
+    return Ok(Some(update_result));
 }
 
-fn handle_folder_rename(proj_dir: String, legacy_file: &TexFile, new_file: &TexFile) {
+fn handle_folder_rename(
+    proj_dir: String,
+    legacy_file: &TexFile,
+    new_file: &TexFile,
+) -> Result<(), std::io::Error> {
     let legacy_path = join_paths(&[proj_dir.clone(), legacy_file.file_path.to_string()]);
     let new_path = join_paths(&[proj_dir, new_file.file_path.to_string()]);
-    match fs::rename(legacy_path.clone(), new_path.clone()) {
-        Ok(()) => {}
-        Err(e) => {
-            error!(
-                "rename project folder facing issue {}, legacy path: {}, new path: {}",
-                e, legacy_path, new_path
-            );
-        }
-    }
+    return fs::rename(legacy_path.clone(), new_path.clone());
 }
 
-fn handle_file_rename(proj_dir: String, update_result: &TexFile, edit_req: &TexFileRenameReq) {
+fn handle_file_rename(
+    proj_dir: String,
+    update_result: &TexFile,
+    edit_req: &TexFileRenameReq,
+) -> Result<(), std::io::Error> {
     let legacy_path = join_paths(&[
         proj_dir.clone(),
         update_result.file_path.clone(),
@@ -438,15 +452,7 @@ fn handle_file_rename(proj_dir: String, update_result: &TexFile, edit_req: &TexF
         update_result.file_path.clone(),
         edit_req.name.clone(),
     ]);
-    match fs::rename(legacy_path.clone(), new_path.clone()) {
-        Ok(()) => {}
-        Err(e) => {
-            error!(
-                "rename project file facing issue {}, legacy path: {}, new path: {}",
-                e, legacy_path, new_path
-            );
-        }
-    }
+    return fs::rename(legacy_path.clone(), new_path.clone());
 }
 
 fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error> {
