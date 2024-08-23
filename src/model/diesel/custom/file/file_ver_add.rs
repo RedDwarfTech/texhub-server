@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use actix_multipart::form::tempfile::TempFile;
 use diesel::sql_types::Bytea;
 use openssl::sha::Sha256;
+use ring::digest;
 use rust_wheel::common::util::security_util::get_sha;
 use rust_wheel::common::util::security_util::get_str_sha;
 use rust_wheel::common::util::time_util::get_current_millisecond;
@@ -32,7 +33,7 @@ pub struct TexFileVersionAdd {
 
 impl TexFileVersionAdd {
     pub(crate) fn gen_tex_file_version(add_file: &TexFileVerAddReq, login_user_info: &LoginUserInfo) ->Self {
-        let hash = get_str_sha(add_file.snapshot.clone());//create_hash(&add_file.snapshot,Sha256::default());
+        let hash = get_str_sha(add_file.snapshot.clone(),&digest::SHA256);
         Self {
             name: add_file.name.clone(),
             created_time: get_current_millisecond(),

@@ -57,6 +57,7 @@ redis = "0.23.3"
 zip = "0.6"
 mime = "0.3.17"
 rust-i18n = "3"
+ring = "0.16.20"
 
 [dependencies.jemalloc-sys]
 version = "0.5.4"
