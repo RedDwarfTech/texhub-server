@@ -202,7 +202,7 @@ pub fn create_file_ver(
     login_user_info: &LoginUserInfo,
 ) -> TexFileVersion {
     use crate::model::diesel::tex::tex_schema::tex_file_version::dsl::*;
-    let new_file = TexFileVersionAdd::gen_tex_file(add_req, login_user_info);
+    let new_file = TexFileVersionAdd::gen_tex_file_version(add_req, login_user_info);
     let result = diesel::insert_into(tex_file_version)
         .values(&new_file)
         .get_result::<TexFileVersion>(&mut get_connection())
@@ -433,6 +433,7 @@ fn handle_folder_rename(
     new_file: &TexFile,
 ) -> Result<(), std::io::Error> {
     let legacy_path = join_paths(&[proj_dir.clone(), legacy_file.file_path.to_string()]);
+
     let new_path = join_paths(&[proj_dir, new_file.file_path.to_string()]);
     return fs::rename(legacy_path.clone(), new_path.clone());
 }

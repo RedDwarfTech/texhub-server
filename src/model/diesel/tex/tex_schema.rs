@@ -43,6 +43,7 @@ table! {
         content -> Varchar,
         action -> Int4,
         snapshot -> Text,
+        snapshot_hash -> Text,
     }
 }
 
