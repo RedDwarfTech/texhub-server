@@ -44,6 +44,7 @@ table! {
         action -> Int4,
         snapshot -> Text,
         snapshot_hash -> Text,
+        version_status -> Int2,
     }
 }
 

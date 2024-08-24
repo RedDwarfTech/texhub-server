@@ -125,7 +125,8 @@ pub struct TexFileVersion {
     pub content: String,
     pub action: i32,
     pub snapshot: String,
-    pub snapshot_hash: String
+    pub snapshot_hash: String,
+    pub version_status: i16
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]

@@ -20,10 +20,14 @@ use crate::{
     service::{
         file::{
             file_service::{
-                create_file, create_file_ver, delete_file_recursive, file_init_complete,
-                get_cached_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
+                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
+                get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
                 get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree,
                 rename_trans, TexFileService,
+            },
+            file_version_service::{
+                create_file_ver, get_latest_file_version_by_fid, update_file_version,
+                update_version_status,
             },
             spec::file_spec::FileSpec,
         },
@@ -39,7 +43,10 @@ use log::error;
 use mime::Mime;
 use rust_i18n::t;
 use rust_wheel::{
-    common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
+    common::{
+        util::time_util::get_current_millisecond,
+        wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
+    },
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
 
@@ -138,10 +145,31 @@ pub async fn add_file(
     return create_file(&form.0, &login_user_info).await;
 }
 
+///
+/// each version save the file full content
+/// each version may take some disk space
+/// generate file version in peroid time
+/// not every time save
+///
 pub async fn add_file_version(
     form: actix_web_validator::Json<TexFileVerAddReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let legacy_version = get_latest_file_version_by_fid(&form.0.file_id);
+    if legacy_version.is_some() {
+        let unboxed_version = legacy_version.unwrap();
+        let diff_time = get_current_millisecond() - unboxed_version.created_time;
+        if diff_time < 60000 {
+            // if last version less than 60s, replace it
+            let result = update_file_version(&form.0, &unboxed_version.id);
+            return box_actix_rest_response(result.unwrap());
+        } else {
+            // update and save the new draft version
+            update_version_status(&unboxed_version.id);
+            let tex_file_version = create_file_ver(&form.0, &login_user_info);
+            return box_actix_rest_response(tex_file_version);
+        }
+    }
     let tex_file_version = create_file_ver(&form.0, &login_user_info);
     box_actix_rest_response(tex_file_version)
 }
