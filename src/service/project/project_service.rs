@@ -1352,9 +1352,6 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
 pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> Result<LatestCompile,InfraError> {
     let proj_info = get_cached_proj_info(proj_id).unwrap();
     let main_file = proj_info.main_file;
-    if main_file.user_id != uid.to_owned() {
-        return Err(InfraError::AccessResourceDenied);
-    }
     let mut req = Vec::new();
     req.push(CompileResult::Success as i32);
     let newest_queue = get_latest_proj_queue(&req, uid, proj_id);

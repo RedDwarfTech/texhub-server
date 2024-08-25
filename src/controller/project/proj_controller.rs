@@ -1,4 +1,5 @@
 use crate::common::database::get_connection;
+use crate::model::dict::collar_status::CollarStatus;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
@@ -13,6 +14,7 @@ use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::folder_proj_params::FolderProjParams;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
+use crate::model::request::project::share::collar_query_params::CollarQueryParams;
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::service::file::file_service::{
@@ -24,6 +26,7 @@ use crate::service::project::project_service::{
     get_proj_folders, handle_archive_proj, handle_compress_proj, handle_folder_create,
     handle_trash_proj, proj_search_impl, rename_proj_collection_folder, TexProjectService,
 };
+use crate::service::project::share::share_service::get_collar_relation;
 use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{
     model::{
@@ -69,6 +72,7 @@ use meilisearch_sdk::SearchResult;
 use mime::Mime;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::common::wrapper::actix_http_resp::box_err_actix_rest_response;
+use rust_wheel::model::error::infra_error::InfraError;
 use rust_wheel::{
     common::{
         util::net::{sse_message::SSEMessage, sse_stream::SseStream},
@@ -239,14 +243,21 @@ pub async fn get_latest_pdf(
     params: web::Query<GetProjParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let collar_query = CollarQueryParams {
+        project_id: params.project_id.clone(),
+        user_id: login_user_info.userId,
+    };
+    let relation = get_collar_relation(&collar_query).await;
+    if relation.is_none() {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
     let pdf_info = get_proj_latest_pdf(&params.0.project_id, &login_user_info.userId).await;
     match pdf_info {
-        Ok(pdf) => {
-            box_actix_rest_response(pdf)
-        },
-        Err(e) => {
-            box_err_actix_rest_response(e)
-        }
+        Ok(pdf) => box_actix_rest_response(pdf),
+        Err(e) => box_err_actix_rest_response(e),
     }
 }
 
