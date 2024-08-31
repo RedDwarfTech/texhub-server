@@ -46,8 +46,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(
                 // https://stackoverflow.com/questions/71714621/actix-web-limit-upload-file-size
                 MultipartFormConfig::default()
-                    .total_limit(2 * 1024) // 1 MB
-                    .memory_limit(1024) // 1 MB
+                    .total_limit(1048576) // 1 MB = 1024 * 1024
+                    .memory_limit(2097152) // 2 MB = 2 * 1024 * 1024
                     .error_handler(handle_multipart_error),
             )
             .configure(collar_controller::config)
