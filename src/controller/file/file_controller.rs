@@ -268,7 +268,7 @@ pub async fn move_node(
  */
 pub async fn load_partial(
     req: HttpRequest,
-    params: actix_web_validator::Json<PdfPartial>,
+    params: actix_web_validator::Query<PdfPartial>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let range_header = req.headers().get("Range");
