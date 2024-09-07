@@ -273,6 +273,7 @@ pub async fn load_partial(
 ) -> impl Responder {
     let range_header = req.headers().get("Range");
     if range_header.is_none() {
+        error!("the partial request did not contain the range header");
         return HttpResponse::BadRequest().finish();
     }
     let collar_query = CollarQueryParams {
