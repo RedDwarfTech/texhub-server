@@ -1,5 +1,6 @@
 use crate::{
     model::{
+        dict::collar_status::CollarStatus,
         diesel::tex::custom_tex_models::TexFile,
         request::{
             file::{
@@ -10,7 +11,7 @@ use crate::{
                 query::{
                     download_file_query::DownloadFileQuery, file_code_params::FileCodeParams,
                     file_query_params::FileQueryParams, main_file_params::MainFileParams,
-                    sub_file_query_params::SubFileQueryParams,
+                    pdf_partial::PdfPartial, sub_file_query_params::SubFileQueryParams,
                 },
             },
             project::share::collar_query_params::CollarQueryParams,
@@ -21,7 +22,7 @@ use crate::{
         file::{
             file_service::{
                 create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
-                get_file_by_ids, get_file_list, get_file_tree, get_main_file_list,
+                get_file_by_ids, get_file_list, get_file_tree, get_main_file_list, get_partial_pdf,
                 get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree,
                 rename_trans, TexFileService,
             },
@@ -32,7 +33,7 @@ use crate::{
             spec::file_spec::FileSpec,
         },
         project::{
-            project_service::{del_project_cache, get_cached_proj_info},
+            project_service::{del_project_cache, get_cached_proj_info, get_proj_latest_pdf},
             share::share_service::get_collar_relation,
         },
     },
@@ -45,9 +46,14 @@ use rust_i18n::t;
 use rust_wheel::{
     common::{
         util::time_util::get_current_millisecond,
-        wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
+        wrapper::actix_http_resp::{
+            box_actix_rest_response, box_err_actix_rest_response, box_error_actix_rest_response,
+        },
     },
-    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
+    model::{
+        error::infra_error::InfraError, response::api_response::ApiResponse,
+        user::login_user_info::LoginUserInfo,
+    },
 };
 
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
@@ -256,6 +262,37 @@ pub async fn move_node(
     box_actix_rest_response("ok")
 }
 
+/**
+ * when the pdf become huge, loading the whole pdf everytime wasted too much resource
+ * this api provide partial pdf loading to improve the performance and save system resource
+ */
+pub async fn load_partial(
+    req: HttpRequest,
+    params: actix_web_validator::Json<PdfPartial>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let range_header = req.headers().get("Range");
+    if range_header.is_none() {
+        return HttpResponse::BadRequest().finish();
+    }
+    let collar_query = CollarQueryParams {
+        project_id: params.0.proj_id.clone(),
+        user_id: login_user_info.userId,
+    };
+    let relation = get_collar_relation(&collar_query).await;
+    if relation.is_none() {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &login_user_info.userId).await;
+    if let Err(err) = pdf_info {
+        return box_err_actix_rest_response(err);
+    }
+    return get_partial_pdf(&pdf_info.unwrap(), range_header);
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/file")
@@ -272,6 +309,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/rename", web::patch().to(rename_file))
             .route("/detail", web::get().to(get_file))
             .route("/download", web::get().to(download_file))
+            .route("/pdf/partial", web::get().to(load_partial))
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }

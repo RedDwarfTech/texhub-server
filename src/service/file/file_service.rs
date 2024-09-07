@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use crate::common::database::get_connection;
@@ -16,8 +16,10 @@ use crate::model::request::file::query::file_code_params::FileCodeParams;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
 use crate::model::response::file::folder_tree_resp::FolderTreeResp;
+use crate::model::response::project::latest_compile::LatestCompile;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
+use actix_web::http::header::{CacheControl, CacheDirective};
 use actix_web::HttpResponse;
 use chrono::Duration;
 use diesel::result::Error::{self, NotFound};
@@ -26,6 +28,7 @@ use diesel::{
     QueryResult,
 };
 use log::error;
+use reqwest::header::HeaderValue;
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
@@ -754,4 +757,28 @@ fn convert_folder_to_tree_impl(
         .collect();
     let result = convert_to_tree(&root_element, &sub_element);
     return result;
+}
+
+pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>) -> HttpResponse {
+    let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
+    let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.path.clone()]);
+    let mut parts = range.unwrap().to_str().unwrap().split('-');
+    let start = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
+    let end = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
+    let mut file = File::open(pdf_file_path).expect("Failed to open file");
+    let metadata = file.metadata().expect("Failed to get metadata");
+    let file_size = metadata.len();
+    file.seek(SeekFrom::Start(start))
+        .expect("Failed to seek file");
+    let mut buf = vec![0; (end - start + 1) as usize];
+    file.take(end - start + 1)
+        .read_exact(&mut buf)
+        .expect("Failed to read file");
+    let content_range = format!("bytes {}-{}/{}", start, end, file_size);
+    return HttpResponse::PartialContent()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .append_header(("Content-Range", content_range))
+        .append_header(("Accept-Ranges", "bytes"))
+        .content_type("application/pdf")
+        .body(buf);
 }
