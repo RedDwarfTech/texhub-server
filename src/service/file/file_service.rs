@@ -779,6 +779,7 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
         .insert_header(CacheControl(vec![CacheDirective::NoCache]))
         .append_header(("Content-Range", content_range))
         .append_header(("Accept-Ranges", "bytes"))
+        .append_header(("Access-Control-Expose-Headers", "Accept-Ranges,Content-Range"))
         .content_type("application/pdf")
         .body(buf);
 }
