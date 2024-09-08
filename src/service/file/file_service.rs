@@ -32,7 +32,7 @@ use reqwest::header::HeaderValue;
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
-use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
+use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, get_filename_without_ext, join_paths};
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
@@ -761,7 +761,12 @@ fn convert_folder_to_tree_impl(
 
 pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>) -> HttpResponse {
     let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
-    let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.file_name.clone()]);
+    let pdf_name = format!(
+        "{}{}",
+        get_filename_without_ext(&lastest_pdf.file_name),
+        ".pdf"
+    );
+    let pdf_file_path = join_paths(&[proj_base_dir, pdf_name]);
     if range.is_none() {
         let mut file = File::open(pdf_file_path).expect("Failed to open file");
         let mut buf = Vec::new();
