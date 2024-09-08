@@ -770,7 +770,7 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
     if range.is_none() {
         let mut file = File::open(pdf_file_path).expect("Failed to open file");
         let mut buf = Vec::new();
-        file.read_to_end(&mut buf);
+        // file.read_to_end(&mut buf);
         let metadata = file.metadata().expect("Failed to get metadata");
         let file_size = metadata.len();
         return HttpResponse::PartialContent()
