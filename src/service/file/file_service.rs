@@ -762,6 +762,23 @@ fn convert_folder_to_tree_impl(
 pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>) -> HttpResponse {
     let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
     let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.path.clone()]);
+    if range.is_none() {
+        let mut file = File::open(pdf_file_path).expect("Failed to open file");
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf);
+        let metadata = file.metadata().expect("Failed to get metadata");
+        let file_size = metadata.len();
+        return HttpResponse::PartialContent()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .append_header(("Accept-Ranges", "bytes"))
+        .append_header(("Content-Length", file_size))
+        .append_header((
+            "Access-Control-Expose-Headers",
+            "Accept-Ranges,Content-Range",
+        ))
+        .content_type("application/pdf")
+        .body(buf);
+    }
     let mut parts = range.unwrap().to_str().unwrap().split('-');
     let start = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
     let end = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
