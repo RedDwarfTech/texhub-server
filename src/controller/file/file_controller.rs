@@ -21,7 +21,10 @@ use crate::{
     service::{
         file::{
             file_service::{
-                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list, get_partial_pdf, get_path_content_by_fid, get_pdf_content_length, get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService
+                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
+                get_file_by_ids, get_file_list, get_file_tree, get_main_file_list, get_partial_pdf,
+                get_path_content_by_fid, get_pdf_content_length, get_text_file_code, mv_file_impl,
+                proj_folder_tree, rename_trans, TexFileService,
             },
             file_version_service::{
                 create_file_ver, get_latest_file_version_by_fid, update_file_version,
@@ -36,7 +39,10 @@ use crate::{
     },
 };
 use actix_files::NamedFile;
-use actix_web::{http::header::{CacheControl, CacheDirective}, web, HttpRequest, HttpResponse, Responder};
+use actix_web::{
+    http::header::{CacheControl, CacheDirective},
+    web, HttpRequest, HttpResponse, Responder,
+};
 use log::{error, warn};
 use mime::Mime;
 use rust_i18n::t;
@@ -275,17 +281,22 @@ pub async fn load_partial(
     let range_header = req.headers().get("Range");
     if range_header.is_none() {
         let content_length = get_pdf_content_length(&pdf_info.unwrap());
-        warn!("the partial request did not contain the range header");
+        warn!(
+            "the partial request did not contain the range header,content_length:{}",
+            content_length
+        );
         // tell the server support slice loading
         return HttpResponse::PartialContent()
-        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
-        .append_header(("Accept-Ranges", "bytes"))
-        .append_header(("Access-Control-Expose-Headers", "Accept-Ranges,Content-Range"))
-        .append_header(("Content-Encoding", "identity"))
-        .append_header(("Content-Length", content_length))
-        .content_type("application/pdf")
-        .body("");
-        
+            .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+            .append_header(("Accept-Ranges", "bytes"))
+            .append_header((
+                "Access-Control-Expose-Headers",
+                "Accept-Ranges,Content-Range",
+            ))
+            .append_header(("Content-Encoding", "identity"))
+            .append_header(("Content-Length", content_length))
+            .content_type("application/pdf")
+            .body("");
     }
     let collar_query = CollarQueryParams {
         project_id: params.0.proj_id.clone(),
