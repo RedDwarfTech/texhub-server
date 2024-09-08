@@ -23,7 +23,7 @@ use crate::{
             file_service::{
                 create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
                 get_file_by_ids, get_file_list, get_file_tree, get_main_file_list, get_partial_pdf,
-                get_path_content_by_fid, get_pdf_content_length, get_text_file_code, mv_file_impl,
+                get_path_content_by_fid, get_text_file_code, mv_file_impl,
                 proj_folder_tree, rename_trans, TexFileService,
             },
             file_version_service::{
@@ -39,11 +39,8 @@ use crate::{
     },
 };
 use actix_files::NamedFile;
-use actix_web::{
-    http::header::{CacheControl, CacheDirective},
-    web, HttpRequest, HttpResponse, Responder,
-};
-use log::{error, warn};
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use log::error;
 use mime::Mime;
 use rust_i18n::t;
 use rust_wheel::{

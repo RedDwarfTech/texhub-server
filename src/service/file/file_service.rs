@@ -27,12 +27,14 @@ use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
     QueryResult,
 };
-use log::error;
+use log::{error, warn};
 use reqwest::header::HeaderValue;
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
-use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, get_filename_without_ext, join_paths};
+use rust_wheel::common::util::rd_file_util::{
+    create_folder_not_exists, get_filename_without_ext, join_paths,
+};
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
@@ -774,19 +776,24 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
         let metadata = file.metadata().expect("Failed to get metadata");
         let file_size = metadata.len();
         return HttpResponse::PartialContent()
-        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
-        .append_header(("Accept-Ranges", "bytes"))
-        .append_header(("Content-Length", file_size))
-        .append_header((
-            "Access-Control-Expose-Headers",
-            "Accept-Ranges,Content-Range",
-        ))
-        .content_type("application/pdf")
-        .body(buf);
+            .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+            .append_header(("Accept-Ranges", "bytes"))
+            .append_header(("Content-Length", file_size))
+            .append_header((
+                "Access-Control-Expose-Headers",
+                "Accept-Ranges,Content-Range",
+            ))
+            .content_type("application/pdf")
+            .body(buf);
     }
-    let mut parts = range.unwrap().to_str().unwrap().split('-');
+    let range_value = range.unwrap().to_str().unwrap();
+    warn!("range_value {}", range_value);
+    let bytes_info: Vec<&str> = range.unwrap().to_str().unwrap().split("=").collect();
+    let mut parts = bytes_info[1].split('-');
     let start = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
+    warn!("get the start {}", start);
     let end = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
+    warn!("get the end {}", end);
     let mut file = File::open(pdf_file_path).expect("Failed to open file");
     let metadata = file.metadata().expect("Failed to get metadata");
     let file_size = metadata.len();
