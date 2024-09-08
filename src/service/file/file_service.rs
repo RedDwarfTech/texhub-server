@@ -1,5 +1,5 @@
 use std::env;
-use std::fs::{self, File};
+use std::fs::{self, File, Metadata};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
@@ -779,6 +779,7 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
         .insert_header(CacheControl(vec![CacheDirective::NoCache]))
         .append_header(("Content-Range", content_range))
         .append_header(("Accept-Ranges", "bytes"))
+        .append_header(("Content-Length", file_size))
         .append_header((
             "Access-Control-Expose-Headers",
             "Accept-Ranges,Content-Range",
@@ -787,18 +788,14 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
         .body(buf);
 }
 
-pub fn get_pdf_content_length(lastest_pdf: &LatestCompile) -> u64 {
+pub fn get_pdf_content_length(lastest_pdf: &LatestCompile) -> Option<Metadata> {
     let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
     let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.file_name.clone()]);
     let file = File::open(pdf_file_path.clone());
     if let Err(err) = file {
         error!("open file failed: err:{}, path: {}", err, pdf_file_path);
-        return 0;
+        return None;
     }
-    let metadata = file.unwrap().metadata().expect("Failed to get metadata");
-    let file_size = metadata.len();
-    if file_size == 0 {
-        error!("read the file size is 0, path:{}", pdf_file_path)
-    }
-    return file_size;
+    let file_metadata = file.unwrap().metadata().expect("Failed to get metadata");
+    return Some(file_metadata);
 }

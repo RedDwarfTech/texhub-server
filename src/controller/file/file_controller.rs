@@ -279,25 +279,6 @@ pub async fn load_partial(
         return box_err_actix_rest_response(err);
     }
     let range_header = req.headers().get("Range");
-    if range_header.is_none() {
-        let content_length = get_pdf_content_length(&pdf_info.unwrap());
-        warn!(
-            "the partial request did not contain the range header,content_length:{}",
-            content_length
-        );
-        // tell the server support slice loading
-        return HttpResponse::PartialContent()
-            .insert_header(CacheControl(vec![CacheDirective::NoCache]))
-            .append_header(("Accept-Ranges", "bytes"))
-            .append_header((
-                "Access-Control-Expose-Headers",
-                "Accept-Ranges,Content-Range",
-            ))
-            .append_header(("Content-Encoding", "identity"))
-            .append_header(("Content-Length", content_length))
-            .content_type("application/pdf")
-            .body("");
-    }
     let collar_query = CollarQueryParams {
         project_id: params.0.proj_id.clone(),
         user_id: login_user_info.userId,
