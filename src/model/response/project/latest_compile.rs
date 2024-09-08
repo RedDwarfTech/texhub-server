@@ -5,4 +5,5 @@ use serde::{Serialize, Deserialize};
 pub struct LatestCompile {
     pub path: String,
     pub project_id: String,
+    pub file_name: String,
 }

@@ -1370,6 +1370,7 @@ pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> Result<LatestCo
     let pdf_result: LatestCompile = LatestCompile {
         path: join_paths(&[proj_relative_path, pdf_name.to_string()]),
         project_id: proj_id.clone(),
+        file_name: main_file.name
     };
     return Ok(pdf_result);
 }
