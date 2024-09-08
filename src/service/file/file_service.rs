@@ -797,5 +797,8 @@ pub fn get_pdf_content_length(lastest_pdf: &LatestCompile) -> u64 {
     }
     let metadata = file.unwrap().metadata().expect("Failed to get metadata");
     let file_size = metadata.len();
+    if file_size == 0 {
+        error!("read the file size is 0, path:{}", pdf_file_path)
+    }
     return file_size;
 }
