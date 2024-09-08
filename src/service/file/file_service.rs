@@ -761,7 +761,7 @@ fn convert_folder_to_tree_impl(
 
 pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>) -> HttpResponse {
     let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
-    let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.path.clone()]);
+    let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.file_name.clone()]);
     if range.is_none() {
         let mut file = File::open(pdf_file_path).expect("Failed to open file");
         let mut buf = Vec::new();
