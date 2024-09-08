@@ -779,7 +779,10 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
         .insert_header(CacheControl(vec![CacheDirective::NoCache]))
         .append_header(("Content-Range", content_range))
         .append_header(("Accept-Ranges", "bytes"))
-        .append_header(("Access-Control-Expose-Headers", "Accept-Ranges,Content-Range"))
+        .append_header((
+            "Access-Control-Expose-Headers",
+            "Accept-Ranges,Content-Range",
+        ))
         .content_type("application/pdf")
         .body(buf);
 }
@@ -787,8 +790,12 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
 pub fn get_pdf_content_length(lastest_pdf: &LatestCompile) -> u64 {
     let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
     let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.path.clone()]);
-    let file = File::open(pdf_file_path).expect("Failed to open file");
-    let metadata = file.metadata().expect("Failed to get metadata");
+    let file = File::open(pdf_file_path.clone());
+    if let Err(err) = file {
+        error!("open file failed: err:{}, path: {}", err, pdf_file_path);
+        return 0;
+    }
+    let metadata = file.unwrap().metadata().expect("Failed to get metadata");
     let file_size = metadata.len();
     return file_size;
 }
