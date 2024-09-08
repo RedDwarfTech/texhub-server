@@ -21,10 +21,7 @@ use crate::{
     service::{
         file::{
             file_service::{
-                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
-                get_file_by_ids, get_file_list, get_file_tree, get_main_file_list, get_partial_pdf,
-                get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree,
-                rename_trans, TexFileService,
+                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_main_file_list, get_partial_pdf, get_path_content_by_fid, get_pdf_content_length, get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService
             },
             file_version_service::{
                 create_file_ver, get_latest_file_version_by_fid, update_file_version,
@@ -39,8 +36,8 @@ use crate::{
     },
 };
 use actix_files::NamedFile;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
-use log::error;
+use actix_web::{http::header::{CacheControl, CacheDirective}, web, HttpRequest, HttpResponse, Responder};
+use log::{error, warn};
 use mime::Mime;
 use rust_i18n::t;
 use rust_wheel::{
@@ -271,10 +268,24 @@ pub async fn load_partial(
     params: actix_web_validator::Query<PdfPartial>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &login_user_info.userId).await;
+    if let Err(err) = pdf_info {
+        return box_err_actix_rest_response(err);
+    }
     let range_header = req.headers().get("Range");
     if range_header.is_none() {
-        error!("the partial request did not contain the range header");
-        return HttpResponse::BadRequest().finish();
+        let content_length = get_pdf_content_length(&pdf_info.unwrap());
+        warn!("the partial request did not contain the range header");
+        // tell the server support slice loading
+        return HttpResponse::PartialContent()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .append_header(("Accept-Ranges", "bytes"))
+        .append_header(("Access-Control-Expose-Headers", "Accept-Ranges,Content-Range"))
+        .append_header(("Content-Encoding", "identity"))
+        .append_header(("Content-Length", content_length))
+        .content_type("application/pdf")
+        .body("");
+        
     }
     let collar_query = CollarQueryParams {
         project_id: params.0.proj_id.clone(),
@@ -286,10 +297,6 @@ pub async fn load_partial(
     }
     if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
         return box_err_actix_rest_response(InfraError::AccessResourceDenied);
-    }
-    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &login_user_info.userId).await;
-    if let Err(err) = pdf_info {
-        return box_err_actix_rest_response(err);
     }
     return get_partial_pdf(&pdf_info.unwrap(), range_header);
 }
