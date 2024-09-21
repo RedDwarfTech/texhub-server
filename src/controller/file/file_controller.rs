@@ -21,10 +21,7 @@ use crate::{
     service::{
         file::{
             file_service::{
-                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
-                get_file_by_ids, get_file_list, get_file_tree, get_main_file_list, get_partial_pdf,
-                get_path_content_by_fid, get_text_file_code, mv_file_impl,
-                proj_folder_tree, rename_trans, TexFileService,
+                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_full_pdf, get_main_file_list, get_partial_pdf, get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService
             },
             file_version_service::{
                 create_file_ver, get_latest_file_version_by_fid, update_file_version,
@@ -61,6 +58,9 @@ pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
     box_actix_rest_response(docs)
 }
 
+/**
+ * https://stackoverflow.com/questions/73010999/how-to-return-a-namedfile-in-a-httpresponse-using-actix-web
+ */
 pub async fn download_file(
     req: HttpRequest,
     params: web::Query<DownloadFileQuery>,
@@ -290,6 +290,29 @@ pub async fn load_partial(
     return get_partial_pdf(&pdf_info.unwrap(), range_header);
 }
 
+pub async fn load_full_pdf_file(
+    req: HttpRequest,
+    params: actix_web_validator::Query<PdfPartial>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &login_user_info.userId).await;
+    if let Err(err) = pdf_info {
+        return box_err_actix_rest_response(err);
+    }
+    let collar_query = CollarQueryParams {
+        project_id: params.0.proj_id.clone(),
+        user_id: login_user_info.userId,
+    };
+    let relation = get_collar_relation(&collar_query).await;
+    if relation.is_none() {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    return get_full_pdf(&pdf_info.unwrap(), req);
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/file")
@@ -307,6 +330,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/detail", web::get().to(get_file))
             .route("/download", web::get().to(download_file))
             .route("/pdf/partial", web::get().to(load_partial))
+            .route("/pdf/full", web::get().to(load_full_pdf_file))
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }

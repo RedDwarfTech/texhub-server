@@ -19,15 +19,18 @@ use crate::model::response::file::folder_tree_resp::FolderTreeResp;
 use crate::model::response::project::latest_compile::LatestCompile;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
+use actix_files::NamedFile;
+use actix_web::error::ErrorBadRequest;
 use actix_web::http::header::{CacheControl, CacheDirective};
-use actix_web::HttpResponse;
+use actix_web::{HttpRequest, HttpResponse};
 use chrono::Duration;
 use diesel::result::Error::{self, NotFound};
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
     QueryResult,
 };
-use log::{error, warn};
+use log::error;
+use mime::Mime;
 use reqwest::header::HeaderValue;
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
@@ -770,9 +773,16 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
     );
     let pdf_file_path = join_paths(&[proj_base_dir, pdf_name]);
     if range.is_none() {
-        let mut file = File::open(pdf_file_path).expect("Failed to open file");
+        let mut file = File::open(&pdf_file_path).expect("Failed to open file");
         let mut buf = Vec::new();
-        file.read_to_end(&mut buf);
+        let read_result = file.read_to_end(&mut buf);
+        if let Err(err) = read_result {
+            error!(
+                "read file facing issue, path:{},err:{}",
+                &pdf_file_path.clone(),
+                err
+            );
+        }
         let metadata = file.metadata().expect("Failed to get metadata");
         let file_size = metadata.len();
         return HttpResponse::PartialContent()
@@ -786,14 +796,10 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
             .content_type("application/pdf")
             .body(buf);
     }
-    let range_value = range.unwrap().to_str().unwrap();
-    warn!("range_value {}", range_value);
     let bytes_info: Vec<&str> = range.unwrap().to_str().unwrap().split("=").collect();
     let mut parts = bytes_info[1].split('-');
     let start = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
-    warn!("get the start {}", start);
     let end = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
-    warn!("get the end {}", end);
     let mut file = File::open(pdf_file_path).expect("Failed to open file");
     let metadata = file.metadata().expect("Failed to get metadata");
     let file_size = metadata.len();
@@ -815,6 +821,26 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
         ))
         .content_type("application/pdf")
         .body(buf);
+}
+
+pub fn get_full_pdf(lastest_pdf: &LatestCompile, req: HttpRequest) -> HttpResponse {
+    let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
+    let pdf_name = format!(
+        "{}{}",
+        get_filename_without_ext(&lastest_pdf.file_name),
+        ".pdf"
+    );
+    let pdf_file_path = join_paths(&[proj_base_dir, pdf_name]);
+    match NamedFile::open(&pdf_file_path.clone()) {
+        Ok(file) => {
+            let content_type: Mime = "application/pdf".parse().unwrap();
+            return NamedFile::set_content_type(file, content_type).into_response(&req);
+        }
+        Err(e) => {
+            error!("Error open pdf file {},{}", pdf_file_path, e);
+            return ErrorBadRequest("File not Found").into();
+        }
+    }
 }
 
 pub fn get_pdf_content_length(lastest_pdf: &LatestCompile) -> Option<Metadata> {
