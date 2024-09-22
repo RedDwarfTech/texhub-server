@@ -21,7 +21,7 @@ use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
 use actix_files::NamedFile;
 use actix_web::error::ErrorBadRequest;
-use actix_web::http::header::{CacheControl, CacheDirective};
+use actix_web::http::header::{CacheControl, CacheDirective, ContentDisposition, DispositionType};
 use actix_web::{HttpRequest, HttpResponse};
 use chrono::Duration;
 use diesel::result::Error::{self, NotFound};
@@ -834,7 +834,11 @@ pub fn get_full_pdf(lastest_pdf: &LatestCompile, req: HttpRequest) -> HttpRespon
     match NamedFile::open(&pdf_file_path.clone()) {
         Ok(file) => {
             let content_type: Mime = "application/pdf".parse().unwrap();
-            return NamedFile::set_content_type(file, content_type).into_response(&req);
+            return NamedFile::set_content_type(file, content_type)
+            .set_content_disposition(ContentDisposition {
+                disposition: DispositionType::Inline,
+                parameters: vec![],
+            }).into_response(&req);
         }
         Err(e) => {
             error!("Error open pdf file {},{}", pdf_file_path, e);
