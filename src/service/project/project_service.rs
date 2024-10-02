@@ -1,5 +1,6 @@
-use super::project_editor_service::create_proj_editor;
-use super::project_folder_map_service::move_proj_folder;
+use super::eden::proj::create_files_into_db;
+use super::eden::proj::create_proj;
+use super::eden::proj::do_create_proj_dependencies;
 use super::project_queue_service::get_latest_proj_queue;
 use super::spec::proj_spec::ProjSpec;
 use crate::common::interop::synctex::synctex_node_visible_h;
@@ -14,15 +15,12 @@ use crate::common::interop::synctex::{
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::zip::compress::gen_zip;
 use crate::diesel::RunQueryDsl;
-use crate::model::dict::role_type::RoleType;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
-use crate::model::diesel::custom::project::folder::folder_map_add::FolderMapAdd;
 use crate::model::diesel::custom::project::proj_type::ProjType;
 use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueueAdd;
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
-use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
@@ -31,13 +29,11 @@ use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
-use crate::model::diesel::tex::tex_schema::tex_template::main_file_name;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::add::tex_project_req::TexProjectReq;
 use crate::model::request::project::del::del_folder_req::DelFolderReq;
 use crate::model::request::project::edit::archive_proj_req::ArchiveProjReq;
-use crate::model::request::project::edit::edit_proj_folder::EditProjFolder;
 use crate::model::request::project::edit::edit_proj_nickname::EditProjNickname;
 use crate::model::request::project::edit::edit_proj_req::EditProjReq;
 use crate::model::request::project::edit::rename_proj_folder::RenameProjFolder;
@@ -62,13 +58,13 @@ use crate::model::response::project::src_pos_resp::SrcPosResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
-use crate::service::file::file_service::{get_cached_file_by_fid, get_file_tree, get_main_file_list};
+use crate::service::file::file_service::{
+    get_cached_file_by_fid, get_file_tree, get_main_file_list,
+};
 use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
 use crate::service::project::project_editor_service::get_default_proj_ids;
-use crate::service::project::project_folder_service::create_proj_default_folder;
-use crate::service::project::project_folder_service::get_proj_default_folder;
 use crate::service::project::project_queue_service::get_proj_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -84,6 +80,7 @@ use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
+use rust_wheel::common::util::rd_file_util::copy_dir_recursive;
 use rust_wheel::common::util::rd_file_util::{
     create_directory_if_not_exists, get_filename_without_ext, join_paths,
 };
@@ -101,12 +98,11 @@ use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::compile_status::CompileStatus;
 use rust_wheel::texhub::proj::compile_result::CompileResult;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
-use rust_wheel::texhub::th_file_type::ThFileType;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::{CStr, CString};
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::os::raw::c_int;
 use std::path::Path;
 use std::path::PathBuf;
@@ -409,36 +405,6 @@ pub async fn create_cp_project(
     return trans_result;
 }
 
-fn create_default_folder(
-    rd_user_info: &RdUserInfo,
-    connection: &mut PgConnection,
-    proj: &TexProject,
-) -> TexProjFolder {
-    let default_folder = get_proj_default_folder(rd_user_info, connection);
-    if default_folder.is_none() {
-        let default_add = TexFolderReq {
-            folder_name: "default".to_owned(),
-            proj_type: 1,
-            default_folder: 1,
-        };
-        let new_default_folder = create_proj_default_folder(connection, rd_user_info, &default_add);
-        let uid: i64 = rd_user_info.id;
-        let map_add = EditProjFolder {
-            proj_type: 1,
-            project_id: proj.project_id.clone(),
-            folder_id: new_default_folder.id,
-        };
-        let new_folder_map = FolderMapAdd::from_req(&map_add, &uid);
-        use crate::model::diesel::tex::tex_schema::tex_proj_folder_map::dsl::*;
-        diesel::insert_into(tex_proj_folder_map)
-            .values(&new_folder_map)
-            .get_result::<TexProjFolderMap>(connection)
-            .expect("add default folder map failed");
-        return new_default_folder;
-    }
-    return default_folder.unwrap();
-}
-
 fn do_create_proj_trans(
     proj_req: &TexProjectReq,
     rd_user_info: &RdUserInfo,
@@ -467,35 +433,6 @@ fn do_create_proj_trans(
         }
     }
     return Ok(proj);
-}
-
-fn do_create_proj_dependencies(
-    proj_req: &TexProjectReq,
-    rd_user_info: &RdUserInfo,
-    connection: &mut PgConnection,
-    proj: &TexProject,
-) {
-    let default_folder: TexProjFolder = create_default_folder(rd_user_info, connection, &proj);
-    let edit_req: EditProjFolder = EditProjFolder {
-        project_id: proj.project_id.clone(),
-        folder_id: if proj_req.folder_id.is_some() {
-            proj_req.folder_id.unwrap()
-        } else {
-            default_folder.id
-        },
-        proj_type: 1,
-    };
-    let uid: i64 = rd_user_info.id;
-    move_proj_folder(&edit_req, &uid, connection);
-    let editor_result = create_proj_editor(
-        &proj.project_id.clone(),
-        rd_user_info,
-        RoleType::Owner as i32,
-        connection,
-    );
-    if let Err(e) = editor_result {
-        error!("create editor facing issue, error: {}", e)
-    }
 }
 
 fn do_create_tpl_proj_trans(
@@ -643,63 +580,6 @@ pub fn create_proj_files(
     );
 }
 
-fn copy_dir_recursive(src: &str, dst: &str) -> io::Result<()> {
-    if !fs::metadata(src)?.is_dir() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("{} is not a directory", src),
-        ));
-    }
-
-    if fs::metadata(dst).is_err() {
-        fs::create_dir(dst)?;
-    }
-
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let path = entry.path();
-        let file_name = entry.file_name();
-
-        if path.is_file() {
-            let dst_file = format!("{}/{}", dst, file_name.to_str().unwrap());
-            fs::copy(&path, &dst_file)?;
-        } else if path.is_dir() {
-            let dst_dir = format!("{}/{}", dst, file_name.to_str().unwrap());
-            copy_dir_recursive(&path.to_str().unwrap(), &dst_dir)?;
-        }
-    }
-
-    Ok(())
-}
-
-pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>, login_user_info: &LoginUserInfo) {
-    for file in files {
-        let proj_base_dir = get_proj_base_dir_instant(&file.project_id);
-        let file_full_path = join_paths(&[
-            proj_base_dir,
-            file.file_path.to_owned(),
-            file.name.to_owned(),
-        ]);
-        if file.file_type == 1 && support_sync(&file_full_path) {
-            let file_content = fs::read_to_string(&file_full_path);
-            if let Err(e) = file_content {
-                error!(
-                    "Failed to read file when initial yjs,{}, file full path: {}",
-                    e, file_full_path
-                );
-                return;
-            }
-            initial_file_request(
-                &file.project_id,
-                &file.file_id,
-                &file_content.unwrap(),
-                login_user_info,
-            )
-            .await;
-        }
-    }
-}
-
 pub fn support_sync(file_full_path: &String) -> bool {
     let path = Path::new(file_full_path);
     let extension = path.extension();
@@ -724,113 +604,6 @@ pub fn support_sync(file_full_path: &String) -> bool {
 
 pub fn copy_files_in_db() -> bool {
     return true;
-}
-pub fn create_files_into_db(
-    project_path: &String,
-    proj_id: &String,
-    uid: &i64,
-    main_name: &String,
-    login_user_info: &LoginUserInfo,
-) -> bool {
-    let mut files: Vec<TexFileAdd> = Vec::new();
-    let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, &main_name);
-    if let Err(err) = read_result {
-        error!(
-            "read directory failed,{}, project path: {}",
-            err, project_path
-        );
-        return false;
-    }
-    use crate::model::diesel::tex::tex_schema::tex_file as files_table;
-    if files.len() == 0 {
-        error!(
-            "read 0 files from disk, project path: {}, main_file_name: {:?}",
-            project_path, main_file_name
-        );
-        return false;
-    }
-    let result = diesel::insert_into(files_table::dsl::tex_file)
-        .values(&files)
-        .get_result::<TexFile>(&mut get_connection());
-    if let Err(err) = result {
-        error!("write files into db facing issue,{}", err);
-        return false;
-    }
-    let u_copy = login_user_info.clone();
-    task::spawn_blocking({
-        move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(init_project_into_yjs(&files, &u_copy));
-        }
-    });
-    return true;
-}
-
-fn read_directory(
-    dir_path: &str,
-    parent_id: &str,
-    files: &mut Vec<TexFileAdd>,
-    uid: &i64,
-    proj_id: &String,
-    main_name: &String,
-) -> io::Result<()> {
-    for entry in fs::read_dir(dir_path)? {
-        if let Err(err) = entry {
-            error!(
-                "read directory entry failed, {}, dir path: {}, parent: {}",
-                err, dir_path, parent_id
-            );
-            return Err(err);
-        }
-        let entry = entry?;
-        let path = entry.path();
-        let file_name = entry.file_name();
-        let proj_path = get_proj_base_dir_instant(proj_id);
-        let relative_path = path.parent().unwrap().strip_prefix(proj_path);
-        let stored_path = relative_path.unwrap().to_string_lossy().into_owned();
-        if path.is_file() {
-            let tex_file = TexFileAdd::gen_tex_file_from_disk(
-                stored_path,
-                uid,
-                proj_id,
-                &file_name,
-                main_name,
-                parent_id,
-                1,
-            );
-            files.push(tex_file)
-        } else if path.is_dir() {
-            let tex_file = TexFileAdd::gen_tex_file_from_disk(
-                stored_path,
-                uid,
-                proj_id,
-                &file_name,
-                main_name,
-                parent_id,
-                ThFileType::Folder as i32,
-            );
-            let parent_folder_id = tex_file.file_id.clone();
-            files.push(tex_file);
-            let dir_name = file_name.to_string_lossy().into_owned();
-            let next_parent = format!("{}/{}", dir_path, dir_name);
-            let recur_result = read_directory(
-                &next_parent,
-                &parent_folder_id,
-                files,
-                uid,
-                proj_id,
-                main_name,
-            );
-            if let Err(err) = recur_result {
-                error!(
-                    "read file failed, {}, next parant: {}, dir path: {}",
-                    err, next_parent, dir_path
-                );
-            }
-        }
-    }
-
-    Ok(())
 }
 
 async fn sync_file_to_yjs(proj: &TexProject, file_id: &String, login_user_info: &LoginUserInfo) {
@@ -911,55 +684,39 @@ pub async fn save_proj_file(
 
 pub async fn save_full_proj(
     proj_upload: FullProjUpload,
-    login_user_info: &LoginUserInfo,
+    _login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
-    let proj_id = proj_upload.project_id.clone();
-    let parent = proj_upload.parent.clone();
     for tmp_file in proj_upload.files {
-        if tmp_file.size > 1024 * 1024 {
+        if tmp_file.size > 100 * 1024 * 1024 {
             return box_error_actix_rest_response(
                 "",
                 "001002P001".to_owned(),
                 "exceed limit".to_owned(),
             );
         }
-        let db_file = get_cached_file_by_fid(&proj_upload.parent).unwrap();
-        let store_file_path = get_proj_base_dir(&proj_upload.project_id);
         let f_name = tmp_file.file_name;
-        let file_path = join_paths(&[
-            store_file_path,
-            db_file.file_path.clone(),
-            f_name.as_ref().unwrap().to_string(),
-        ]);
         // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
         let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap().to_string());
         let save_result = tmp_file.file.persist(temp_path.as_str());
         if let Err(e) = save_result {
             error!(
                 "Failed to save upload file to disk,{}, file path: {}",
-                e, file_path
+                e, temp_path
             );
         }
-        let copy_result = fs::copy(&temp_path, &file_path.as_str());
+        let copy_result = fs::copy(&temp_path, &temp_path.as_str());
         if let Err(e) = copy_result {
             error!("copy file failed, {}", e);
         } else {
             fs::remove_file(temp_path).expect("remove file failed");
         }
-        let create_result = create_proj_file_impl(
-            &f_name.unwrap().to_string(),
-            login_user_info,
-            &proj_id,
-            &parent,
-            &db_file.file_path,
-        );
-        if let Err(e) = create_result {
-            error!("create project file failed,{}", e);
-        }
-        del_project_cache(&proj_id).await;
+
+        // del_project_cache(&proj_id).await;
     }
     return box_actix_rest_response("ok");
 }
+
+fn exact_upload_zip() {}
 
 fn create_proj_file_impl(
     file_name: &String,
@@ -979,20 +736,6 @@ fn create_proj_file_impl(
     let result = diesel::insert_into(tex_file)
         .values(&new_proj)
         .get_result::<TexFile>(&mut get_connection());
-    return result;
-}
-
-fn create_proj(
-    proj_req: &TexProjectReq,
-    connection: &mut PgConnection,
-    rd_user_info: &RdUserInfo,
-) -> Result<TexProject, diesel::result::Error> {
-    let uid: i64 = rd_user_info.id;
-    let new_proj = TexProjectAdd::from_req(&proj_req.name, &uid, &rd_user_info.nickname);
-    use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
-    let result = diesel::insert_into(tex_project)
-        .values(&new_proj)
-        .get_result::<TexProject>(connection);
     return result;
 }
 
@@ -1402,7 +1145,7 @@ pub async fn get_compiled_log(req: &TexCompileQueueLog) -> String {
     return contents;
 }
 
-pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> Result<LatestCompile,InfraError> {
+pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> Result<LatestCompile, InfraError> {
     let proj_info = get_cached_proj_info(proj_id).unwrap();
     let main_file = proj_info.main_file;
     let mut req = Vec::new();
@@ -1423,7 +1166,7 @@ pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> Result<LatestCo
     let pdf_result: LatestCompile = LatestCompile {
         path: join_paths(&[proj_relative_path, pdf_name.to_string()]),
         project_id: proj_id.clone(),
-        file_name: main_file.name
+        file_name: main_file.name,
     };
     return Ok(pdf_result);
 }
