@@ -476,21 +476,6 @@ async fn upload_full_proj(
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
-    // https://stackoverflow.com/questions/71714621/actix-web-limit-upload-file-size
-    cfg.app_data(
-        MultipartFormConfig::default()
-            .total_limit(1048576) // 1 MB = 1024 * 1024
-            .memory_limit(2097152) // 2 MB = 2 * 1024 * 1024
-            .error_handler(handle_multipart_error),
-    )
-    .service(web::scope("/tex/project").route("/upload", web::post().to(upload_full_proj)));
-    cfg.app_data(
-        MultipartFormConfig::default()
-            .total_limit(104857600) // 100 MB = 1024 * 1024
-            .memory_limit(209715200) // 200 MB = 200 * 1024 * 1024
-            .error_handler(handle_multipart_error),
-    )
-    .service(web::scope("/tex/project").route("/file/upload", web::post().to(upload_proj_file)));
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_projects))
@@ -530,4 +515,19 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/folder/del", web::delete().to(del_collect_folder))
             .route("/copy", web::post().to(cp_proj)),
     );
+    // https://stackoverflow.com/questions/71714621/actix-web-limit-upload-file-size
+    cfg.app_data(
+        MultipartFormConfig::default()
+            .total_limit(1048576) // 1 MB = 1024 * 1024
+            .memory_limit(2097152) // 2 MB = 2 * 1024 * 1024
+            .error_handler(handle_multipart_error),
+    )
+    .service(web::scope("/tex/project").route("/upload", web::post().to(upload_full_proj)));
+    cfg.app_data(
+        MultipartFormConfig::default()
+            .total_limit(104857600) // 100 MB = 1024 * 1024
+            .memory_limit(209715200) // 200 MB = 200 * 1024 * 1024
+            .error_handler(handle_multipart_error),
+    )
+    .service(web::scope("/tex/project").route("/file/upload", web::post().to(upload_proj_file)));
 }
