@@ -1,5 +1,7 @@
 use crate::common::database::get_connection;
+use crate::handle_multipart_error;
 use crate::model::dict::collar_status::CollarStatus;
+use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
@@ -24,7 +26,8 @@ use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
     del_proj_collection_folder, del_project_logic, do_proj_copy, get_folder_project_impl,
     get_proj_folders, handle_archive_proj, handle_compress_proj, handle_folder_create,
-    handle_trash_proj, proj_search_impl, rename_proj_collection_folder, TexProjectService,
+    handle_trash_proj, proj_search_impl, rename_proj_collection_folder, save_full_proj,
+    TexProjectService,
 };
 use crate::service::project::share::share_service::get_collar_relation;
 use crate::service::project::spec::proj_spec::ProjSpec;
@@ -61,7 +64,7 @@ use crate::{
     },
 };
 use actix_files::NamedFile;
-use actix_multipart::form::MultipartForm;
+use actix_multipart::form::{MultipartForm, MultipartFormConfig};
 use actix_web::HttpRequest;
 use actix_web::{
     http::header::{CacheControl, CacheDirective},
@@ -465,7 +468,28 @@ pub async fn cp_proj(
     return do_proj_copy(&form.0, &login_user_info).await;
 }
 
+async fn upload_full_proj(
+    MultipartForm(form): MultipartForm<FullProjUpload>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    return save_full_proj(form, &login_user_info).await;
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.app_data(
+        MultipartFormConfig::default()
+            .total_limit(1048576) // 1 MB = 1024 * 1024
+            .memory_limit(2097152) // 2 MB = 2 * 1024 * 1024
+            .error_handler(handle_multipart_error),
+    )
+    .service(web::scope("/tex/project").route("/upload", web::post().to(upload_full_proj)));
+    cfg.app_data(
+        MultipartFormConfig::default()
+            .total_limit(104857600) // 100 MB = 1024 * 1024
+            .memory_limit(209715200) // 200 MB = 200 * 1024 * 1024
+            .error_handler(handle_multipart_error),
+    )
+    .service(web::scope("/tex/project").route("/file/upload", web::post().to(upload_proj_file)));
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_projects))
@@ -479,7 +503,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/pos/src", web::get().to(get_src_position))
             .route("/edit", web::patch().to(edit_project))
             .route("/join", web::post().to(join_proj))
-            .route("/file/upload", web::post().to(upload_proj_file))
             .route("/log/stream", web::get().to(sse_handler))
             .route("/temp/code", web::get().to(get_temp_auth_code))
             .route("/compile", web::put().to(compile_proj))

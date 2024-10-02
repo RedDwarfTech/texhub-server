@@ -833,12 +833,12 @@ pub fn get_full_pdf(lastest_pdf: &LatestCompile, req: HttpRequest) -> HttpRespon
     let pdf_file_path = join_paths(&[proj_base_dir, pdf_name]);
     match NamedFile::open(&pdf_file_path.clone()) {
         Ok(file) => {
-            let content_type: Mime = "application/pdf".parse().unwrap();
-            return NamedFile::set_content_type(file, content_type)
-            .set_content_disposition(ContentDisposition {
-                disposition: DispositionType::Inline,
-                parameters: vec![],
-            }).into_response(&req);
+        let content_type: Mime = "application/pdf".parse().unwrap();
+        return NamedFile::set_content_type(file, content_type)
+        .set_content_disposition(ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![],
+        }).into_response(&req);
         }
         Err(e) => {
             error!("Error open pdf file {},{}", pdf_file_path, e);

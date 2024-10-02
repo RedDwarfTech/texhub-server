@@ -24,6 +24,7 @@ use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueu
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
+use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
@@ -886,6 +887,58 @@ pub async fn save_proj_file(
                 e, file_path
             );
             // return box_error_actix_rest_response("", "", msg);
+        }
+        let copy_result = fs::copy(&temp_path, &file_path.as_str());
+        if let Err(e) = copy_result {
+            error!("copy file failed, {}", e);
+        } else {
+            fs::remove_file(temp_path).expect("remove file failed");
+        }
+        let create_result = create_proj_file_impl(
+            &f_name.unwrap().to_string(),
+            login_user_info,
+            &proj_id,
+            &parent,
+            &db_file.file_path,
+        );
+        if let Err(e) = create_result {
+            error!("create project file failed,{}", e);
+        }
+        del_project_cache(&proj_id).await;
+    }
+    return box_actix_rest_response("ok");
+}
+
+pub async fn save_full_proj(
+    proj_upload: FullProjUpload,
+    login_user_info: &LoginUserInfo,
+) -> HttpResponse {
+    let proj_id = proj_upload.project_id.clone();
+    let parent = proj_upload.parent.clone();
+    for tmp_file in proj_upload.files {
+        if tmp_file.size > 1024 * 1024 {
+            return box_error_actix_rest_response(
+                "",
+                "001002P001".to_owned(),
+                "exceed limit".to_owned(),
+            );
+        }
+        let db_file = get_cached_file_by_fid(&proj_upload.parent).unwrap();
+        let store_file_path = get_proj_base_dir(&proj_upload.project_id);
+        let f_name = tmp_file.file_name;
+        let file_path = join_paths(&[
+            store_file_path,
+            db_file.file_path.clone(),
+            f_name.as_ref().unwrap().to_string(),
+        ]);
+        // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
+        let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap().to_string());
+        let save_result = tmp_file.file.persist(temp_path.as_str());
+        if let Err(e) = save_result {
+            error!(
+                "Failed to save upload file to disk,{}, file path: {}",
+                e, file_path
+            );
         }
         let copy_result = fs::copy(&temp_path, &file_path.as_str());
         if let Err(e) = copy_result {
