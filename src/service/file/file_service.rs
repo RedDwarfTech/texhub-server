@@ -103,7 +103,7 @@ pub fn get_cached_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_json = serde_json::to_string(file).unwrap();
     let one_day = Duration::try_days(1);
     let seconds_in_one_day = one_day.unwrap().num_seconds();
-    set_value(&file_cached_key, &file_json, seconds_in_one_day as usize).unwrap();
+    set_value(&file_cached_key, &file_json, seconds_in_one_day as u64).unwrap();
     return Some(file.to_owned());
 }
 

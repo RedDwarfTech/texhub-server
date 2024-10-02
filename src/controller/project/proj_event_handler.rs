@@ -1,7 +1,8 @@
 use log::error;
+use redis::Commands;
 use redis::{
     streams::{StreamId, StreamKey, StreamReadOptions, StreamReadReply},
-    Commands, RedisError, RedisResult,
+    RedisError, RedisResult,
 };
 use redlock::{Lock, RedLock};
 use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::get_redis_conn};
@@ -128,8 +129,8 @@ fn do_task(stream_id: &StreamId) -> Option<EditProjNickname> {
 }
 
 fn extract_string_value(value: &redis::Value) -> Option<String> {
-    if let redis::Value::Data(data) = value {
-        Some(String::from_utf8_lossy(&data).into_owned())
+    if let redis::Value::SimpleString(data) = value {
+        Some(data.to_string())
     } else {
         None
     }
