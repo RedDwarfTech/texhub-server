@@ -516,18 +516,23 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/copy", web::post().to(cp_proj)),
     );
     // https://stackoverflow.com/questions/71714621/actix-web-limit-upload-file-size
-    cfg.app_data(
-        MultipartFormConfig::default()
-            .total_limit(1048576) // 1 MB = 1024 * 1024
-            .memory_limit(2097152) // 2 MB = 2 * 1024 * 1024
-            .error_handler(handle_multipart_error),
-    )
-    .service(web::scope("/tex/ul/proj").route("/upload", web::post().to(upload_full_proj)));
-    cfg.app_data(
-        MultipartFormConfig::default()
-            .total_limit(104857600) // 100 MB = 1024 * 1024
-            .memory_limit(209715200) // 200 MB = 200 * 1024 * 1024
-            .error_handler(handle_multipart_error),
-    )
-    .service(web::scope("/tex/ul/file").route("/upload", web::post().to(upload_proj_file)));
+    // https://stackoverflow.com/questions/79046623/how-to-fix-the-second-actix-web-service-configuration-404-not-found-error
+    let file_upload_config = MultipartFormConfig::default()
+        .total_limit(1048576) // 1 MB = 1024 * 1024
+        .memory_limit(2097152) // 2 MB = 2 * 1024 * 1024
+        .error_handler(handle_multipart_error);
+    let proj_upload_config = MultipartFormConfig::default()
+        .total_limit(104857600) // 100 MB = 1024 * 1024
+        .memory_limit(209715200) // 200 MB = 200 * 1024 * 1024
+        .error_handler(handle_multipart_error);
+    cfg.service(
+        web::scope("/tex/ul/proj")
+            .route("/upload", web::post().to(upload_full_proj))
+            .app_data(proj_upload_config),
+    );
+    cfg.service(
+        web::scope("/tex/ul/file")
+            .route("/upload", web::post().to(upload_proj_file))
+            .app_data(file_upload_config),
+    );
 }
