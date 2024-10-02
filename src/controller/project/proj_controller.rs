@@ -476,6 +476,7 @@ async fn upload_full_proj(
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
+    // https://stackoverflow.com/questions/71714621/actix-web-limit-upload-file-size
     cfg.app_data(
         MultipartFormConfig::default()
             .total_limit(1048576) // 1 MB = 1024 * 1024
