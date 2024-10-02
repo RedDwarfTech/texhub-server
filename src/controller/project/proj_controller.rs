@@ -522,12 +522,12 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .memory_limit(2097152) // 2 MB = 2 * 1024 * 1024
             .error_handler(handle_multipart_error),
     )
-    .service(web::scope("/tex/project/proj").route("/upload", web::post().to(upload_full_proj)));
+    .service(web::scope("/tex/ul/proj").route("/upload", web::post().to(upload_full_proj)));
     cfg.app_data(
         MultipartFormConfig::default()
             .total_limit(104857600) // 100 MB = 1024 * 1024
             .memory_limit(209715200) // 200 MB = 200 * 1024 * 1024
             .error_handler(handle_multipart_error),
     )
-    .service(web::scope("/tex/project/file").route("/upload", web::post().to(upload_proj_file)));
+    .service(web::scope("/tex/ul/file").route("/upload", web::post().to(upload_proj_file)));
 }
