@@ -729,6 +729,9 @@ pub async fn save_full_proj(
 fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {
     let file = File::open(&input_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
+    if archive.decompressed_size().unwrap_or_default() > 1024 {
+        return Err(io::Error::new(io::ErrorKind::Other,"too huge for exact"));
+    }
     for i in 0..archive.len() {
         // Get the file at the current index.
         let mut file = archive.by_index(i)?;
