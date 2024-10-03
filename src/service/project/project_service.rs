@@ -728,10 +728,12 @@ pub async fn save_full_proj(
         }
         let exact_result = exact_upload_zip(&temp_path, &temp_path.as_str());
         if let Err(e) = exact_result {
-            error!("copy file failed, {}", e);
-        } else {
-            fs::remove_file(temp_path).expect("remove file failed");
+            error!("exact file failed, {}", e);
+            return actix_web::error::ErrorInternalServerError("exact file failed").into();
         }
+        // else {
+        //     fs::remove_file(temp_path).expect("remove file failed");
+        // }
         // create project from exact result
         let tpl_params = TplParams {
             tpl_id: -1,
@@ -740,7 +742,8 @@ pub async fn save_full_proj(
         };
         let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
         if let Err(e) = create_result {
-            error!("create project failed,{},tpl params:{:?}", e, &tpl_params)
+            error!("create project failed,{},tpl params:{:?}", e, &tpl_params);
+            return actix_web::error::ErrorInternalServerError("create project failed").into();
         }
     }
     return box_actix_rest_response("ok");
@@ -749,7 +752,7 @@ pub async fn save_full_proj(
 fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {
     let file = File::open(&input_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
-    if archive.decompressed_size().unwrap_or_default() > 1024 {
+    if archive.decompressed_size().unwrap_or_default() > 200 * 1024 * 1024 {
         return Err(io::Error::new(io::ErrorKind::Other, "too huge for exact"));
     }
     for i in 0..archive.len() {
