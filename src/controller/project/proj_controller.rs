@@ -2,6 +2,7 @@ use crate::common::database::get_connection;
 use crate::handle_multipart_error;
 use crate::model::dict::collar_status::CollarStatus;
 use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
+use crate::model::diesel::custom::project::upload::github_proj_sync::GithubProjSync;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
@@ -26,8 +27,8 @@ use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
     del_proj_collection_folder, del_project_logic, do_proj_copy, get_folder_project_impl,
     get_proj_folders, handle_archive_proj, handle_compress_proj, handle_folder_create,
-    handle_trash_proj, proj_search_impl, rename_proj_collection_folder, save_full_proj,
-    TexProjectService,
+    handle_trash_proj, import_from_github_impl, proj_search_impl, rename_proj_collection_folder,
+    save_full_proj, TexProjectService,
 };
 use crate::service::project::share::share_service::get_collar_relation;
 use crate::service::project::spec::proj_spec::ProjSpec;
@@ -475,6 +476,13 @@ async fn upload_full_proj(
     return save_full_proj(form, &login_user_info).await;
 }
 
+async fn import_from_github(
+    form: actix_web_validator::Json<GithubProjSync>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    return import_from_github_impl(&form.0, &login_user_info).await;
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
@@ -513,7 +521,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/perfolder", web::get().to(get_folder_projects))
             .route("/folder/rename", web::patch().to(rename_collect_folder))
             .route("/folder/del", web::delete().to(del_collect_folder))
-            .route("/copy", web::post().to(cp_proj)),
+            .route("/copy", web::post().to(cp_proj))
+            .route("/github/import", web::post().to(import_from_github)),
     );
     // https://stackoverflow.com/questions/71714621/actix-web-limit-upload-file-size
     // https://stackoverflow.com/questions/79046623/how-to-fix-the-second-actix-web-service-configuration-404-not-found-error

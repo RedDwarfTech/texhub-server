@@ -25,6 +25,7 @@ use crate::model::diesel::custom::project::queue::compile_queue_add::CompileQueu
 use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd;
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
+use crate::model::diesel::custom::project::upload::github_proj_sync::GithubProjSync;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
@@ -739,7 +740,7 @@ pub async fn save_full_proj(
             tpl_id: -1,
             name: f_name.unwrap_or_default(),
             main_file_name: "main.tex".to_owned(),
-            tpl_files_dir: temp_path
+            tpl_files_dir: temp_path,
         };
         let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
         if let Err(e) = create_result {
@@ -750,36 +751,38 @@ pub async fn save_full_proj(
     return box_actix_rest_response("ok");
 }
 
+pub async fn import_from_github_impl(
+    _sync_info: &GithubProjSync,
+    _login_user_info: &LoginUserInfo,
+) -> HttpResponse {
+    return box_actix_rest_response("ok");
+}
+
 fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {
     let file = File::open(&input_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
+    /*
+    check the decompress size before decompress the file
+    this action is necessary because we need to avoid the compress bomb
+    more information we can know from here: https://en.wikipedia.org/wiki/Zip_bomb
+     */
     if archive.decompressed_size().unwrap_or_default() > 200 * 1024 * 1024 {
         return Err(io::Error::new(io::ErrorKind::Other, "too huge for exact"));
     }
     for i in 0..archive.len() {
-        // Get the file at the current index.
         let mut file = archive.by_index(i)?;
         let out_path = format!("{}/{}", output_path, file.name());
-
-        // Get the path to extract the file to.
         let outpath = PathBuf::from(out_path);
-
-        // Get the comment associated with the file.
         let comment = file.comment();
         if !comment.is_empty() {}
-
-        // Check if the file is a directory.
         if file.name().ends_with('/') {
-            fs::create_dir_all(&outpath)?; // Create the directory.
+            fs::create_dir_all(&outpath)?;
         } else {
-            // Create parent directories if they don't exist.
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
                     fs::create_dir_all(&p)?;
                 }
             }
-
-            // Create and copy the file contents to the output path.
             let mut outfile = File::create(&outpath)?;
             io::copy(&mut file, &mut outfile)?;
         }
@@ -787,13 +790,11 @@ fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-
             if let Some(mode) = file.unix_mode() {
                 fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))?;
             }
         }
     }
-
     Ok(())
 }
 
