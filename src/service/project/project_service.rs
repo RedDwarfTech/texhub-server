@@ -776,15 +776,27 @@ fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error
         let comment = file.comment();
         if !comment.is_empty() {}
         if file.name().ends_with('/') {
-            fs::create_dir_all(&outpath)?;
+            fs::create_dir_all(&outpath).map_err(|e| {
+                error!("Could not create dir,{}", e);
+                e
+            })?;
         } else {
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
-                    fs::create_dir_all(&p)?;
+                    fs::create_dir_all(&p).map_err(|e| {
+                        error!("create parent dir failed,{}", e);
+                        e
+                    })?;
                 }
             }
-            let mut outfile = File::create(&outpath)?;
-            io::copy(&mut file, &mut outfile)?;
+            let mut outfile = File::create(&outpath).map_err(|e| {
+                error!("create out file failed,{}", e);
+                e
+            })?;
+            io::copy(&mut file, &mut outfile).map_err(|e| {
+                error!("copy file failed,{}", e);
+                e
+            })?;
         }
         // Set file permissions if running on a Unix-like system.
         #[cfg(unix)]
