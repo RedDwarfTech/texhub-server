@@ -55,9 +55,9 @@ jobs:
         command: set image --record deployment/texhub-server-service texhub-server-service=${{ secrets.ALI_DOCKER_HUB_REGISTRY }}/reddwarf-pro/texhub-server:${{ github.sha }} -n reddwarf-pro
 
     - name: verify deployment
-      uses: steebchen/kubectl@v2.0.0
-      timeout-minutes: 8
+      uses: steebchen/kubectl@v2.1.1
+      timeout-minutes: 10
       with:
         config: ${{ secrets.KUBE_CONFIG_DATA }}
-        version: v1.21.0
+        version: v1.29.0
         command: rollout status deployment/texhub-server-service -n reddwarf-pro
