@@ -6,17 +6,22 @@ use crate::{
         app::tpl_params::TplParams,
         dict::role_type::RoleType,
         diesel::{
-            custom::{file::file_add::TexFileAdd, project::{folder::folder_map_add::FolderMapAdd, tex_project_add::TexProjectAdd}},
+            custom::{
+                file::file_add::TexFileAdd,
+                project::{folder::folder_map_add::FolderMapAdd, tex_project_add::TexProjectAdd},
+            },
             tex::custom_tex_models::{TexFile, TexProjFolder, TexProjFolderMap, TexProject},
         },
         request::project::{
-            add::{tex_folder_req::TexFolderReq, tex_project_req::TexProjectReq}, edit::edit_proj_folder::EditProjFolder,
+            add::{tex_folder_req::TexFolderReq, tex_project_req::TexProjectReq},
+            edit::edit_proj_folder::EditProjFolder,
         },
     },
     service::{
         global::proj::proj_util::get_proj_base_dir_instant,
         project::{
-            eden::external_app::init_project_into_yjs, project_editor_service::create_proj_editor,
+            eden::external_app::init_project_into_yjs,
+            project_editor_service::create_proj_editor,
             project_folder_map_service::move_proj_folder,
             project_folder_service::{create_proj_default_folder, get_proj_default_folder},
         },
@@ -27,9 +32,8 @@ use log::error;
 use rust_wheel::{
     common::{
         infra::user::rd_user::get_user_info,
-        util::rd_file_util::{copy_dir_recursive, create_directory_if_not_exists, join_paths},
+        util::rd_file_util::{copy_dir_recursive, create_directory_if_not_exists},
     },
-    config::app::app_conf_reader::get_app_config,
     model::user::{login_user_info::LoginUserInfo, rd_user_info::RdUserInfo},
     texhub::th_file_type::ThFileType,
 };
@@ -41,8 +45,8 @@ pub async fn create_project_tpl_params(
 ) -> Result<Option<TexProject>, Error> {
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result = connection.transaction(|connection| {
-        do_create_tpl_proj_trans(&tpl_params, &user_info, connection, login_user_info)
+    let trans_result: Result<Option<TexProject>, Error> = connection.transaction(|connection| {
+        return do_create_tpl_proj_trans(&tpl_params, &user_info, connection, login_user_info);
     });
     return trans_result;
 }
@@ -97,18 +101,16 @@ pub fn create_proj_files(
     uid: &i64,
     login_user_info: &LoginUserInfo,
 ) -> bool {
-    let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
-    let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl_params.tpl_id.to_string()]);
     let proj_dir = get_proj_base_dir_instant(&proj_id);
     match create_directory_if_not_exists(&proj_dir) {
         Ok(()) => {}
         Err(e) => error!("create project directory before tpl copy failed,{}", e),
     }
-    let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
+    let result = copy_dir_recursive(&tpl_params.tpl_files_dir.as_str(), &proj_dir);
     if let Err(e) = result {
         error!(
             "copy file failed,{}, tpl dir: {}, project dir: {}",
-            e, tpl_files_dir, proj_dir
+            e, tpl_params.tpl_files_dir, proj_dir
         );
         return false;
     }

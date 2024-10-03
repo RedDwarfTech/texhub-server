@@ -739,6 +739,7 @@ pub async fn save_full_proj(
             tpl_id: -1,
             name: f_name.unwrap_or_default(),
             main_file_name: "main.tex".to_owned(),
+            tpl_files_dir: temp_path
         };
         let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
         if let Err(e) = create_result {
