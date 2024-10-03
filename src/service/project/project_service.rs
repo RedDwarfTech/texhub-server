@@ -707,7 +707,13 @@ pub async fn save_full_proj(
             return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
         }
         // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
-        let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap().to_string());
+        let temp_path = format!(
+            "{}{}{}{}",
+            "/tmp/",
+            login_user_info.userId,
+            "/",
+            f_name.as_ref().unwrap().to_string()
+        );
         let save_result = tmp_file.file.persist(temp_path.as_str());
         if let Err(e) = save_result {
             error!(
@@ -739,7 +745,7 @@ fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error
     let file = File::open(&input_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
     if archive.decompressed_size().unwrap_or_default() > 1024 {
-        return Err(io::Error::new(io::ErrorKind::Other,"too huge for exact"));
+        return Err(io::Error::new(io::ErrorKind::Other, "too huge for exact"));
     }
     for i in 0..archive.len() {
         // Get the file at the current index.
