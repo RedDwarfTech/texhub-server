@@ -707,17 +707,22 @@ pub async fn save_full_proj(
             return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
         }
         // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
+        let temp_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
         let temp_path = format!(
-            "{}{}{}{}",
-            "/tmp/",
-            login_user_info.userId,
+            "{}{}{}",
+            temp_folder_path,
             "/",
             f_name.as_ref().unwrap().to_string()
         );
+        let create_result = create_directory_if_not_exists(&temp_folder_path);
+        if let Err(e) = create_result {
+            error!("create temp project folder failed,{}", e);
+            return actix_web::error::ErrorInternalServerError("handle upload failed").into();
+        }
         let save_result = tmp_file.file.persist(temp_path.as_str());
         if let Err(e) = save_result {
             error!(
-                "Failed to save upload file to disk,{}, file path: {}",
+                "Failed to save upload project file to disk,{}, file path: {}",
                 e, temp_path
             );
         }
