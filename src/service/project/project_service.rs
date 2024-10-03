@@ -1,5 +1,6 @@
 use super::eden::proj::create_files_into_db;
 use super::eden::proj::create_proj;
+use super::eden::proj::create_project_tpl_params;
 use super::eden::proj::do_create_proj_dependencies;
 use super::project_queue_service::get_latest_proj_queue;
 use super::spec::proj_spec::ProjSpec;
@@ -15,6 +16,7 @@ use crate::common::interop::synctex::{
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::zip::compress::gen_zip;
 use crate::diesel::RunQueryDsl;
+use crate::model::app::tpl_params::TplParams;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
@@ -102,6 +104,7 @@ use std::collections::HashMap;
 use std::env;
 use std::ffi::{CStr, CString};
 use std::fs::{self, File};
+use std::io;
 use std::io::{BufRead, BufReader, Read};
 use std::os::raw::c_int;
 use std::path::Path;
@@ -659,7 +662,6 @@ pub async fn save_proj_file(
                 "Failed to save upload file to disk,{}, file path: {}",
                 e, file_path
             );
-            // return box_error_actix_rest_response("", "", msg);
         }
         let copy_result = fs::copy(&temp_path, &file_path.as_str());
         if let Err(e) = copy_result {
@@ -684,7 +686,7 @@ pub async fn save_proj_file(
 
 pub async fn save_full_proj(
     proj_upload: FullProjUpload,
-    _login_user_info: &LoginUserInfo,
+    login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
     for tmp_file in proj_upload.files {
         if tmp_file.size > 100 * 1024 * 1024 {
@@ -704,19 +706,69 @@ pub async fn save_full_proj(
                 e, temp_path
             );
         }
-        let copy_result = fs::copy(&temp_path, &temp_path.as_str());
-        if let Err(e) = copy_result {
+        let exact_result = exact_upload_zip(&temp_path, &temp_path.as_str());
+        if let Err(e) = exact_result {
             error!("copy file failed, {}", e);
         } else {
             fs::remove_file(temp_path).expect("remove file failed");
         }
-
-        // del_project_cache(&proj_id).await;
+        // create project from exact result
+        let tpl_params = TplParams {
+            tpl_id: -1,
+            name: f_name.unwrap_or_default(),
+            main_file_name: "main.tex".to_owned(),
+        };
+        let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
+        if let Err(e) = create_result {
+            error!("create project failed,{},tpl params:{:?}", e, &tpl_params)
+        }
     }
     return box_actix_rest_response("ok");
 }
 
-fn exact_upload_zip() {}
+fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {
+    let file = File::open(&input_path)?;
+    let mut archive = zip::ZipArchive::new(file)?;
+    for i in 0..archive.len() {
+        // Get the file at the current index.
+        let mut file = archive.by_index(i)?;
+        let out_path = format!("{}/{}", output_path, file.name());
+
+        // Get the path to extract the file to.
+        let outpath = PathBuf::from(out_path);
+
+        // Get the comment associated with the file.
+        let comment = file.comment();
+        if !comment.is_empty() {}
+
+        // Check if the file is a directory.
+        if file.name().ends_with('/') {
+            fs::create_dir_all(&outpath)?; // Create the directory.
+        } else {
+            // Create parent directories if they don't exist.
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    fs::create_dir_all(&p)?;
+                }
+            }
+
+            // Create and copy the file contents to the output path.
+            let mut outfile = File::create(&outpath)?;
+            io::copy(&mut file, &mut outfile)?;
+        }
+        // Set file permissions if running on a Unix-like system.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            if let Some(mode) = file.unix_mode() {
+                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))?;
+            }
+        }
+    }
+
+    Ok(())
+}
 
 fn create_proj_file_impl(
     file_name: &String,

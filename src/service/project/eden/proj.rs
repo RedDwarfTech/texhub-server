@@ -35,7 +35,7 @@ use rust_wheel::{
 };
 use tokio::task;
 
-pub async fn create_tpl_project(
+pub async fn create_project_tpl_params(
     tpl_params: &TplParams,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
