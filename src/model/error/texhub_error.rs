@@ -1,25 +1,33 @@
-use std::fmt;
-use std::io;
+use rust_wheel::model::error::error_response::ErrorResponse;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum TexhubError {
-    IoError(io::Error),
-    SizeError(&'static str),
+    #[error("超出最大解压尺寸")]
+    ExceedMaxUnzipSize,
+    #[error("非预期的文件类型")]
+    UnexpectFileType,
 }
 
-impl fmt::Display for TexhubError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ErrorResponse for TexhubError {
+    fn error_code(&self) -> &str {
         match self {
-            TexhubError::IoError(err) => write!(f, "IO error: {}", err),
-            TexhubError::SizeError(msg) => write!(f, "Size error: {}", msg),
+            TexhubError::ExceedMaxUnzipSize => "0040010001",
+            TexhubError::UnexpectFileType => "0040010002",
         }
     }
-}
 
-impl std::error::Error for TexhubError {}
+    fn error_message(&self) -> &str {
+        match self {
+            TexhubError::ExceedMaxUnzipSize => "超出最大解压尺寸",
+            TexhubError::UnexpectFileType => "非预期的文件类型",
+        }
+    }
 
-impl From<io::Error> for TexhubError {
-    fn from(err: io::Error) -> TexhubError {
-        TexhubError::IoError(err)
+    fn error_code_en(&self) -> &str {
+        match self {
+            TexhubError::ExceedMaxUnzipSize => "EXCEED_MAX_UNZIP_SIZE",
+            TexhubError::UnexpectFileType => "UNEXPECT_FILE_TYPE"
+        }
     }
 }

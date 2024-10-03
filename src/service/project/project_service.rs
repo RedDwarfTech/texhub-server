@@ -31,6 +31,7 @@ use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
+use crate::model::error::texhub_error::TexhubError;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::model::request::project::add::tex_project_req::TexProjectReq;
@@ -87,6 +88,7 @@ use rust_wheel::common::util::rd_file_util::{
     create_directory_if_not_exists, get_filename_without_ext, join_paths,
 };
 use rust_wheel::common::util::time_util::get_current_millisecond;
+use rust_wheel::common::wrapper::actix_http_resp::box_err_actix_rest_response;
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
@@ -697,6 +699,13 @@ pub async fn save_full_proj(
             );
         }
         let f_name = tmp_file.file_name;
+        if let Some(ext) = Path::new(&f_name.clone().unwrap_or_default()).extension() {
+            if ext != "zip" {
+                return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
+            }
+        } else {
+            return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
+        }
         // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
         let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap().to_string());
         let save_result = tmp_file.file.persist(temp_path.as_str());
