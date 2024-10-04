@@ -59,6 +59,7 @@ mime = "0.3.17"
 rust-i18n = "3"
 ring = "0.16.20"
 thiserror = "1.0.61"
+git2 = "0.19.0"
 
 [dependencies.jemalloc-sys]
 version = "0.5.4"

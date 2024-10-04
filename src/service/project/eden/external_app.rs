@@ -1,3 +1,4 @@
+use git2::Repository;
 use std::fs;
 
 use crate::{
@@ -38,4 +39,11 @@ pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>, login_user_info: &Lo
             .await;
         }
     }
+}
+
+pub fn clone_github_repo(url: &str) {
+    let _repo = match Repository::clone(url, "/temp/") {
+        Ok(repo) => repo,
+        Err(e) => panic!("failed to clone: {}", e),
+    };
 }

@@ -1,3 +1,4 @@
+use super::eden::external_app::clone_github_repo;
 use super::eden::proj::create_files_into_db;
 use super::eden::proj::create_proj;
 use super::eden::proj::create_project_tpl_params;
@@ -737,20 +738,25 @@ pub async fn save_full_proj(
         //     fs::remove_file(temp_path).expect("remove file failed");
         // }
         let path: PathBuf = PathBuf::from(temp_folder_path.clone());
-        let proj_root_path = find_file_path(path, "main.tex");
-        if proj_root_path.is_none() {
+        let proj_root_file_path = find_file_path(path, "main.tex");
+        if proj_root_file_path.is_none() {
             error!("did not found main.tex, path:{}", &temp_folder_path);
             return actix_web::error::ErrorInternalServerError("exact file failed").into();
         }
-        let tpl_file_path = proj_root_path.unwrap().to_string_lossy().into();
         let fn_path = f_name.clone().unwrap_or_default();
         let f_name_without_ext = Path::new(&fn_path).file_stem().unwrap().to_string_lossy();
+        let main_folder_path = proj_root_file_path
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
         // create project from exact result
         let tpl_params = TplParams {
             tpl_id: -1,
             name: f_name_without_ext.to_string(),
             main_file_name: "main.tex".to_owned(),
-            tpl_files_dir: tpl_file_path,
+            tpl_files_dir: main_folder_path,
         };
         let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
         if let Err(e) = create_result {
@@ -795,13 +801,13 @@ fn find_file_path<P: AsRef<Path>>(start_path: P, file_name: &str) -> Option<Path
 }
 
 pub async fn import_from_github_impl(
-    _sync_info: &GithubProjSync,
+    sync_info: &GithubProjSync,
     _login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
     // get user github token
 
     // clone project
-
+    clone_github_repo(&sync_info.url);
     // create project
     return box_actix_rest_response("ok");
 }
@@ -1054,7 +1060,10 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
                     task::spawn_blocking({
                         move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();
-                            rt.block_on(del_project_disk_file(&async_proj_id, legacy_proj.unwrap().created_time));
+                            rt.block_on(del_project_disk_file(
+                                &async_proj_id,
+                                legacy_proj.unwrap().created_time,
+                            ));
                         }
                     });
                 }
