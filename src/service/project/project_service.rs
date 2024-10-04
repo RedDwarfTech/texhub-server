@@ -784,7 +784,11 @@ fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
                     fs::create_dir_all(&p).map_err(|e| {
-                        error!("create parent dir failed,{}", e);
+                        error!(
+                            "create parent dir failed,err:{},path:{}",
+                            e,
+                            &p.to_string_lossy()
+                        );
                         e
                     })?;
                 }
