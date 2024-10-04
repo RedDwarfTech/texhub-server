@@ -65,6 +65,7 @@ use crate::net::y_websocket_client::initial_file_request;
 use crate::service::file::file_service::{
     get_cached_file_by_fid, get_file_tree, get_main_file_list,
 };
+use crate::service::global::proj::proj_util::get_purge_proj_base_dir;
 use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
@@ -1037,6 +1038,7 @@ pub fn del_project_logic(
 pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
     let mut connection = get_connection();
     let result = connection.transaction(|connection| {
+        let legacy_proj = get_prj_by_id(&del_project_id);
         let delete_result = del_project_impl(del_project_id, connection, login_user_info);
         match delete_result {
             Ok(rows) => {
@@ -1047,12 +1049,12 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
                     );
                 }
                 if rows == 1 {
-                    del_project_file(del_project_id, connection);
+                    del_project_file(del_project_id, &login_user_info.userId, connection);
                     let async_proj_id = del_project_id.clone();
                     task::spawn_blocking({
                         move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();
-                            rt.block_on(del_project_disk_file(&async_proj_id));
+                            rt.block_on(del_project_disk_file(&async_proj_id, legacy_proj.unwrap().created_time));
                         }
                     });
                 }
@@ -1072,12 +1074,12 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
     }
 }
 
-pub async fn del_project_disk_file(proj_id: &String) {
+pub async fn del_project_disk_file(proj_id: &String, created_time: i64) {
     if proj_id.is_empty() {
         error!("delete project id is null");
         return;
     }
-    let proj_dir = get_proj_base_dir(proj_id);
+    let proj_dir = get_purge_proj_base_dir(proj_id, created_time);
     let result = tokio::fs::remove_dir_all(Path::new(&proj_dir)).await;
     match result {
         Ok(_) => {}
@@ -1117,12 +1119,13 @@ pub fn logic_del_project_impl(
     return delete_result;
 }
 
-pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) {
+pub fn del_project_file(del_project_id: &String, uid: &i64, connection: &mut PgConnection) {
     let del_command = format!(
         "WITH RECURSIVE x AS (
             SELECT file_id
             FROM   tex_file
             WHERE parent = '{}'
+            AND user_id = '{}'
         
             UNION  ALL
             SELECT a.file_id
@@ -1132,7 +1135,7 @@ pub fn del_project_file(del_project_id: &String, connection: &mut PgConnection) 
          DELETE FROM tex_file a
          USING  x
          WHERE a.file_id = x.file_id",
-        del_project_id
+        del_project_id, uid
     );
     let cte_menus = sql_query(&del_command).load::<TexFile>(connection);
     match cte_menus {

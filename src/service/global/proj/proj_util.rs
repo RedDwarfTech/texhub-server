@@ -26,6 +26,13 @@ pub fn get_proj_base_dir(proj_id: &String) -> String{
     return proj_dir;
 }
 
+pub fn get_purge_proj_base_dir(proj_id: &String, created_time: i64) -> String{
+    let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
+    let proj_base_dir = get_proj_path(&base_compile_dir, created_time);
+    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned()]);
+    return proj_dir;
+}
+
 pub fn get_proj_download_base_dir(proj_id: &String) -> String{
     let base_compile_dir: String = get_app_config("texhub.download_base_dir");
     let proj_info = get_cached_proj_info(&proj_id).unwrap();

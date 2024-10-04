@@ -529,13 +529,17 @@ pub fn mv_file_impl(
     return trans_result;
 }
 
-pub fn delete_file_recursive(del_req: &TexFileDelReq, tex_file: &TexFile) -> Result<usize, Error> {
+pub fn delete_file_recursive(
+    del_req: &TexFileDelReq,
+    tex_file: &TexFile,
+    uid: i64,
+) -> Result<usize, Error> {
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
         let delete_result = del_single_file(&del_req.file_id, connection);
         match delete_result {
             Ok(proj) => {
-                del_project_file(&del_req.file_id, connection);
+                del_project_file(&del_req.file_id, &uid, connection);
                 task::spawn_blocking({
                     let del_tex_file = tex_file.clone();
                     move || {
@@ -833,12 +837,13 @@ pub fn get_full_pdf(lastest_pdf: &LatestCompile, req: HttpRequest) -> HttpRespon
     let pdf_file_path = join_paths(&[proj_base_dir, pdf_name]);
     match NamedFile::open(&pdf_file_path.clone()) {
         Ok(file) => {
-        let content_type: Mime = "application/pdf".parse().unwrap();
-        return NamedFile::set_content_type(file, content_type)
-        .set_content_disposition(ContentDisposition {
-            disposition: DispositionType::Inline,
-            parameters: vec![],
-        }).into_response(&req);
+            let content_type: Mime = "application/pdf".parse().unwrap();
+            return NamedFile::set_content_type(file, content_type)
+                .set_content_disposition(ContentDisposition {
+                    disposition: DispositionType::Inline,
+                    parameters: vec![],
+                })
+                .into_response(&req);
         }
         Err(e) => {
             error!("Error open pdf file {},{}", pdf_file_path, e);

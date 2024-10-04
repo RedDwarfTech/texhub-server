@@ -21,7 +21,10 @@ use crate::{
     service::{
         file::{
             file_service::{
-                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_full_pdf, get_main_file_list, get_partial_pdf, get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans, TexFileService
+                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
+                get_file_by_ids, get_file_list, get_file_tree, get_full_pdf, get_main_file_list,
+                get_partial_pdf, get_path_content_by_fid, get_text_file_code, mv_file_impl,
+                proj_folder_tree, rename_trans, TexFileService,
             },
             file_version_service::{
                 create_file_ver, get_latest_file_version_by_fid, update_file_version,
@@ -185,7 +188,10 @@ pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder
     box_actix_rest_response(new_file)
 }
 
-pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
+pub async fn del_file(
+    form: web::Json<TexFileDelReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
     let db_file = get_cached_file_by_fid(&form.file_id).unwrap();
     if db_file.main_flag == 1 {
         let res = ApiResponse {
@@ -195,7 +201,7 @@ pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
         };
         return HttpResponse::Ok().json(res);
     }
-    let new_file = delete_file_recursive(&form.0, &db_file).unwrap();
+    let new_file = delete_file_recursive(&form.0, &db_file, login_user_info.userId).unwrap();
     box_actix_rest_response(new_file)
 }
 
