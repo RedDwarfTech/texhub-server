@@ -727,7 +727,7 @@ pub async fn save_full_proj(
                 e, temp_path
             );
         }
-        let exact_result = exact_upload_zip(&temp_path, &temp_path.as_str());
+        let exact_result = exact_upload_zip(&temp_path, &temp_folder_path.as_str());
         if let Err(e) = exact_result {
             error!("exact file failed, {}", e);
             return actix_web::error::ErrorInternalServerError("exact file failed").into();
@@ -735,12 +735,19 @@ pub async fn save_full_proj(
         // else {
         //     fs::remove_file(temp_path).expect("remove file failed");
         // }
+        let path: PathBuf = PathBuf::from(temp_folder_path.clone());
+        let proj_root_path = find_file_path(path, "main.tex");
+        if proj_root_path.is_none() {
+            error!("did not found main.tex, path:{}", &temp_folder_path);
+            return actix_web::error::ErrorInternalServerError("exact file failed").into();
+        }
+        let tpl_file_path = proj_root_path.unwrap().to_string_lossy().into();
         // create project from exact result
         let tpl_params = TplParams {
             tpl_id: -1,
             name: f_name.unwrap_or_default(),
             main_file_name: "main.tex".to_owned(),
-            tpl_files_dir: temp_path,
+            tpl_files_dir: tpl_file_path,
         };
         let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
         if let Err(e) = create_result {
@@ -751,10 +758,48 @@ pub async fn save_full_proj(
     return box_actix_rest_response("ok");
 }
 
+/**
+ * to the next step create project
+ * we found the path recursively that contains `main.tex` file as the project root path
+ * if the path contains more than one `main.tex`, use the first one as the project root path
+ */
+fn find_file_path<P: AsRef<Path>>(start_path: P, file_name: &str) -> Option<PathBuf> {
+    let start_path = start_path.as_ref();
+
+    fn search(path: &Path, depth: usize, f_name: &str) -> Option<PathBuf> {
+        const MAX_DEPTH: usize = 10;
+        if depth > MAX_DEPTH {
+            return None;
+        }
+        if path.is_dir() {
+            for entry in fs::read_dir(path).expect("Unable to read directory") {
+                let entry = entry.expect("Unable to access entry");
+                let entry_path = entry.path();
+                if entry_path.file_name().map_or(false, |name| name == f_name) {
+                    return Some(entry_path);
+                }
+                if entry_path.is_dir() {
+                    if let Some(found) = search(&entry_path, depth + 1, f_name) {
+                        return Some(found);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    search(start_path, 1, file_name)
+}
+
 pub async fn import_from_github_impl(
     _sync_info: &GithubProjSync,
     _login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
+    // get user github token
+
+    // clone project
+
+    // create project
     return box_actix_rest_response("ok");
 }
 
