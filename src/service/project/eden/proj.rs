@@ -1,14 +1,15 @@
 use std::{
     collections::HashSet,
     ffi::OsString,
-    fs, io,
+    fs::{self, DirEntry},
+    io,
     path::{Path, PathBuf},
 };
 
 use crate::{
     common::database::get_connection,
     model::{
-        app::tpl_params::TplParams,
+        app::{tex_file_params::TexFileParams, tpl_params::TplParams},
         dict::role_type::RoleType,
         diesel::{
             custom::{
@@ -160,7 +161,12 @@ pub fn create_files_into_db(
     login_user_info: &LoginUserInfo,
 ) -> bool {
     let mut files: Vec<TexFileAdd> = Vec::new();
-    let read_result = read_directory(project_path, proj_id, &mut files, uid, proj_id, &main_name);
+    let tex_file_params = TexFileParams {
+        proj_id: proj_id.to_owned(),
+        main_name: main_name.to_owned(),
+        user_id: uid.to_owned(),
+    };
+    let read_result = read_directory(&tex_file_params, project_path, proj_id, &mut files);
     if let Err(err) = read_result {
         error!(
             "read directory failed,{}, project path: {}",
@@ -198,12 +204,10 @@ pub fn create_files_into_db(
  * ignore some unused files
  */
 fn read_directory(
+    params: &TexFileParams,
     dir_path: &str,
     parent_id: &str,
     files: &mut Vec<TexFileAdd>,
-    uid: &i64,
-    proj_id: &String,
-    main_name: &String,
 ) -> io::Result<()> {
     for entry in fs::read_dir(dir_path)? {
         if let Err(err) = entry {
@@ -213,19 +217,17 @@ fn read_directory(
             );
             return Err(err);
         }
-        let entry = entry?;
+        let entry: DirEntry = entry?;
+        let file_name: OsString = entry.file_name();
         let path = entry.path();
-        let file_name = entry.file_name();
-        let proj_path = get_proj_base_dir_instant(proj_id);
+        let proj_path = get_proj_base_dir_instant(&params.proj_id);
         let relative_path = path.parent().unwrap().strip_prefix(proj_path);
         let stored_path = relative_path.unwrap().to_string_lossy().into_owned();
         if path.is_file() {
             handle_proj_files(
+                params,
                 stored_path,
-                uid,
-                proj_id,
                 &file_name,
-                main_name,
                 parent_id,
                 files,
                 path,
@@ -233,10 +235,10 @@ fn read_directory(
         } else if path.is_dir() {
             let tex_file = TexFileAdd::gen_tex_file_from_disk(
                 stored_path,
-                uid,
-                proj_id,
+                &params.user_id,
+                &params.proj_id.to_owned(),
                 &file_name,
-                main_name,
+                &params.main_name,
                 parent_id,
                 ThFileType::Folder as i32,
             );
@@ -244,14 +246,7 @@ fn read_directory(
             files.push(tex_file);
             let dir_name = file_name.to_string_lossy().into_owned();
             let next_parent = format!("{}/{}", dir_path, dir_name);
-            let recur_result = read_directory(
-                &next_parent,
-                &parent_folder_id,
-                files,
-                uid,
-                proj_id,
-                main_name,
-            );
+            let recur_result = read_directory(params, &next_parent, &parent_folder_id, files);
             if let Err(err) = recur_result {
                 error!(
                     "read file failed, {}, next parant: {}, dir path: {}",
@@ -265,11 +260,9 @@ fn read_directory(
 }
 
 fn handle_proj_files(
+    params: &TexFileParams,
     stored_path: String,
-    uid: &i64,
-    proj_id: &String,
     file_name: &OsString,
-    main_name: &String,
     parent_id: &str,
     files: &mut Vec<TexFileAdd>,
     path: PathBuf,
@@ -291,10 +284,10 @@ fn handle_proj_files(
     }
     let tex_file = TexFileAdd::gen_tex_file_from_disk(
         stored_path,
-        uid,
-        proj_id,
+        &params.user_id,
+        &params.proj_id,
         file_name,
-        main_name,
+        &params.main_name,
         parent_id,
         1,
     );
