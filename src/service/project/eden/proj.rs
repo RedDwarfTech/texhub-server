@@ -1,4 +1,4 @@
-use std::{fs, io};
+use std::{fs, io, path::Path};
 
 use crate::{
     common::database::get_connection,
@@ -43,6 +43,16 @@ pub async fn create_project_tpl_params(
     tpl_params: &TplParams,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
+    // check the folder main.tex file
+    let full_path = Path::new(&tpl_params.tpl_files_dir).join("main.tex");
+    if !full_path.exists() {
+        error!(
+            "did not found main file, full path:{}, tpl params:{:?}",
+            full_path.to_string_lossy(),
+            tpl_params
+        );
+        return Ok(None);
+    }
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result: Result<Option<TexProject>, Error> = connection.transaction(|connection| {
