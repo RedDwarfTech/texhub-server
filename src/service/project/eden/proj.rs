@@ -1,4 +1,9 @@
-use std::{fs, io, path::Path};
+use std::{
+    collections::HashSet,
+    ffi::OsString,
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     common::database::get_connection,
@@ -188,6 +193,10 @@ pub fn create_files_into_db(
     return true;
 }
 
+/**
+ * scan the directory file and save into database
+ * ignore some unused files
+ */
 fn read_directory(
     dir_path: &str,
     parent_id: &str,
@@ -211,16 +220,16 @@ fn read_directory(
         let relative_path = path.parent().unwrap().strip_prefix(proj_path);
         let stored_path = relative_path.unwrap().to_string_lossy().into_owned();
         if path.is_file() {
-            let tex_file = TexFileAdd::gen_tex_file_from_disk(
+            handle_proj_files(
                 stored_path,
                 uid,
                 proj_id,
                 &file_name,
                 main_name,
                 parent_id,
-                1,
+                files,
+                path,
             );
-            files.push(tex_file)
         } else if path.is_dir() {
             let tex_file = TexFileAdd::gen_tex_file_from_disk(
                 stored_path,
@@ -253,6 +262,43 @@ fn read_directory(
     }
 
     Ok(())
+}
+
+fn handle_proj_files(
+    stored_path: String,
+    uid: &i64,
+    proj_id: &String,
+    file_name: &OsString,
+    main_name: &String,
+    parent_id: &str,
+    files: &mut Vec<TexFileAdd>,
+    path: PathBuf,
+) {
+    let extension = path.extension().and_then(|ext| ext.to_str());
+    let ignored_extensions: HashSet<&str> = ["log", "aux", "out", "toc", "nav", "snm", "vrb"]
+        .iter()
+        .cloned()
+        .collect();
+    let ignored_files: HashSet<&str> = [".DS_Store"].iter().cloned().collect();
+    if let Some(ext) = extension {
+        // ignore some system aux files that do not need to show in projects tree
+        if ignored_extensions.contains(ext) {
+            return;
+        }
+    }
+    if ignored_files.contains(&file_name.clone().into_string().unwrap().as_str()) {
+        return;
+    }
+    let tex_file = TexFileAdd::gen_tex_file_from_disk(
+        stored_path,
+        uid,
+        proj_id,
+        file_name,
+        main_name,
+        parent_id,
+        1,
+    );
+    files.push(tex_file);
 }
 
 pub fn do_create_proj_dependencies(

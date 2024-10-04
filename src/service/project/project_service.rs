@@ -695,19 +695,15 @@ pub async fn save_full_proj(
 ) -> HttpResponse {
     for tmp_file in proj_upload.files {
         if tmp_file.size > 100 * 1024 * 1024 {
-            return box_error_actix_rest_response(
-                "",
-                "001002P001".to_owned(),
-                "exceed limit".to_owned(),
-            );
+            return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
         }
         let f_name = tmp_file.file_name;
         if let Some(ext) = Path::new(&f_name.clone().unwrap_or_default()).extension() {
             if ext != "zip" {
-                return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
+                return box_err_actix_rest_response(TexhubError::UnexpectFileType);
             }
         } else {
-            return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
+            return box_err_actix_rest_response(TexhubError::UnexpectFileType);
         }
         // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
         let temp_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
