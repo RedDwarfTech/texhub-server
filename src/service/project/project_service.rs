@@ -742,10 +742,12 @@ pub async fn save_full_proj(
             return actix_web::error::ErrorInternalServerError("exact file failed").into();
         }
         let tpl_file_path = proj_root_path.unwrap().to_string_lossy().into();
+        let fn_path = f_name.clone().unwrap_or_default();
+        let f_name_without_ext = Path::new(&fn_path).file_stem().unwrap().to_string_lossy();
         // create project from exact result
         let tpl_params = TplParams {
             tpl_id: -1,
-            name: f_name.unwrap_or_default(),
+            name: f_name_without_ext.to_string(),
             main_file_name: "main.tex".to_owned(),
             tpl_files_dir: tpl_file_path,
         };
