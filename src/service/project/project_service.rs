@@ -819,6 +819,7 @@ pub async fn import_from_github_impl(
     // clone project
     clone_github_repo(&clone_url, main_folder_path.to_owned());
     // create project
+    /* 
     let tpl_params = TplParams {
         tpl_id: -1,
         name: "devmanual".to_string(),
@@ -830,6 +831,7 @@ pub async fn import_from_github_impl(
         error!("create project failed,{},tpl params:{:?}", e, &tpl_params);
         return actix_web::error::ErrorInternalServerError("create project failed").into();
     }
+    */
     return box_actix_rest_response("ok");
 }
 
