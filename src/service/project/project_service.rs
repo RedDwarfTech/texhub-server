@@ -30,6 +30,7 @@ use crate::model::diesel::custom::project::upload::github_proj_sync::GithubProjS
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
+use crate::model::diesel::tex::custom_tex_models::TexUserConfig;
 use crate::model::diesel::tex::custom_tex_models::{
     TexCompQueue, TexProjEditor, TexProject, TexTemplate,
 };
@@ -63,6 +64,7 @@ use crate::model::response::project::src_pos_resp::SrcPosResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
+use crate::service::config::user_config_service::get_user_config;
 use crate::service::file::file_service::{
     get_cached_file_by_fid, get_file_tree, get_main_file_list,
 };
@@ -798,14 +800,30 @@ fn find_file_path<P: AsRef<Path>>(start_path: P, file_name: &str) -> Option<Path
 
 pub async fn import_from_github_impl(
     sync_info: &GithubProjSync,
-    _login_user_info: &LoginUserInfo,
+    login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
     // get user github token
-
+    let configs: Option<Vec<TexUserConfig>> = get_user_config(&login_user_info.userId);
+    if configs.is_none() {
+        return box_err_actix_rest_response(TexhubError::UserConfigMissing);
+    }
+    let config_list = configs.unwrap();
+    let github_token = config_list
+        .iter()
+        .find(|config| config.config_key == "GITHUB_TOKEN");
+    if github_token.is_none() {
+        return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
+    }
+    let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
     // clone project
-    clone_github_repo(&sync_info.url);
+    clone_github_repo(&clone_url);
     // create project
     return box_actix_rest_response("ok");
+}
+
+fn add_token_to_url(url: &str, token: &str) -> String {
+    let tokenized_url = url.replace("https://", &format!("https://{}@", token));
+    tokenized_url
 }
 
 fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {

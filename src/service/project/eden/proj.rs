@@ -224,14 +224,7 @@ fn read_directory(
         let relative_path = path.parent().unwrap().strip_prefix(proj_path);
         let stored_path = relative_path.unwrap().to_string_lossy().into_owned();
         if path.is_file() {
-            handle_proj_files(
-                params,
-                stored_path,
-                &file_name,
-                parent_id,
-                files,
-                path,
-            );
+            handle_proj_files(params, stored_path, &file_name, parent_id, files, path);
         } else if path.is_dir() {
             let tex_file = TexFileAdd::gen_tex_file_from_disk(
                 stored_path,

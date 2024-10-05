@@ -54,6 +54,7 @@ pub struct TexFileVersion {
     pub action: i32,
     pub snapshot: String,
     pub snapshot_hash: String,
+    pub version_status: i16,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
@@ -70,6 +71,7 @@ pub struct TexProjEditor {
     pub trash: i32,
     pub archive_status: i32,
     pub proj_status: i32,
+    pub nickname: String,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
@@ -122,6 +124,7 @@ pub struct TexSnippet {
     pub updated_time: i64,
     pub user_id: i64,
     pub sort: i32,
+    pub title: String,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
@@ -146,5 +149,17 @@ pub struct TexTemplate {
     pub template_type: i32,
     pub pdf_name: String,
     pub main_file_name: String,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_user_config")]
+pub struct TexUserConfig {
+    pub id: i64,
+    pub config_key: String,
+    pub remark: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub config_value: String,
+    pub user_id: i64,
 }
 

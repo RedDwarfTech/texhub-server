@@ -43,7 +43,7 @@ table! {
         content -> Varchar,
         action -> Int4,
         snapshot -> Text,
-        snapshot_hash -> Text,
+        snapshot_hash -> Varchar,
         version_status -> Int2,
     }
 }
@@ -142,6 +142,18 @@ table! {
     }
 }
 
+table! {
+    tex_user_config (id) {
+        id -> Int8,
+        config_key -> Varchar,
+        remark -> Varchar,
+        created_time -> Int8,
+        updated_time -> Int8,
+        config_value -> Varchar,
+        user_id -> Int8,
+    }
+}
+
 allow_tables_to_appear_in_same_query!(
     tex_comp_queue,
     tex_file,
@@ -152,4 +164,5 @@ allow_tables_to_appear_in_same_query!(
     tex_project,
     tex_snippet,
     tex_template,
+    tex_user_config,
 );
