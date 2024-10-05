@@ -814,10 +814,22 @@ pub async fn import_from_github_impl(
     if github_token.is_none() {
         return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
     }
+    let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
     let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
     // clone project
-    clone_github_repo(&clone_url);
+    clone_github_repo(&clone_url, main_folder_path.to_owned());
     // create project
+    let tpl_params = TplParams {
+        tpl_id: -1,
+        name: "devmanual".to_string(),
+        main_file_name: "main.tex".to_owned(),
+        tpl_files_dir: main_folder_path,
+    };
+    let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
+    if let Err(e) = create_result {
+        error!("create project failed,{},tpl params:{:?}", e, &tpl_params);
+        return actix_web::error::ErrorInternalServerError("create project failed").into();
+    }
     return box_actix_rest_response("ok");
 }
 

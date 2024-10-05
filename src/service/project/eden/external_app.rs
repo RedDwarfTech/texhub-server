@@ -10,7 +10,7 @@ use crate::{
 };
 use log::error;
 use rust_wheel::{
-    common::util::rd_file_util::join_paths, model::user::login_user_info::LoginUserInfo,
+    common::util::rd_file_util::{create_folder_not_exists, join_paths}, model::user::login_user_info::LoginUserInfo,
 };
 
 pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>, login_user_info: &LoginUserInfo) {
@@ -41,8 +41,9 @@ pub async fn init_project_into_yjs(files: &Vec<TexFileAdd>, login_user_info: &Lo
     }
 }
 
-pub fn clone_github_repo(url: &str) {
-    let _repo = match Repository::clone(url, "/temp/") {
+pub fn clone_github_repo(url: &str, clone_folder: String) {
+    create_folder_not_exists(&clone_folder);
+    let _repo = match Repository::clone(url, clone_folder) {
         Ok(repo) => repo,
         Err(e) => panic!("failed to clone: {}", e),
     };
