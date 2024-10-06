@@ -820,8 +820,7 @@ pub async fn import_from_github_impl(
         return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
     }
     // let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
-    let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
-    let repo_info = get_github_repo_size(&clone_url).await;
+    let repo_info = get_github_repo_size(&sync_info.url).await;
     if repo_info.is_none() {
         return box_err_actix_rest_response(TexhubError::FetchGithubRepoSizeFailed);
     }
@@ -832,6 +831,7 @@ pub async fn import_from_github_impl(
     // clone project
     // clone_github_repo(&clone_url, main_folder_path.to_owned());
     // create project
+    // let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
     /*
     let tpl_params = TplParams {
         tpl_id: -1,
