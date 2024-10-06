@@ -84,6 +84,8 @@ use diesel::{
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
 use meilisearch_sdk::search::*;
+use octocrab::models::Repository;
+use octocrab::Octocrab;
 use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
@@ -814,12 +816,21 @@ pub async fn import_from_github_impl(
     if github_token.is_none() {
         return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
     }
-    let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
-    let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
+    // let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
+    // let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
+    let repo_info = get_repo_size().await;
+    match repo_info {
+        Ok(repo) => {
+            warn!("get info,repo size {:?}", repo.size);
+        }
+        Err(e) => {
+            warn!("get repo info failed,{}", e)
+        }
+    }
     // clone project
-    clone_github_repo(&clone_url, main_folder_path.to_owned());
+    // clone_github_repo(&clone_url, main_folder_path.to_owned());
     // create project
-    /* 
+    /*
     let tpl_params = TplParams {
         tpl_id: -1,
         name: "devmanual".to_string(),
@@ -838,6 +849,14 @@ pub async fn import_from_github_impl(
 fn add_token_to_url(url: &str, token: &str) -> String {
     let tokenized_url = url.replace("https://", &format!("https://{}@", token));
     tokenized_url
+}
+
+async fn get_repo_size() -> Result<Repository, octocrab::Error> {
+    let octocrab = Octocrab::builder().build()?;
+    let owner = "jiangxiaoqiang";
+    let repo = "devmanual";
+    let repo_info = octocrab.repos(owner, repo).get().await;
+    return repo_info;
 }
 
 fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {
