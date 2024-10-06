@@ -803,6 +803,9 @@ pub async fn import_from_github_impl(
     sync_info: &GithubProjSync,
     login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
+    if !sync_info.url.starts_with("https://github.com/") {
+        return box_err_actix_rest_response(TexhubError::OnlyGithubRepoSupport);
+    }
     // get user github token
     let configs: Option<Vec<TexUserConfig>> = get_user_config(&login_user_info.userId);
     if configs.is_none() {
@@ -851,9 +854,6 @@ fn add_token_to_url(url: &str, token: &str) -> String {
 }
 
 async fn get_github_repo_size(url: &str) -> Option<Repository> {
-    if !url.starts_with("https://github.com/") {
-        return None;
-    }
     let trimmed = &url["https://github.com/".len()..];
     let trimmed = trimmed.trim_end_matches(".git");
     let parts: Vec<&str> = trimmed.split('/').collect();
