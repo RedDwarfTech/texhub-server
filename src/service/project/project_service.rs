@@ -832,7 +832,10 @@ pub async fn import_from_github_impl(
     // clone project
     let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
     let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
-    clone_github_repo(&clone_url, main_folder_path.to_owned());
+    let clone_repo = clone_github_repo(&clone_url, &main_folder_path.to_owned());
+    if clone_repo.is_none() {
+        return box_err_actix_rest_response(TexhubError::CloneRepoFailed);
+    }
     // check main.tex file
     let proj_root_file_path = find_file_path(&main_folder_path, "main.tex");
     if proj_root_file_path.is_none() {
