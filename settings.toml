@@ -16,4 +16,4 @@ default_tex_document = "\\documentclass{article}\n\n\\begin{document}\nHello, Wo
 proj_cache_key = "texhub-server:proj:info"
 yjs_sync_file_type = "tex,cls,bib,bbl,md,txt,cfg,dtx,ins,def,bst"
 sys_events_stream = "sys:event"
-max_github_repo_size = "2048"
+max_github_repo_size = "204800"

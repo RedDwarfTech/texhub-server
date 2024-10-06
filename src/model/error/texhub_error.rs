@@ -13,7 +13,7 @@ pub enum TexhubError {
     GithubConfigMissing,
     #[error("获取Github仓库大小失败")]
     FetchGithubRepoSizeFailed,
-    #[error("超出Github仓库大小限制")]
+    #[error("超出Github仓库大小限制，最大支持200MB")]
     ExceedeGithubRepoSize,
     #[error("只支持Github仓库")]
     OnlyGithubRepoSupport,
@@ -39,7 +39,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::UserConfigMissing => "用户配置缺失",
             TexhubError::GithubConfigMissing => "GitHub配置缺失",
             TexhubError::FetchGithubRepoSizeFailed => "获取Github仓库大小失败",
-            TexhubError::ExceedeGithubRepoSize => "超出Github仓库大小限制",
+            TexhubError::ExceedeGithubRepoSize => "超出Github仓库大小限制，最大支持200MB",
             TexhubError::OnlyGithubRepoSupport => "只支持Github仓库",
         }
     }
