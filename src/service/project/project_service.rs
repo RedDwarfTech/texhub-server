@@ -846,7 +846,7 @@ pub async fn import_from_github_impl(
     let tpl_params = TplParams {
         tpl_id: -1,
         name: repo.name,
-        main_file_name: "main.tex".to_owned(),
+        main_file_name: sync_info.main_file.clone().unwrap_or("main.tex".to_owned()),
         tpl_files_dir: main_folder_path,
     };
     let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
