@@ -813,6 +813,7 @@ pub async fn import_from_github_impl(
         .iter()
         .find(|config| config.config_key == "GITHUB_TOKEN");
     if github_token.is_none() {
+        error!("github token config is missing,{:?}", config_list);
         return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
     }
     // let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
