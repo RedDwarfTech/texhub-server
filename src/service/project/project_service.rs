@@ -819,7 +819,7 @@ pub async fn import_from_github_impl(
     let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
     let repo_info = get_github_repo_size(&clone_url).await;
     if repo_info.is_none() {
-        return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
+        return box_err_actix_rest_response(TexhubError::FetchGithubRepoSizeFailed);
     }
     let max_repo_size = get_app_config("texhub.max_github_repo_size");
     if repo_info.unwrap().size.unwrap() > max_repo_size.parse::<u32>().unwrap() {
@@ -867,6 +867,7 @@ async fn get_github_repo_size(url: &str) -> Option<Repository> {
         }
         return Some(repo_info.unwrap());
     } else {
+        error!(" get repo parts failed: {}", url);
         return None;
     }
 }
