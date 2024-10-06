@@ -1,4 +1,3 @@
-use super::eden::external_app::clone_github_repo;
 use super::eden::proj::create_files_into_db;
 use super::eden::proj::create_proj;
 use super::eden::proj::create_project_tpl_params;
@@ -817,15 +816,14 @@ pub async fn import_from_github_impl(
         return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
     }
     // let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
-    // let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
-    let repo_info = get_repo_size().await;
-    match repo_info {
-        Ok(repo) => {
-            warn!("get info,repo size {:?}", repo.size);
-        }
-        Err(e) => {
-            warn!("get repo info failed,{}", e)
-        }
+    let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
+    let repo_info = get_github_repo_size(&clone_url).await;
+    if repo_info.is_none() {
+        return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
+    }
+    let max_repo_size = get_app_config("texhub.max_github_repo_size");
+    if repo_info.unwrap().size.unwrap() > max_repo_size.parse::<u32>().unwrap() {
+        return box_err_actix_rest_response(TexhubError::ExceedeGithubRepoSize);
     }
     // clone project
     // clone_github_repo(&clone_url, main_folder_path.to_owned());
@@ -851,12 +849,26 @@ fn add_token_to_url(url: &str, token: &str) -> String {
     tokenized_url
 }
 
-async fn get_repo_size() -> Result<Repository, octocrab::Error> {
-    let octocrab = Octocrab::builder().build()?;
-    let owner = "jiangxiaoqiang";
-    let repo = "devmanual";
-    let repo_info = octocrab.repos(owner, repo).get().await;
-    return repo_info;
+async fn get_github_repo_size(url: &str) -> Option<Repository> {
+    if !url.starts_with("https://github.com/") {
+        return None;
+    }
+    let trimmed = &url["https://github.com/".len()..];
+    let trimmed = trimmed.trim_end_matches(".git");
+    let parts: Vec<&str> = trimmed.split('/').collect();
+    if parts.len() == 2 {
+        let octocrab = Octocrab::builder().build().unwrap();
+        let owner = parts[0].to_string();
+        let repo = parts[1].to_string();
+        let repo_info = octocrab.repos(owner, repo).get().await;
+        if let Err(err) = repo_info.as_ref() {
+            error!(" get repo info failed: {}", err);
+            return None;
+        }
+        return Some(repo_info.unwrap());
+    } else {
+        return None;
+    }
 }
 
 fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {
