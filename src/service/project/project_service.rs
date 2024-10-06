@@ -824,19 +824,25 @@ pub async fn import_from_github_impl(
     if repo_info.is_none() {
         return box_err_actix_rest_response(TexhubError::FetchGithubRepoSizeFailed);
     }
+    let repo = repo_info.unwrap();
     let max_repo_size = get_app_config("texhub.max_github_repo_size");
-    if repo_info.unwrap().size.unwrap() > max_repo_size.parse::<u32>().unwrap() {
+    if repo.size.unwrap() > max_repo_size.parse::<u32>().unwrap() {
         return box_err_actix_rest_response(TexhubError::ExceedeGithubRepoSize);
     }
     // clone project
     let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
     let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
     clone_github_repo(&clone_url, main_folder_path.to_owned());
+    // check main.tex file
+    let proj_root_file_path = find_file_path(&main_folder_path, "main.tex");
+    if proj_root_file_path.is_none() {
+        error!("did not found main.tex, path:{}", &main_folder_path);
+        return actix_web::error::ErrorInternalServerError("exact file failed").into();
+    }
     // create project
-    /*
     let tpl_params = TplParams {
         tpl_id: -1,
-        name: "devmanual".to_string(),
+        name: repo.name,
         main_file_name: "main.tex".to_owned(),
         tpl_files_dir: main_folder_path,
     };
@@ -845,7 +851,6 @@ pub async fn import_from_github_impl(
         error!("create project failed,{},tpl params:{:?}", e, &tpl_params);
         return actix_web::error::ErrorInternalServerError("create project failed").into();
     }
-    */
     return box_actix_rest_response("ok");
 }
 
