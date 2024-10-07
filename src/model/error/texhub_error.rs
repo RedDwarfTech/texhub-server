@@ -19,6 +19,8 @@ pub enum TexhubError {
     OnlyGithubRepoSupport,
     #[error("Clone仓库失败")]
     CloneRepoFailed,
+    #[error("已经Clone此仓库")]
+    AlreadyClonedThisRepo,
 }
 
 impl ErrorResponse for TexhubError {
@@ -32,6 +34,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::ExceedeGithubRepoSize => "0040010006",
             TexhubError::OnlyGithubRepoSupport => "0040010007",
             TexhubError::CloneRepoFailed => "0040010008",
+            TexhubError::AlreadyClonedThisRepo => "0040010009",
         }
     }
 
@@ -45,6 +48,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::ExceedeGithubRepoSize => "超出Github仓库大小限制，最大支持200MB",
             TexhubError::OnlyGithubRepoSupport => "只支持Github仓库",
             TexhubError::CloneRepoFailed => "Clone仓库失败",
+            TexhubError::AlreadyClonedThisRepo => "已经Clone此仓库",
         }
     }
 
@@ -58,6 +62,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::ExceedeGithubRepoSize => "EXCEED_GITHUB_REPO_SIZE",
             TexhubError::OnlyGithubRepoSupport => "ONLY_GITHUB_REPO_SUPPORT",
             TexhubError::CloneRepoFailed => "CLONE_REPO_FAILED",
+            TexhubError::AlreadyClonedThisRepo => "ALREADY_CLONED_THIS_REPO",
         }
     }
 }

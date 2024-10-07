@@ -1,8 +1,10 @@
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 use crate::model::{
-    diesel::tex::custom_tex_models::TexProjFolder,
-    request::project::query::proj_query_params::ProjQueryParams,
+    diesel::tex::custom_tex_models::{TexProjFolder, TexProject},
+    request::project::query::{
+        proj_list_query_params::ProjListQueryParams, proj_query_params::ProjQueryParams,
+    },
     response::project::tex_proj_resp::TexProjResp,
 };
 
@@ -16,4 +18,9 @@ pub trait ProjSpec {
         default_folder: Option<&TexProjFolder>,
     ) -> Vec<TexProjResp>;
 
+    fn get_proj_list(
+        &self,
+        query_params: &ProjListQueryParams,
+        login_user_info: &LoginUserInfo,
+    ) -> Vec<TexProject>;
 }

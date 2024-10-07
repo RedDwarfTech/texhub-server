@@ -49,6 +49,7 @@ use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::folder_proj_params::FolderProjParams;
 use crate::model::request::project::query::get_pdf_pos_params::GetPdfPosParams;
 use crate::model::request::project::query::get_src_pos_params::GetSrcPosParams;
+use crate::model::request::project::query::proj_list_query_params::ProjListQueryParams;
 use crate::model::request::project::query::proj_query_params::ProjQueryParams;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::request::project::queue::queue_req::QueueReq;
@@ -136,6 +137,29 @@ impl ProjSpec for TexProjectService {
         cr.unwrap()
     }
 
+    fn get_proj_list(
+        &self,
+        query_params: &ProjListQueryParams,
+        login_user_info: &LoginUserInfo,
+    ) -> Vec<TexProject> {
+        use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
+        let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+        query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
+        if query_params.proj_source_type.is_some() {
+            query = query
+                .filter(cv_work_table::proj_source_type.eq(query_params.proj_source_type.unwrap()));
+        }
+        if query_params.name.is_some() {
+            query = query.filter(cv_work_table::proj_name.eq(query_params.name.as_ref().unwrap()))
+        }
+        let cvs = query.load::<TexProject>(&mut get_connection());
+        if let Err(e) = cvs {
+            error!("get proj list failed: {}", e);
+            return Vec::new();
+        }
+        return cvs.unwrap();
+    }
+
     fn get_proj_by_type(
         &self,
         query_params: &ProjQueryParams,
@@ -148,7 +172,7 @@ impl ProjSpec for TexProjectService {
             let rid = query_params.role_id.unwrap();
             query = query.filter(proj_editor_table::role_id.eq(rid));
         }
-        query = query.filter(proj_editor_table::proj_status.eq(query_params.proj_type));
+        query = query.filter(proj_editor_table::proj_status.eq(query_params.proj_status));
         query = query.filter(proj_editor_table::user_id.eq(login_user_info.userId));
         let editors: Vec<TexProjEditor> = query
             .load::<TexProjEditor>(&mut get_connection())
@@ -164,6 +188,11 @@ impl ProjSpec for TexProjectService {
             let folder_proj_ids =
                 get_default_folder_proj_ids(query_params, default_folder.unwrap(), login_user_info);
             proj_query = proj_query.filter(tex_project_table::project_id.eq_any(folder_proj_ids));
+        }
+        if query_params.proj_source_type.is_some() {
+            proj_query = proj_query.filter(
+                tex_project_table::proj_source_type.eq(query_params.proj_source_type.unwrap()),
+            );
         }
         let projects: Vec<TexProject> = proj_query
             .load::<TexProject>(&mut get_connection())
@@ -181,22 +210,6 @@ impl ProjSpec for TexProjectService {
     }
 }
 
-pub fn get_prj_list(_tag: &String, login_user_info: &LoginUserInfo) -> Vec<TexProject> {
-    use crate::model::diesel::tex::tex_schema::tex_project as cv_work_table;
-    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    let cvs = query.load::<TexProject>(&mut get_connection());
-    match cvs {
-        Ok(result) => {
-            return result;
-        }
-        Err(err) => {
-            error!("get docs failed, {}", err);
-            return Vec::new();
-        }
-    }
-}
-
 pub fn get_proj_folders(
     query_params: &ProjQueryParams,
     login_user_info: &LoginUserInfo,
@@ -206,7 +219,7 @@ pub fn get_proj_folders(
     query = query
         .order_by(proj_folder_table::created_time.desc())
         .filter(proj_folder_table::user_id.eq(login_user_info.userId));
-    query = query.filter(proj_folder_table::proj_type.eq(query_params.proj_type));
+    query = query.filter(proj_folder_table::proj_type.eq(query_params.proj_status));
     let cvs = query.load::<TexProjFolder>(&mut get_connection());
     match cvs {
         Ok(result) => {
@@ -263,7 +276,7 @@ pub fn get_default_folder_proj_ids(
     let mut query = proj_folder_map_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(proj_folder_map_table::folder_id.eq(default_folder.id));
     query = query.filter(proj_folder_map_table::user_id.eq(login_user_info.userId));
-    query = query.filter(proj_folder_map_table::proj_type.eq(query_params.proj_type));
+    query = query.filter(proj_folder_map_table::proj_type.eq(query_params.proj_status));
     let editors: Vec<TexProjFolderMap> = query
         .load::<TexProjFolderMap>(&mut get_connection())
         .expect("get default project folder map failed");
@@ -462,7 +475,7 @@ fn do_create_tpl_proj_trans(
         folder_id: None,
         legacy_proj_id: None,
         proj_source_type: Some(ProjSourceType::TeXHubTemplate as i16),
-        proj_source: Some(tpl.id.to_string())
+        proj_source: Some(tpl.id.to_string()),
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
@@ -488,7 +501,7 @@ fn do_copy_proj_trans(
         folder_id: cp_req.folder_id,
         legacy_proj_id: cp_req.legacy_proj_id.clone(),
         proj_source_type: cp_req.proj_source_type,
-        proj_source: cp_req.proj_source.clone()
+        proj_source: cp_req.proj_source.clone(),
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
@@ -765,7 +778,7 @@ pub async fn save_full_proj(
             main_file_name: "main.tex".to_owned(),
             tpl_files_dir: main_folder_path,
             proj_source_type: ProjSourceType::LocalImport as i16,
-            proj_source: fn_path
+            proj_source: fn_path,
         };
         let create_result = create_project_dyn_params(&tpl_params, &login_user_info).await;
         if let Err(e) = create_result {
@@ -838,6 +851,16 @@ pub async fn import_from_github_impl(
     if repo.size.unwrap() > max_repo_size.parse::<u32>().unwrap() {
         return box_err_actix_rest_response(TexhubError::ExceedeGithubRepoSize);
     }
+    // check the legacy clone
+    let tex_proj_service = TexProjectService {};
+    let query_params = ProjListQueryParams {
+        proj_source_type: Some(ProjSourceType::GitHubImport as i16),
+        name: Some(repo.name.clone()),
+    };
+    let legacy_proj = tex_proj_service.get_proj_list(&query_params, login_user_info);
+    if !legacy_proj.is_empty() {
+        return box_err_actix_rest_response(TexhubError::AlreadyClonedThisRepo);
+    }
     // clone project
     let main_folder_path = format!("{}{}{}", "/tmp/", login_user_info.userId, repo.name);
     let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
@@ -849,7 +872,7 @@ pub async fn import_from_github_impl(
     let main_file_name = sync_info.main_file.clone().unwrap_or("main.tex".to_owned());
     let proj_root_file_path = find_file_path(&main_folder_path, &main_file_name);
     if proj_root_file_path.is_none() {
-        error!("did not found main.tex, path:{}", &main_folder_path);
+        error!("did not found main file, path:{}", &main_folder_path);
         return actix_web::error::ErrorInternalServerError("exact file failed").into();
     }
     // create project
