@@ -1,7 +1,7 @@
 use super::eden::external_app::clone_github_repo;
 use super::eden::proj::create_files_into_db;
 use super::eden::proj::create_proj;
-use super::eden::proj::create_project_tpl_params;
+use super::eden::proj::create_project_dyn_params;
 use super::eden::proj::do_create_proj_dependencies;
 use super::project_queue_service::get_latest_proj_queue;
 use super::spec::proj_spec::ProjSpec;
@@ -17,7 +17,8 @@ use crate::common::interop::synctex::{
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::zip::compress::gen_zip;
 use crate::diesel::RunQueryDsl;
-use crate::model::app::tpl_params::TplParams;
+use crate::model::app::tpl_params::ProjDynParams;
+use crate::model::dict::proj_source_type::ProjSourceType;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
@@ -403,6 +404,8 @@ pub async fn create_cp_project(
         template_id: None,
         folder_id: Some(cp_req.folder_id),
         legacy_proj_id: Some(cp_req.project_id.clone()),
+        proj_source_type: Some(ProjSourceType::Copied as i16),
+        proj_source: Some(proj.main.project_id.clone()),
     };
     let main_name: String = proj.main_file.name.clone();
     let trans_result = connection.transaction(|connection| {
@@ -458,6 +461,8 @@ fn do_create_tpl_proj_trans(
         template_id: Some(tpl.template_id),
         folder_id: None,
         legacy_proj_id: None,
+        proj_source_type: Some(ProjSourceType::TeXHubTemplate as i16),
+        proj_source: Some(tpl.id.to_string())
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
@@ -482,6 +487,8 @@ fn do_copy_proj_trans(
         template_id: None,
         folder_id: cp_req.folder_id,
         legacy_proj_id: cp_req.legacy_proj_id.clone(),
+        proj_source_type: cp_req.proj_source_type,
+        proj_source: cp_req.proj_source.clone()
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
@@ -752,13 +759,15 @@ pub async fn save_full_proj(
             .to_string_lossy()
             .to_string();
         // create project from exact result
-        let tpl_params = TplParams {
+        let tpl_params = ProjDynParams {
             tpl_id: -1,
             name: f_name_without_ext.to_string(),
             main_file_name: "main.tex".to_owned(),
             tpl_files_dir: main_folder_path,
+            proj_source_type: ProjSourceType::LocalImport as i16,
+            proj_source: fn_path
         };
-        let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
+        let create_result = create_project_dyn_params(&tpl_params, &login_user_info).await;
         if let Err(e) = create_result {
             error!("create project failed,{},tpl params:{:?}", e, &tpl_params);
             return actix_web::error::ErrorInternalServerError("create project failed").into();
@@ -844,13 +853,15 @@ pub async fn import_from_github_impl(
         return actix_web::error::ErrorInternalServerError("exact file failed").into();
     }
     // create project
-    let tpl_params = TplParams {
+    let tpl_params = ProjDynParams {
         tpl_id: -1,
         name: repo.name,
         main_file_name: main_file_name,
         tpl_files_dir: main_folder_path,
+        proj_source_type: ProjSourceType::GitHubImport as i16,
+        proj_source: sync_info.url.clone(),
     };
-    let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
+    let create_result = create_project_dyn_params(&tpl_params, &login_user_info).await;
     if let Err(e) = create_result {
         error!("create project failed,{},tpl params:{:?}", e, &tpl_params);
         return actix_web::error::ErrorInternalServerError("create project failed").into();

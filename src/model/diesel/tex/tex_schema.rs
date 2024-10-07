@@ -103,6 +103,8 @@ table! {
         nickname -> Varchar,
         archive_status -> Int4,
         deleted -> Int4,
+        proj_source_type -> Int2,
+        proj_source -> Varchar,
     }
 }
 

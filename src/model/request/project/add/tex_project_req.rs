@@ -6,5 +6,7 @@ pub struct TexProjectReq {
     pub name: String,
     pub template_id: Option<i64>,
     pub folder_id: Option<i64>,
-    pub legacy_proj_id: Option<String>
+    pub legacy_proj_id: Option<String>,
+    pub proj_source_type: Option<i16>,
+    pub proj_source: Option<String>
 }

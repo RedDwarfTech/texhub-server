@@ -113,6 +113,7 @@ pub struct TexProject {
     pub nickname: String,
     pub archive_status: i32,
     pub deleted: i32,
+    pub proj_source_type: i16,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]

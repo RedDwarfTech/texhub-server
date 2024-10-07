@@ -9,7 +9,7 @@ use std::{
 use crate::{
     common::database::get_connection,
     model::{
-        app::{tex_file_params::TexFileParams, tpl_params::TplParams},
+        app::{tex_file_params::TexFileParams, tpl_params::ProjDynParams},
         dict::role_type::RoleType,
         diesel::{
             custom::{
@@ -45,8 +45,8 @@ use rust_wheel::{
 };
 use tokio::task;
 
-pub async fn create_project_tpl_params(
-    tpl_params: &TplParams,
+pub async fn create_project_dyn_params(
+    tpl_params: &ProjDynParams,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
     // check the folder main.tex file
@@ -68,7 +68,7 @@ pub async fn create_project_tpl_params(
 }
 
 fn do_create_tpl_proj_trans(
-    tpl_params: &TplParams,
+    tpl_params: &ProjDynParams,
     rd_user_info: &RdUserInfo,
     connection: &mut PgConnection,
     login_user_info: &LoginUserInfo,
@@ -78,6 +78,8 @@ fn do_create_tpl_proj_trans(
         template_id: Some(tpl_params.tpl_id.to_owned()),
         folder_id: None,
         legacy_proj_id: None,
+        proj_source_type: Some(tpl_params.proj_source_type.to_owned()),
+        proj_source: Some(tpl_params.proj_source.clone()),
     };
     let create_result = create_proj(&proj_req, connection, rd_user_info);
     if let Err(ce) = create_result {
@@ -91,7 +93,7 @@ fn do_create_tpl_proj_trans(
 }
 
 pub fn do_create_proj_on_disk(
-    tpl_params: &TplParams,
+    tpl_params: &ProjDynParams,
     proj: &TexProject,
     rd_user_info: &RdUserInfo,
     login_user_info: &LoginUserInfo,
@@ -112,7 +114,7 @@ pub fn do_create_proj_on_disk(
 }
 
 pub fn create_proj_files(
-    tpl_params: &TplParams,
+    tpl_params: &ProjDynParams,
     proj_id: &String,
     uid: &i64,
     login_user_info: &LoginUserInfo,
@@ -145,7 +147,7 @@ pub fn create_proj(
     rd_user_info: &RdUserInfo,
 ) -> Result<TexProject, diesel::result::Error> {
     let uid: i64 = rd_user_info.id;
-    let new_proj = TexProjectAdd::from_req(&proj_req.name, &uid, &rd_user_info.nickname);
+    let new_proj = TexProjectAdd::from_req(&proj_req, &uid, &rd_user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
