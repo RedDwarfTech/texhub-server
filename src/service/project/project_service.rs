@@ -837,7 +837,8 @@ pub async fn import_from_github_impl(
         return box_err_actix_rest_response(TexhubError::CloneRepoFailed);
     }
     // check main.tex file
-    let proj_root_file_path = find_file_path(&main_folder_path, "main.tex");
+    let main_file_name = sync_info.main_file.clone().unwrap_or("main.tex".to_owned());
+    let proj_root_file_path = find_file_path(&main_folder_path, &main_file_name);
     if proj_root_file_path.is_none() {
         error!("did not found main.tex, path:{}", &main_folder_path);
         return actix_web::error::ErrorInternalServerError("exact file failed").into();
@@ -846,7 +847,7 @@ pub async fn import_from_github_impl(
     let tpl_params = TplParams {
         tpl_id: -1,
         name: repo.name,
-        main_file_name: sync_info.main_file.clone().unwrap_or("main.tex".to_owned()),
+        main_file_name: main_file_name,
         tpl_files_dir: main_folder_path,
     };
     let create_result = create_project_tpl_params(&tpl_params, &login_user_info).await;
