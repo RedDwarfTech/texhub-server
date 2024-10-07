@@ -839,7 +839,7 @@ pub async fn import_from_github_impl(
         return box_err_actix_rest_response(TexhubError::ExceedeGithubRepoSize);
     }
     // clone project
-    let main_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);
+    let main_folder_path = format!("{}{}{}", "/tmp/", login_user_info.userId, repo.name);
     let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
     let clone_repo = clone_github_repo(&clone_url, &main_folder_path.to_owned());
     if clone_repo.is_none() {

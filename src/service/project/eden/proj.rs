@@ -50,7 +50,7 @@ pub async fn create_project_dyn_params(
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
     // check the folder main.tex file
-    let full_path = Path::new(&tpl_params.tpl_files_dir).join("main.tex");
+    let full_path = Path::new(&tpl_params.tpl_files_dir).join(tpl_params.main_file_name.clone());
     if !full_path.exists() {
         error!(
             "did not found main file, full path:{}, tpl params:{:?}",
