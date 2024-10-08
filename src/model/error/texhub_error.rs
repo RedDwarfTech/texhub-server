@@ -21,6 +21,10 @@ pub enum TexhubError {
     CloneRepoFailed,
     #[error("已经Clone此仓库")]
     AlreadyClonedThisRepo,
+    #[error("超过免费用户项目数量限制")]
+    NonVipTooMuchProj,
+    #[error("超过VIP用户项目数量限制")]
+    VipTooMuchProj,
 }
 
 impl ErrorResponse for TexhubError {
@@ -35,6 +39,8 @@ impl ErrorResponse for TexhubError {
             TexhubError::OnlyGithubRepoSupport => "0040010007",
             TexhubError::CloneRepoFailed => "0040010008",
             TexhubError::AlreadyClonedThisRepo => "0040010009",
+            TexhubError::NonVipTooMuchProj => "0040010010",
+            TexhubError::VipTooMuchProj => "0040010011",
         }
     }
 
@@ -49,6 +55,8 @@ impl ErrorResponse for TexhubError {
             TexhubError::OnlyGithubRepoSupport => "只支持Github仓库",
             TexhubError::CloneRepoFailed => "Clone仓库失败",
             TexhubError::AlreadyClonedThisRepo => "已经Clone此仓库",
+            TexhubError::NonVipTooMuchProj => "超过免费用户项目数量限制",
+            TexhubError::VipTooMuchProj => "超过VIP用户项目数量限制",
         }
     }
 
@@ -63,6 +71,8 @@ impl ErrorResponse for TexhubError {
             TexhubError::OnlyGithubRepoSupport => "ONLY_GITHUB_REPO_SUPPORT",
             TexhubError::CloneRepoFailed => "CLONE_REPO_FAILED",
             TexhubError::AlreadyClonedThisRepo => "ALREADY_CLONED_THIS_REPO",
+            TexhubError::NonVipTooMuchProj => "NON_VIP_TOO_MUCH_PROJ",
+            TexhubError::VipTooMuchProj => "VIP_TOO_MUCH_PROJ",
         }
     }
 }

@@ -4,6 +4,7 @@ use crate::model::dict::collar_status::CollarStatus;
 use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
 use crate::model::diesel::custom::project::upload::github_proj_sync::GithubProjSync;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
+use crate::model::error::texhub_error::TexhubError;
 use crate::model::request::project::add::copy_proj_req::CopyProjReq;
 use crate::model::request::project::add::tex_file_idx_req::TexFileIdxReq;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
@@ -140,18 +141,10 @@ pub async fn create_project(
     let ps = TexProjectService {};
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
-        return box_error_actix_rest_response(
-            "too much project for non-vip",
-            "NON_VIP_TOO_MUCH_PROJ".to_owned(),
-            "too much project for non-vip".to_owned(),
-        );
+        return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
     }
     if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
-        return box_error_actix_rest_response(
-            "too much project for vip",
-            "VIP_TOO_MUCH_PROJ".to_owned(),
-            "too much project for vip".to_owned(),
-        );
+        return box_err_actix_rest_response(TexhubError::VipTooMuchProj);
     }
     let projects = create_empty_project(&form.0, &login_user_info).await;
     match projects {
