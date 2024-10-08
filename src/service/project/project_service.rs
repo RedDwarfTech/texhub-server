@@ -346,6 +346,14 @@ pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &Logi
 }
 
 pub async fn do_proj_copy(cp_req: &CopyProjReq, login_user_info: &LoginUserInfo) -> impl Responder {
+    let ps = TexProjectService {};
+    let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
+    if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
+        return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
+    }
+    if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
+        return box_err_actix_rest_response(TexhubError::VipTooMuchProj);
+    }
     let project = create_cp_project(cp_req, login_user_info).await;
     match project {
         Ok(proj) => box_actix_rest_response(proj),
@@ -728,6 +736,14 @@ pub async fn save_full_proj(
             }
         } else {
             return box_err_actix_rest_response(TexhubError::UnexpectFileType);
+        }
+        let ps = TexProjectService {};
+        let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
+        if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
+            return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
+        }
+        if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
+            return box_err_actix_rest_response(TexhubError::VipTooMuchProj);
         }
         // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
         let temp_folder_path = format!("{}{}", "/tmp/", login_user_info.userId);

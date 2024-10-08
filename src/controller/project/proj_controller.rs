@@ -473,6 +473,14 @@ async fn import_from_github(
     form: actix_web_validator::Json<GithubProjSync>,
     login_user_info: LoginUserInfo,
 ) -> HttpResponse {
+    let ps = TexProjectService {};
+    let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
+    if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
+        return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
+    }
+    if project_count > 50 && login_user_info.vipExpireTime > get_current_millisecond() {
+        return box_err_actix_rest_response(TexhubError::VipTooMuchProj);
+    }
     return import_from_github_impl(&form.0, &login_user_info).await;
 }
 
