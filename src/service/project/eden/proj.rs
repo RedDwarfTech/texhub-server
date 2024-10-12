@@ -267,7 +267,7 @@ fn handle_proj_files(
         .iter()
         .cloned()
         .collect();
-    let ignored_files: HashSet<&str> = [".DS_Store"].iter().cloned().collect();
+    let ignored_files: HashSet<&str> = [".DS_Store",".git"].iter().cloned().collect();
     if let Some(ext) = extension {
         // ignore some system aux files that do not need to show in projects tree
         if ignored_extensions.contains(ext) {
