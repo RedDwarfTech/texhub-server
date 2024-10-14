@@ -263,11 +263,13 @@ fn handle_proj_files(
     path: PathBuf,
 ) {
     let extension = path.extension().and_then(|ext| ext.to_str());
-    let ignored_extensions: HashSet<&str> = ["log", "aux", "out", "toc", "nav", "snm", "vrb"]
-        .iter()
-        .cloned()
-        .collect();
-    let ignored_files: HashSet<&str> = [".DS_Store",".git"].iter().cloned().collect();
+    let ignored_extensions: HashSet<&str> = [
+        "log", "aux", "out", "toc", "nav", "snm", "vrb", "gz", "zip",
+    ]
+    .iter()
+    .cloned()
+    .collect();
+    let ignored_files: HashSet<&str> = [".DS_Store", ".git"].iter().cloned().collect();
     if let Some(ext) = extension {
         // ignore some system aux files that do not need to show in projects tree
         if ignored_extensions.contains(ext) {
