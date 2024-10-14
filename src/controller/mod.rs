@@ -4,3 +4,4 @@ pub mod project;
 pub mod template;
 pub mod file;
 pub mod profile;
+pub mod appconf;
