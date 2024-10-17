@@ -3,6 +3,7 @@ use crate::model::diesel::custom::conf::user_conf_add::TexUserConfigAdd;
 use crate::{
     common::database::get_connection, model::diesel::tex::custom_tex_models::TexUserConfig,
 };
+use diesel::upsert::on_constraint;
 use diesel::{ExpressionMethods, QueryDsl};
 use log::error;
 
@@ -23,6 +24,9 @@ pub fn save_user_config(uid: &i64, key: &String, value: &String) {
     let new_conf = TexUserConfigAdd::gen_user_config(uid, value, key);
     diesel::insert_into(tex_user_config)
         .values(&new_conf)
+        .on_conflict(on_constraint("tex_user_config_unique"))
+        .do_update()
+        .set((config_value.eq(&new_conf.config_value),))
         .get_result::<TexUserConfig>(&mut get_connection())
         .expect("failed to add new conf");
 }
