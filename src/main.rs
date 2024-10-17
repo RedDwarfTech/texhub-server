@@ -10,6 +10,7 @@ use crate::controller::profile::profile_controller;
 use actix_multipart::MultipartError;
 use actix_web::Error;
 use actix_web::{App, HttpRequest, HttpServer};
+use controller::appconf::appconf_controller;
 use controller::{
     collar::collar_controller,
     file::{file_controller, file_version_controller},
@@ -52,6 +53,7 @@ async fn main() -> std::io::Result<()> {
             .configure(snippet_controller::config)
             .configure(proj_share_controller::config)
             .configure(file_version_controller::config)
+            .configure(appconf_controller::config)
     })
     .workers(3)
     .bind(address)?

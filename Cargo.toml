@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 validator = { version = "0.16.1", features = ["derive"] }
-serde = { version = "1.0.64", features = ["derive"] }
-serde_json = "1.0.64"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
 rust_wheel = { git = "https://github.com/jiangxiaoqiang/rust_wheel.git", branch = "main", features = [
     "model",
     "common",
