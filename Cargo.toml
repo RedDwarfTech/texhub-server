@@ -15,7 +15,8 @@ rust_wheel = { git = "https://github.com/jiangxiaoqiang/rust_wheel.git", branch 
     "rwconfig",
     "texhub"
 ] }
-tokio-tungstenite = "0.20.0"
+rustls = { version = "0.23", features = ["ring","logging","tls12"], default-features = false }
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
 tokio = { version = "1.40.0", features = ["full"] }
 futures-util = { version = "0.3.28", default-features = false, features = [
     "sink",
