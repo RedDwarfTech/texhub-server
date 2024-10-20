@@ -858,7 +858,8 @@ pub async fn import_from_github_impl(
         error!("github token config is missing,{:?}", config_list);
         return box_err_actix_rest_response(TexhubError::GithubConfigMissing);
     }
-    let repo_info = get_github_repo_size(&sync_info.url).await;
+    let token_val = github_token.unwrap().config_value.clone();
+    let repo_info = get_github_repo_size(&sync_info.url, &token_val).await;
     if repo_info.is_none() {
         return box_err_actix_rest_response(TexhubError::FetchGithubRepoSizeFailed);
     }
@@ -913,12 +914,15 @@ fn add_token_to_url(url: &str, token: &str) -> String {
     tokenized_url
 }
 
-async fn get_github_repo_size(url: &str) -> Option<Repository> {
+async fn get_github_repo_size(url: &str, github_token: &str) -> Option<Repository> {
     let trimmed = &url["https://github.com/".len()..];
     let trimmed = trimmed.trim_end_matches(".git");
     let parts: Vec<&str> = trimmed.split('/').collect();
     if parts.len() == 2 {
-        let octocrab = Octocrab::builder().build().unwrap();
+        let octocrab = Octocrab::builder()
+            .personal_token(github_token)
+            .build()
+            .unwrap();
         let owner = parts[0].to_string();
         let repo = parts[1].to_string();
         let repo_info = octocrab.repos(owner.clone(), repo.clone()).get().await;
