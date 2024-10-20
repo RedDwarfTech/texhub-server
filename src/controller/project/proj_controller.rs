@@ -85,6 +85,7 @@ use rust_wheel::{
     },
     model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
 };
+use rustls::crypto::CryptoProvider;
 use serde_json::{Map, Value};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -473,6 +474,7 @@ async fn import_from_github(
     form: actix_web_validator::Json<GithubProjSync>,
     login_user_info: LoginUserInfo,
 ) -> HttpResponse {
+    rustls::crypto::ring::default_provider().install_default().expect("Failed to install rustls crypto provider");
     let ps = TexProjectService {};
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
