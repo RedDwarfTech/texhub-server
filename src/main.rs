@@ -37,6 +37,7 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    rustls::crypto::ring::default_provider().install_default().expect("Failed to install rustls crypto provider");
     rust_i18n::set_locale("zh-CN");
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     let port: u16 = get_app_config("texhub.port").parse().unwrap();
