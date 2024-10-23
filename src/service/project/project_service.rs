@@ -928,7 +928,7 @@ async fn get_github_repo_size(url: &str, github_token: &str) -> Option<Repositor
         let repo_info = octocrab.repos(owner.clone(), repo.clone()).get().await;
         if let Err(err) = repo_info.as_ref() {
             error!(
-                " get repo info failed: {},owner:{},repo:{}",
+                " get repo info failed: {:?},owner:{},repo:{}",
                 err, owner, repo
             );
             return None;

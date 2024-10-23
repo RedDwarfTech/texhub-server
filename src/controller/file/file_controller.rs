@@ -11,7 +11,8 @@ use crate::{
                 query::{
                     download_file_query::DownloadFileQuery, file_code_params::FileCodeParams,
                     file_query_params::FileQueryParams, main_file_params::MainFileParams,
-                    pdf_partial::PdfPartial, sub_file_query_params::SubFileQueryParams,
+                    pdf_partial::PdfPartial, pdf_preview_sign::PdfPreviewSign,
+                    sub_file_query_params::SubFileQueryParams,
                 },
             },
             project::share::collar_query_params::CollarQueryParams,
@@ -319,6 +320,31 @@ pub async fn load_full_pdf_file(
     return get_full_pdf(&pdf_info.unwrap(), req);
 }
 
+pub async fn load_full_pdf_file_sig(
+    req: HttpRequest,
+    params: actix_web_validator::Query<PdfPreviewSign>
+) -> impl Responder {
+    if params.0.expire > get_current_millisecond() {
+        // return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &103).await;
+    if let Err(err) = pdf_info {
+        return box_err_actix_rest_response(err);
+    }
+    let collar_query = CollarQueryParams {
+        project_id: params.0.proj_id.clone(),
+        user_id: 103,
+    };
+    let relation = get_collar_relation(&collar_query).await;
+    if relation.is_none() {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    return get_full_pdf(&pdf_info.unwrap(), req);
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/file")
@@ -337,6 +363,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/download", web::get().to(download_file))
             .route("/pdf/partial", web::get().to(load_partial))
             .route("/pdf/full", web::get().to(load_full_pdf_file))
+            .route("/pdf/preview", web::get().to(load_full_pdf_file_sig))
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }
