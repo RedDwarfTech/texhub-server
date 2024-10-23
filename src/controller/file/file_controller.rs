@@ -41,19 +41,22 @@ use crate::{
 };
 use actix_files::NamedFile;
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use chrono::{Duration, Utc};
 use log::error;
 use mime::Mime;
 use rust_i18n::t;
 use rust_wheel::{
     common::{
-        util::time_util::get_current_millisecond,
+        infra::user::rd_user::get_user_info,
+        util::{security_util::generate_signature, time_util::get_current_millisecond},
         wrapper::actix_http_resp::{
             box_actix_rest_response, box_err_actix_rest_response, box_error_actix_rest_response,
         },
     },
     model::{
-        error::infra_error::InfraError, response::api_response::ApiResponse,
-        user::login_user_info::LoginUserInfo,
+        error::infra_error::InfraError,
+        response::api_response::ApiResponse,
+        user::{login_user_info::LoginUserInfo, rd_user_info::RdUserInfo},
     },
 };
 
@@ -322,7 +325,7 @@ pub async fn load_full_pdf_file(
 
 pub async fn load_full_pdf_file_sig(
     req: HttpRequest,
-    params: actix_web_validator::Query<PdfPreviewSign>
+    params: actix_web_validator::Query<PdfPreviewSign>,
 ) -> impl Responder {
     if params.0.expire > get_current_millisecond() {
         // return box_err_actix_rest_response(InfraError::AccessResourceDenied);
@@ -345,6 +348,38 @@ pub async fn load_full_pdf_file_sig(
     return get_full_pdf(&pdf_info.unwrap(), req);
 }
 
+/**
+ * generate a temp url to allow user to access the resource in a peroid of time
+ * follow the aws oss or the aliyun oss access style
+ */
+pub async fn gen_preview_url(
+    _params: actix_web_validator::Query<PdfPartial>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let user_id = login_user_info.userId.to_string();
+    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let now = Utc::now();
+    let future_time = now + Duration::hours(2);
+    let unix_timestamp = future_time.timestamp();
+    let expire_time = unix_timestamp.to_string();
+    let secret = user_info.salt;
+    let params = vec![
+        ("userId".to_string(), user_id),
+        ("expireTime".to_string(), expire_time),
+    ];
+    let signature = generate_signature(&params, &secret);
+    let url = format!(
+        "{}{}{}{}{}{}",
+        "/tex/file/pdf/preview?proj_id=",
+        _params.0.proj_id,
+        "&signature=",
+        signature,
+        "&expire=",
+        unix_timestamp
+    );
+    return box_actix_rest_response(url);
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/file")
@@ -364,6 +399,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/pdf/partial", web::get().to(load_partial))
             .route("/pdf/full", web::get().to(load_full_pdf_file))
             .route("/pdf/preview", web::get().to(load_full_pdf_file_sig))
+            .route("/pdf/preview-url", web::get().to(gen_preview_url))
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }
