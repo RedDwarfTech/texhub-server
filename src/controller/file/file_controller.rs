@@ -48,7 +48,7 @@ use rust_i18n::t;
 use rust_wheel::{
     common::{
         infra::user::rd_user::get_user_info,
-        util::{security_util::generate_signature, time_util::get_current_millisecond},
+        util::{security_util::{generate_signature, verify_signature}, time_util::get_current_millisecond},
         wrapper::actix_http_resp::{
             box_actix_rest_response, box_err_actix_rest_response, box_error_actix_rest_response,
         },
@@ -331,6 +331,14 @@ pub async fn load_full_pdf_file_sig(
         return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
     // verify the signature
+    let uid: i64 = params.0.access_key.parse().unwrap();
+    let user_info: RdUserInfo = get_user_info(&uid).await.unwrap();
+    let verify_params = vec![
+        ("accessKey".to_string(), params.0.access_key),
+        ("expireTime".to_string(), params.0.expire.to_string()),
+    ];
+    let secret = user_info.salt;
+    let pass = verify_signature(&verify_params, secret, &params.0.signature);
     let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &103).await;
     if let Err(err) = pdf_info {
         return box_err_actix_rest_response(err);
@@ -365,18 +373,20 @@ pub async fn gen_preview_url(
     let expire_time = unix_timestamp.to_string();
     let secret = user_info.salt;
     let params = vec![
-        ("userId".to_string(), user_id),
+        ("accessKey".to_string(), user_id),
         ("expireTime".to_string(), expire_time),
     ];
     let signature = generate_signature(&params, &secret);
     let url = format!(
-        "{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}",
         "/tex/file/pdf/preview?proj_id=",
         _params.0.proj_id,
         "&signature=",
         signature,
         "&expire=",
-        unix_timestamp
+        unix_timestamp,
+        "&access_key=",
+        user_id
     );
     return box_actix_rest_response(url);
 }
