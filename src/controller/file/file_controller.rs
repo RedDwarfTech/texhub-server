@@ -11,8 +11,8 @@ use crate::{
                 query::{
                     download_file_query::DownloadFileQuery, file_code_params::FileCodeParams,
                     file_query_params::FileQueryParams, main_file_params::MainFileParams,
-                    pdf_partial::PdfPartial, pdf_preview_sign::PdfPreviewSign,
-                    sub_file_query_params::SubFileQueryParams,
+                    pdf_partial::PdfPartial, pdf_preview_req::PdfPreviewReq,
+                    pdf_preview_sign::PdfPreviewSign, sub_file_query_params::SubFileQueryParams,
                 },
             },
             project::share::collar_query_params::CollarQueryParams,
@@ -327,6 +327,11 @@ pub async fn load_full_pdf_file_sig(
     req: HttpRequest,
     params: actix_web_validator::Query<PdfPreviewSign>,
 ) -> impl Responder {
+    error!(
+        "pass in:{}, current:{}",
+        params.0.expire,
+        get_current_millisecond()
+    );
     if params.0.expire > get_current_millisecond() {
         // return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
@@ -353,7 +358,7 @@ pub async fn load_full_pdf_file_sig(
  * follow the aws oss or the aliyun oss access style
  */
 pub async fn gen_preview_url(
-    _params: actix_web_validator::Query<PdfPartial>,
+    _params: actix_web_validator::Query<PdfPreviewReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let user_id = login_user_info.userId.to_string();
