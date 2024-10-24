@@ -365,7 +365,7 @@ pub async fn gen_preview_url(
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let now = Utc::now();
     let future_time = now + Duration::hours(2);
-    let unix_timestamp = future_time.timestamp();
+    let unix_timestamp = future_time.timestamp_millis();
     let expire_time = unix_timestamp.to_string();
     let secret = user_info.salt;
     let params = vec![
