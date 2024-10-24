@@ -327,14 +327,10 @@ pub async fn load_full_pdf_file_sig(
     req: HttpRequest,
     params: actix_web_validator::Query<PdfPreviewSign>,
 ) -> impl Responder {
-    error!(
-        "pass in:{}, current:{}",
-        params.0.expire,
-        get_current_millisecond()
-    );
     if params.0.expire > get_current_millisecond() {
-        // return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
+    // verify the signature
     let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &103).await;
     if let Err(err) = pdf_info {
         return box_err_actix_rest_response(err);
