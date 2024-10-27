@@ -343,6 +343,10 @@ pub async fn load_full_pdf_file_sig(
     let secret = user_info.salt;
     let pass = verify_signature(&verify_params, &secret, &params.0.signature);
     if !pass {
+        error!(
+            "preview pdf sign verify failed, {:?}, secret:{}, signature:{}",
+            &verify_params, secret, &params.0.signature
+        );
         return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
     let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &103).await;
