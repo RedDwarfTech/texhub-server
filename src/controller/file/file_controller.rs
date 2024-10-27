@@ -331,6 +331,7 @@ pub async fn load_full_pdf_file_sig(
     params: actix_web_validator::Query<PdfPreviewSign>,
 ) -> impl Responder {
     if params.0.expire > get_current_millisecond() {
+        error!("expire time,{:?}", &params);
         return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
     // verify the signature
@@ -359,6 +360,7 @@ pub async fn load_full_pdf_file_sig(
     };
     let relation = get_collar_relation(&collar_query).await;
     if relation.is_none() {
+        error!("relation is null,{:?}", &collar_query);
         return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
     if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {

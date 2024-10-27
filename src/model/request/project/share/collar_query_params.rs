@@ -1,6 +1,6 @@
 use validator::Validate;
 
-#[derive(serde::Deserialize, Validate)]
+#[derive(serde::Deserialize, Validate, Debug)]
 pub struct CollarQueryParams {
     #[validate(length(min = 1))]
     pub project_id: String,
