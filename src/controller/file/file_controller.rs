@@ -330,7 +330,7 @@ pub async fn load_full_pdf_file_sig(
     req: HttpRequest,
     params: actix_web_validator::Query<PdfPreviewSign>,
 ) -> impl Responder {
-    if params.0.expire > get_current_millisecond() {
+    if params.0.expire < get_current_millisecond() {
         error!("expire time,{:?}", &params);
         return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
