@@ -349,13 +349,13 @@ pub async fn load_full_pdf_file_sig(
         );
         return box_err_actix_rest_response(InfraError::AccessResourceDenied);
     }
-    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &103).await;
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &uid).await;
     if let Err(err) = pdf_info {
         return box_err_actix_rest_response(err);
     }
     let collar_query = CollarQueryParams {
         project_id: params.0.proj_id.clone(),
-        user_id: 103,
+        user_id: uid,
     };
     let relation = get_collar_relation(&collar_query).await;
     if relation.is_none() {
