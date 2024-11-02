@@ -108,6 +108,23 @@ pub async fn get_projects(
     HttpResponse::Ok().json(res)
 }
 
+pub async fn get_scroll_projects(
+    params: web::Query<ProjQueryParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
+    let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
+    let ps = TexProjectService {};
+    let projects: Vec<TexProjResp> =
+        ps.get_proj_by_type(&params.0, &login_user_info, default_folder);
+    let resp: ProjResp = ProjResp::from_req(folders, projects);
+    let res = ApiResponse {
+        result: resp,
+        ..Default::default()
+    };
+    HttpResponse::Ok().json(res)
+}
+
 pub async fn get_folder_projects(
     params: web::Query<FolderProjParams>,
     login_user_info: LoginUserInfo,
@@ -488,6 +505,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/project")
             .route("/list", web::get().to(get_projects))
+            .route("/scroll", web::get().to(get_scroll_projects))
             .route("/info", web::get().to(get_project))
             .route("/history/page", web::get().to(get_proj_his_page))
             .route("/add", web::post().to(create_project))

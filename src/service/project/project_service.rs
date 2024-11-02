@@ -16,7 +16,10 @@ use crate::common::interop::synctex::{
 };
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::zip::compress::gen_zip;
+use crate::common::zip::decompress::exact_upload_zip;
 use crate::diesel::RunQueryDsl;
+use crate::external::github::repo::repo_file::get_github_repo_size;
+use crate::external::github::repo::repo_file::repo_file_exists;
 use crate::model::app::tpl_params::ProjDynParams;
 use crate::model::dict::proj_source_type::ProjSourceType;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
@@ -86,8 +89,6 @@ use diesel::{
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, warn};
 use meilisearch_sdk::search::*;
-use octocrab::models::Repository;
-use octocrab::Octocrab;
 use reqwest::Client;
 use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
@@ -115,7 +116,6 @@ use std::collections::HashMap;
 use std::env;
 use std::ffi::{CStr, CString};
 use std::fs::{self, File};
-use std::io;
 use std::io::{BufRead, BufReader, Read};
 use std::os::raw::c_int;
 use std::path::Path;
@@ -878,6 +878,17 @@ pub async fn import_from_github_impl(
     if !legacy_proj.is_empty() {
         return box_err_actix_rest_response(TexhubError::AlreadyClonedThisRepo);
     }
+    // check the main file exists in repo
+    let main_file_name = sync_info.main_file.clone().unwrap_or("main.tex".to_owned());
+    let exists = repo_file_exists(
+        &sync_info.url,
+        &github_token.unwrap().config_value,
+        &main_file_name,
+    )
+    .await;
+    if !exists {
+        error!(" the input main file did not exits,{}", &main_file_name);
+    }
     // clone project
     let main_folder_path = format!("{}{}{}", "/tmp/", login_user_info.userId, repo.name);
     let clone_url = add_token_to_url(&sync_info.url, &github_token.unwrap().config_value);
@@ -886,7 +897,6 @@ pub async fn import_from_github_impl(
         return box_err_actix_rest_response(TexhubError::CloneRepoFailed);
     }
     // check main.tex file
-    let main_file_name = sync_info.main_file.clone().unwrap_or("main.tex".to_owned());
     let proj_root_file_path = find_file_path(&main_folder_path, &main_file_name);
     if proj_root_file_path.is_none() {
         error!("did not found main file, path:{}", &main_folder_path);
@@ -912,88 +922,6 @@ pub async fn import_from_github_impl(
 fn add_token_to_url(url: &str, token: &str) -> String {
     let tokenized_url = url.replace("https://", &format!("https://{}@", token));
     tokenized_url
-}
-
-async fn get_github_repo_size(url: &str, github_token: &str) -> Option<Repository> {
-    let trimmed = &url["https://github.com/".len()..];
-    let trimmed = trimmed.trim_end_matches(".git");
-    let parts: Vec<&str> = trimmed.split('/').collect();
-    if parts.len() == 2 {
-        let octocrab = Octocrab::builder()
-            .personal_token(github_token)
-            .build()
-            .unwrap();
-        let owner = parts[0].to_string();
-        let repo = parts[1].to_string();
-        let repo_info = octocrab.repos(owner.clone(), repo.clone()).get().await;
-        if let Err(err) = repo_info.as_ref() {
-            error!(
-                " get repo info failed: {:?},owner:{},repo:{}",
-                err, owner, repo
-            );
-            return None;
-        }
-        return Some(repo_info.unwrap());
-    } else {
-        error!(" get repo parts failed: {}", url);
-        return None;
-    }
-}
-
-fn exact_upload_zip(input_path: &str, output_path: &str) -> Result<(), io::Error> {
-    let file = File::open(&input_path)?;
-    let mut archive = zip::ZipArchive::new(file)?;
-    /*
-    check the decompress size before decompress the file
-    this action is necessary because we need to avoid the compress bomb
-    more information we can know from here: https://en.wikipedia.org/wiki/Zip_bomb
-     */
-    if archive.decompressed_size().unwrap_or_default() > 200 * 1024 * 1024 {
-        return Err(io::Error::new(io::ErrorKind::Other, "too huge for exact"));
-    }
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
-        let out_path = format!("{}/{}", output_path, file.name());
-        let outpath = PathBuf::from(out_path);
-        let comment = file.comment();
-        if !comment.is_empty() {}
-        if file.name().ends_with('/') {
-            fs::create_dir_all(&outpath).map_err(|e| {
-                error!("Could not create dir,{}", e);
-                e
-            })?;
-        } else {
-            if let Some(p) = outpath.parent() {
-                if !p.exists() {
-                    fs::create_dir_all(&p).map_err(|e| {
-                        error!(
-                            "create parent dir failed,err:{},path:{}",
-                            e,
-                            &p.to_string_lossy()
-                        );
-                        e
-                    })?;
-                }
-            }
-            let mut outfile = File::create(&outpath).map_err(|e| {
-                error!("create out file failed,{}", e);
-                e
-            })?;
-            io::copy(&mut file, &mut outfile).map_err(|e| {
-                error!("copy file failed,{}", e);
-                e
-            })?;
-        }
-        // Set file permissions if running on a Unix-like system.
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Some(mode) = file.unix_mode() {
-                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))?;
-            }
-        }
-    }
-    Ok(())
 }
 
 fn create_proj_file_impl(

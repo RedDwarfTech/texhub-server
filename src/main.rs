@@ -30,6 +30,7 @@ pub mod model;
 pub mod monitor;
 pub mod net;
 pub mod service;
+pub mod external;
 pub mod tests;
 
 #[global_allocator]

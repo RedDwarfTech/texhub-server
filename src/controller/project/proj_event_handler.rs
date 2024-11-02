@@ -38,7 +38,9 @@ pub async fn listen_nickname_update() {
                     break;
                 }
                 Ok(None) => (),
-                Err(e) => panic!("Error communicating with redis: {}", e),
+                Err(e) => {
+                    panic!("listen_nickname_update Error communicating with redis: {}", e);
+                },
             }
         }
         let options = StreamReadOptions::default().count(1).block(1000).noack();
