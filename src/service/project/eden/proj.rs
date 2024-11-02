@@ -263,12 +263,11 @@ fn handle_proj_files(
     path: PathBuf,
 ) {
     let extension = path.extension().and_then(|ext| ext.to_str());
-    let ignored_extensions: HashSet<&str> = [
-        "log", "aux", "out", "toc", "nav", "snm", "vrb", "gz", "zip",
-    ]
-    .iter()
-    .cloned()
-    .collect();
+    let ignored_extensions: HashSet<&str> =
+        ["log", "aux", "out", "toc", "nav", "snm", "vrb", "gz", "zip"]
+            .iter()
+            .cloned()
+            .collect();
     let ignored_files: HashSet<&str> = [".DS_Store", ".git"].iter().cloned().collect();
     if let Some(ext) = extension {
         // ignore some system aux files that do not need to show in projects tree
@@ -277,6 +276,15 @@ fn handle_proj_files(
         }
     }
     if ignored_files.contains(&file_name.clone().into_string().unwrap().as_str()) {
+        return;
+    }
+    if file_name
+        .clone()
+        .as_os_str()
+        .to_string_lossy()
+        .starts_with(".")
+    {
+        // ignore the hidden folder like .git .github
         return;
     }
     let tex_file = TexFileAdd::gen_tex_file_from_disk(
