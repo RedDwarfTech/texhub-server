@@ -94,8 +94,10 @@ fn get_ip_address(request: &HttpRequest) -> String {
     let x_ip = request.headers().get("X-Real-IP");
     let mut x_for = request.headers().get("X-Forwarded-For");
     if x_for.is_some() {
+        warn!("found X-Forwarded-For:{}", x_for.unwrap().to_str().unwrap().to_string());
         let index = x_for.unwrap().to_str().unwrap().find(",");
         if index.is_some() {
+            warn!("multiple ip:");
             return x_for.unwrap().to_str().unwrap().to_string()[0..index.unwrap()].to_string();
         } else {
             return x_for.unwrap().to_str().unwrap().to_string();
