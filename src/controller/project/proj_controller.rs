@@ -90,6 +90,21 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
 };
+fn get_ip_address(request: &HttpRequest) -> String {
+    let x_ip = request.headers().get("X-Real-IP");
+    let mut x_for = request.headers().get("X-Forwarded-For");
+    if x_for.is_some() {
+        // 多次反向代理后会有多个ip值，第一个ip才是真实ip
+        let index = x_for.unwrap().to_str().unwrap().find(",");
+        if index.is_some() {
+            return x_for.unwrap().to_str().unwrap().to_string()[0..index.unwrap()].to_string();
+        } else {
+            return x_for.unwrap().to_str().unwrap().to_string();
+        }
+    }
+    x_for = x_ip;
+    return x_for.unwrap().to_str().unwrap().to_string();
+}
 
 pub async fn get_projects(
     req: HttpRequest,
@@ -103,6 +118,8 @@ pub async fn get_projects(
             warn!("Real IP: {}", forwarded_value);
         }
     }
+    let ip_a = get_ip_address(&req);
+    warn!("ip_a: {}", ip_a);
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
     let ps = TexProjectService {};
