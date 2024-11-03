@@ -94,7 +94,6 @@ fn get_ip_address(request: &HttpRequest) -> String {
     let x_ip = request.headers().get("X-Real-IP");
     let mut x_for = request.headers().get("X-Forwarded-For");
     if x_for.is_some() {
-        // 多次反向代理后会有多个ip值，第一个ip才是真实ip
         let index = x_for.unwrap().to_str().unwrap().find(",");
         if index.is_some() {
             return x_for.unwrap().to_str().unwrap().to_string()[0..index.unwrap()].to_string();
@@ -112,7 +111,9 @@ pub async fn get_projects(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let client_ip = req.connection_info().peer_addr().unwrap().to_string();
+    let client_ip_real = req.connection_info().realip_remote_addr().unwrap().to_string();
     warn!("current client ip: {}", client_ip);
+    warn!("current real client ip: {}", client_ip_real);
     if let Some(forwarded) = req.headers().get("X-Forwarded-For") {
         if let Ok(forwarded_value) = forwarded.to_str() {
             warn!("Real IP: {}", forwarded_value);
