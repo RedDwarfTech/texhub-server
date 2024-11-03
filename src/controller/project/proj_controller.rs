@@ -98,6 +98,11 @@ pub async fn get_projects(
 ) -> impl Responder {
     let client_ip = req.connection_info().peer_addr().unwrap().to_string();
     warn!("current client ip: {}", client_ip);
+    if let Some(forwarded) = req.headers().get("X-Forwarded-For") {
+        if let Ok(forwarded_value) = forwarded.to_str() {
+            warn!("Real IP: {}", forwarded_value);
+        }
+    }
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
     let ps = TexProjectService {};
