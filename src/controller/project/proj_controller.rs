@@ -72,7 +72,7 @@ use actix_web::{
     http::header::{CacheControl, CacheDirective},
     web, HttpResponse, Responder,
 };
-use log::error;
+use log::{error, warn};
 use meilisearch_sdk::SearchResult;
 use mime::Mime;
 use rust_wheel::common::util::time_util::get_current_millisecond;
@@ -92,9 +92,12 @@ use tokio::{
 };
 
 pub async fn get_projects(
+    req: HttpRequest,
     params: web::Query<ProjQueryParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let client_ip = req.connection_info().peer_addr().unwrap().to_string();
+    warn!("current client ip: {}", client_ip);
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
     let ps = TexProjectService {};
