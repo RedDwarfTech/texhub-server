@@ -91,6 +91,9 @@ use tokio::{
     task,
 };
 fn get_ip_address(request: &HttpRequest) -> String {
+    for (header_name, header_value) in request.headers() {
+        println!("Header: {:?} => {:?}", header_name, header_value);
+    }
     let x_ip = request.headers().get("X-Real-IP");
     warn!(
         "X-Real-IP ip:{}",
