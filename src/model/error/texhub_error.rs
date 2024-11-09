@@ -25,6 +25,8 @@ pub enum TexhubError {
     NonVipTooMuchProj,
     #[error("超过VIP用户项目数量限制")]
     VipTooMuchProj,
+    #[error("重命名文件失败")]
+    RenameFileFailed,
 }
 
 impl ErrorResponse for TexhubError {
@@ -41,6 +43,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::AlreadyClonedThisRepo => "0040010009",
             TexhubError::NonVipTooMuchProj => "0040010010",
             TexhubError::VipTooMuchProj => "0040010011",
+            TexhubError::RenameFileFailed => "0040010012",
         }
     }
 
@@ -57,6 +60,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::AlreadyClonedThisRepo => "已经Clone此仓库",
             TexhubError::NonVipTooMuchProj => "超过免费用户项目数量限制",
             TexhubError::VipTooMuchProj => "超过VIP用户项目数量限制",
+            TexhubError::RenameFileFailed => "重命名文件失败",
         }
     }
 
@@ -73,6 +77,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::AlreadyClonedThisRepo => "ALREADY_CLONED_THIS_REPO",
             TexhubError::NonVipTooMuchProj => "NON_VIP_TOO_MUCH_PROJ",
             TexhubError::VipTooMuchProj => "VIP_TOO_MUCH_PROJ",
+            TexhubError::RenameFileFailed => "RENAME_FILE_FAILED",
         }
     }
 }

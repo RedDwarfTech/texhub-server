@@ -2,6 +2,7 @@ use crate::{
     model::{
         dict::collar_status::CollarStatus,
         diesel::tex::custom_tex_models::TexFile,
+        error::texhub_error::TexhubError,
         request::{
             file::{
                 add::{file_add_req::TexFileAddReq, file_add_ver_req::TexFileVerAddReq},
@@ -217,6 +218,9 @@ pub async fn rename_file(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let db_file = rename_trans(&form.0, &login_user_info).await;
+    if db_file.is_none() {
+        return box_err_actix_rest_response(TexhubError::RenameFileFailed);
+    }
     box_actix_rest_response(db_file)
 }
 
