@@ -407,7 +407,7 @@ pub fn rename_file_impl(
     } else {
         let rename_result = handle_file_rename(proj_dir, &update_result, edit_req);
         if let Err(err) = rename_result {
-            error!("rename file err,{}", err);
+            error!("rename file on disk facing err,{}", err);
             return Err(NotFound);
         }
     }
@@ -446,7 +446,14 @@ fn handle_file_rename(
         update_result.file_path.clone(),
         edit_req.name.clone(),
     ]);
-    return fs::rename(legacy_path.clone(), new_path.clone());
+    let rename_result = fs::rename(legacy_path.clone(), new_path.clone());
+    if let Err(err) = rename_result.as_ref() {
+        error!(
+            "rename file on disk failed, err:{}, legacy path: {}, new path:{}",
+            err, legacy_path, new_path
+        );
+    }
+    rename_result
 }
 
 fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error> {
