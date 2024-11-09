@@ -1,7 +1,6 @@
 use std::env;
 use std::fs::{self, File, Metadata};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
 
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
@@ -383,18 +382,8 @@ pub fn rename_file_impl(
         error!("could not found file, {:?}", &edit_req);
         return Err(NotFound);
     }
-    let old_path_str = legacy_file
-        .as_ref()
-        .unwrap()
-        .file_path
-        .trim_end_matches('/');
-    let parent_path = Path::new(old_path_str).parent().unwrap();
-    let new_path: PathBuf = parent_path.join(edit_req.name.clone());
     let update_result = diesel::update(tex_file.filter(predicate))
-        .set((
-            name.eq(edit_req.name.clone()),
-            file_path.eq(new_path.to_str().unwrap()),
-        ))
+        .set((name.eq(edit_req.name.clone()),))
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
@@ -449,8 +438,8 @@ fn handle_file_rename(
     let rename_result = fs::rename(legacy_path.clone(), new_path.clone());
     if let Err(err) = rename_result.as_ref() {
         error!(
-            "rename file on disk failed, err:{}, legacy path: {}, new path:{}",
-            err, legacy_path, new_path
+            "rename file on disk failed, err:{}, legacy path: {}, new path:{},update result: {:?}",
+            err, legacy_path, new_path, update_result
         );
     }
     rename_result
