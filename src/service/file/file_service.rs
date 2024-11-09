@@ -348,7 +348,10 @@ pub async fn rename_trans(
             return rename_file_impl(&edit_req_copy, login_user_info, connection);
         });
     if let Err(e) = trans_result {
-        error!("rename file failed,{}", e);
+        error!(
+            "rename file failed,{}, edit req: {:?}, login user: {:?}",
+            e, edit_req_copy, login_user_info
+        );
         return None;
     }
     let renamed_file = trans_result.unwrap();
