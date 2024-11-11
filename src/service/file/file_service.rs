@@ -774,7 +774,7 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
         get_filename_without_ext(&lastest_pdf.file_name),
         ".pdf"
     );
-    let pdf_file_path = join_paths(&[proj_base_dir, pdf_name]);
+    let pdf_file_path = join_paths(&[proj_base_dir, "app-compile-output".to_owned(), pdf_name]);
     if range.is_none() {
         let mut file = File::open(&pdf_file_path).expect("Failed to open file");
         let mut buf = Vec::new();
