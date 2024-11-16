@@ -27,6 +27,8 @@ pub enum TexhubError {
     VipTooMuchProj,
     #[error("重命名文件失败")]
     RenameFileFailed,
+    #[error("正在玩命编译中")]
+    CompilingPocessing,
 }
 
 impl ErrorResponse for TexhubError {
@@ -44,6 +46,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::NonVipTooMuchProj => "0040010010",
             TexhubError::VipTooMuchProj => "0040010011",
             TexhubError::RenameFileFailed => "0040010012",
+            TexhubError::CompilingPocessing => "0040010013",
         }
     }
 
@@ -61,6 +64,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::NonVipTooMuchProj => "超过免费用户项目数量限制",
             TexhubError::VipTooMuchProj => "超过VIP用户项目数量限制",
             TexhubError::RenameFileFailed => "重命名文件失败",
+            TexhubError::CompilingPocessing => "正在玩命编译中",
         }
     }
 
@@ -78,6 +82,7 @@ impl ErrorResponse for TexhubError {
             TexhubError::NonVipTooMuchProj => "NON_VIP_TOO_MUCH_PROJ",
             TexhubError::VipTooMuchProj => "VIP_TOO_MUCH_PROJ",
             TexhubError::RenameFileFailed => "RENAME_FILE_FAILED",
+            TexhubError::CompilingPocessing => "COMPILING_PROCESSING",
         }
     }
 }

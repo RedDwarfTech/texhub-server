@@ -1258,7 +1258,7 @@ pub async fn add_compile_to_queue(
     };
     let queue_list = get_proj_queue_list(&queue_req, login_user_info);
     if !queue_list.is_empty() {
-        // return box_error_actix_rest_response("", "QUEUE_BUSY".to_string(),"queue busy".to_string());
+        return box_err_actix_rest_response(TexhubError::CompilingPocessing);
     }
     let new_compile = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
