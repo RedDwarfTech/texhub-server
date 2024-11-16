@@ -22,6 +22,7 @@ use crate::external::github::repo::repo_file::get_github_repo_size;
 use crate::external::github::repo::repo_file::repo_file_exists;
 use crate::model::app::tpl_params::ProjDynParams;
 use crate::model::dict::proj_source_type::ProjSourceType;
+use crate::model::dict::tex_file_compile_status::TeXFileCompileStatus;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::search_file::SearchFile;
 use crate::model::diesel::custom::project::folder::folder_add::FolderAdd;
@@ -78,7 +79,7 @@ use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
 use crate::service::project::project_editor_service::get_default_proj_ids;
-use crate::service::project::project_queue_service::get_proj_queue_list;
+use crate::service::project::project_queue_service::get_proj_working_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
 use actix_web::Responder;
@@ -109,7 +110,6 @@ use rust_wheel::config::cache::redis_util::{
 use rust_wheel::model::error::infra_error::InfraError;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
-use rust_wheel::texhub::compile_status::CompileStatus;
 use rust_wheel::texhub::proj::compile_result::CompileResult;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use std::collections::HashMap;
@@ -1253,10 +1253,10 @@ pub async fn add_compile_to_queue(
 ) -> HttpResponse {
     let mut connection = get_connection();
     let queue_req = QueueReq {
-        comp_status: vec![CompileResult::Success as i32, CompileStatus::Queued as i32],
+        comp_status: vec![TeXFileCompileStatus::Waiting as i32, TeXFileCompileStatus::Compiling as i32],
         project_id: params.project_id.clone(),
     };
-    let queue_list = get_proj_queue_list(&queue_req, login_user_info);
+    let queue_list = get_proj_working_queue_list(&queue_req, login_user_info);
     if !queue_list.is_empty() {
         return box_err_actix_rest_response(TexhubError::CompilingPocessing);
     }

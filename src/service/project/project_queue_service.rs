@@ -5,11 +5,11 @@ use diesel::{ExpressionMethods, QueryDsl, QueryResult};
 use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
-pub fn get_proj_queue_list(req: &QueueReq,login_user_info: &LoginUserInfo) -> Vec<TexCompQueue> {
+pub fn get_proj_working_queue_list(req: &QueueReq,login_user_info: &LoginUserInfo) -> Vec<TexCompQueue> {
     use crate::model::diesel::tex::tex_schema::tex_comp_queue as comp_queue_table;
     let mut query = comp_queue_table::table.into_boxed::<diesel::pg::Pg>();
     if !req.comp_status.is_empty() {
-        query = query.filter(comp_queue_table::comp_result.eq_any(req.comp_status.clone()));
+        query = query.filter(comp_queue_table::comp_status.eq_any(req.comp_status.clone()));
     }
     if !req.project_id.is_empty() {
         query = query.filter(comp_queue_table::project_id.eq(req.project_id.clone()));
