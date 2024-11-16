@@ -23,5 +23,6 @@ COPY --from=builder /app/src/so/libsynctex_parser.so /usr/lib/
 # RUN apt-get update -y && apt-get install curl libpq5 -y
 RUN apt-get update -y && apt-get install curl libpq5 binutils libjemalloc-dev -y
 # when we need to fix the image issue
-RUN apt-get install vim ghostscript graphviz -y
+# enable this line to install some external tools
+RUN apt-get install vim ghostscript graphviz git -y
 CMD ["./texhub-server"]
