@@ -1233,12 +1233,12 @@ pub async fn compile_status_update(params: &TexCompileQueueStatus) -> HttpRespon
         ))
         .get_result::<TexCompQueue>(&mut get_connection());
     if let Err(e) = update_result {
-        error!("update compile queue failed, error info:{}", e);
-        return box_error_actix_rest_response(
-            "",
-            "UPDATE_QUEUE_FAILED".to_owned(),
-            "update queue failed".to_owned(),
+        let err_msg = format!(
+            "update compile queue failed, error info:{},params:{:?}",
+            e, params
         );
+        error!("{}", err_msg);
+        return box_error_actix_rest_response("", "UPDATE_QUEUE_FAILED".to_owned(), err_msg);
     }
     let q = update_result.unwrap();
     if let Some(resp) = cache_queue(&q) {
@@ -1253,7 +1253,10 @@ pub async fn add_compile_to_queue(
 ) -> HttpResponse {
     let mut connection = get_connection();
     let queue_req = QueueReq {
-        comp_status: vec![TeXFileCompileStatus::Waiting as i32, TeXFileCompileStatus::Compiling as i32],
+        comp_status: vec![
+            TeXFileCompileStatus::Waiting as i32,
+            TeXFileCompileStatus::Compiling as i32,
+        ],
         project_id: params.project_id.clone(),
     };
     let queue_list = get_proj_working_queue_list(&queue_req, login_user_info);
