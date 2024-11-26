@@ -833,7 +833,7 @@ pub fn get_full_pdf(lastest_pdf: &LatestCompile, req: HttpRequest) -> HttpRespon
         get_filename_without_ext(&lastest_pdf.file_name),
         ".pdf"
     );
-    let pdf_file_path = join_paths(&[proj_base_dir, pdf_name]);
+    let pdf_file_path = join_paths(&[proj_base_dir, "app-compile-output".to_owned(), pdf_name]);
     match NamedFile::open(&pdf_file_path.clone()) {
         Ok(file) => {
             let content_type: Mime = "application/pdf".parse().unwrap();
