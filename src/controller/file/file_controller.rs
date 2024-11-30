@@ -336,7 +336,7 @@ pub async fn load_full_pdf_file_sig(
 ) -> impl Responder {
     if params.0.expire < get_current_millisecond() {
         error!("expire time,{:?}", &params);
-        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+        return box_err_actix_rest_response(InfraError::SignExpired);
     }
     // verify the signature
     let uid: i64 = params.0.access_key.parse().unwrap();
