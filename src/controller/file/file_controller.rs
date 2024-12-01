@@ -335,7 +335,6 @@ pub async fn load_full_pdf_file_sig(
     params: actix_web_validator::Query<PdfPreviewSign>,
 ) -> impl Responder {
     if params.0.expire < get_current_millisecond() {
-        error!("expire time,{:?}", &params);
         return box_err_actix_rest_response(InfraError::SignExpired);
     }
     // verify the signature
@@ -384,7 +383,7 @@ pub async fn gen_preview_url(
     let user_id = login_user_info.userId.to_string();
     let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let now = Utc::now();
-    let future_time = now + Duration::hours(2);
+    let future_time = now + Duration::hours(6);
     let unix_timestamp = future_time.timestamp_millis();
     let expire_time = unix_timestamp.to_string();
     let secret = user_info.salt;
