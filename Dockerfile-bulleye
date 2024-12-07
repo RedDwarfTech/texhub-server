@@ -15,7 +15,7 @@ ENV ROCKET_ADDRESS=0.0.0.0
 # generate the dump file when every time increase 16MB
 # 每分配 256K 内存记录堆栈信息
 ENV MALLOC_CONF="prof:true,lg_prof_interval:25,prof_prefix:texhub.out,lg_prof_sample:18"
-COPY --from=builder /app/settings.toml /app
+COPY --from=builder /app/settings-production.toml /app/settings.toml
 COPY --from=builder /app/log4rs.yaml /app
 COPY --from=builder /app/target/release/texhub-server /app/
 COPY --from=builder /app/src/so/libsynctex_parser.so /app/
@@ -24,5 +24,5 @@ COPY --from=builder /app/src/so/libsynctex_parser.so /usr/lib/
 RUN apt-get update -y && apt-get install curl libpq5 binutils libjemalloc-dev -y
 # when we need to fix the image issue
 # enable this line to install some external tools
-RUN apt-get install vim ghostscript graphviz git -y
+# RUN apt-get install vim ghostscript graphviz git -y
 CMD ["./texhub-server"]
