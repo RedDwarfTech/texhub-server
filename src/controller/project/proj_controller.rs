@@ -72,7 +72,7 @@ use actix_web::{
     http::header::{CacheControl, CacheDirective},
     web, HttpResponse, Responder,
 };
-use log::{error, warn};
+use log::error;
 use meilisearch_sdk::SearchResult;
 use mime::Mime;
 use rust_wheel::common::util::time_util::get_current_millisecond;
@@ -90,53 +90,11 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task,
 };
-fn get_ip_address(request: &HttpRequest) -> String {
-    for (header_name, header_value) in request.headers() {
-        println!("Header: {:?} => {:?}", header_name, header_value);
-    }
-    let x_ip = request.headers().get("X-Real-IP");
-    warn!(
-        "X-Real-IP ip:{}",
-        x_ip.unwrap().to_str().unwrap().to_string()
-    );
-    let mut x_for = request.headers().get("X-Forwarded-For");
-    if x_for.is_some() {
-        warn!(
-            "found X-Forwarded-For:{}",
-            x_for.unwrap().to_str().unwrap().to_string()
-        );
-        let index = x_for.unwrap().to_str().unwrap().find(",");
-        if index.is_some() {
-            warn!("multiple ip:");
-            return x_for.unwrap().to_str().unwrap().to_string()[0..index.unwrap()].to_string();
-        } else {
-            return x_for.unwrap().to_str().unwrap().to_string();
-        }
-    }
-    x_for = x_ip;
-    return x_for.unwrap().to_str().unwrap().to_string();
-}
 
 pub async fn get_projects(
-    req: HttpRequest,
     params: web::Query<ProjQueryParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let client_ip = req.connection_info().peer_addr().unwrap().to_string();
-    let client_ip_real = req
-        .connection_info()
-        .realip_remote_addr()
-        .unwrap()
-        .to_string();
-    warn!("current client ip: {}", client_ip);
-    warn!("current real client ip: {}", client_ip_real);
-    if let Some(forwarded) = req.headers().get("X-Forwarded-For") {
-        if let Ok(forwarded_value) = forwarded.to_str() {
-            warn!("Real IP: {}", forwarded_value);
-        }
-    }
-    let ip_a = get_ip_address(&req);
-    warn!("ip_a: {}", ip_a);
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
     let ps = TexProjectService {};
