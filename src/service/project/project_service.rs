@@ -1471,6 +1471,9 @@ pub async fn comp_log_file_read(
 }
 
 pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {
+    if tx.is_closed() {
+        return;
+    }
     let sse_msg: SSEMessage<String> =
         SSEMessage::from_data(line.to_string(), &msg_type.to_string());
     let send_result = tx.send(sse_msg);
