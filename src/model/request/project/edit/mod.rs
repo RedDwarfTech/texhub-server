@@ -4,3 +4,4 @@ pub mod archive_proj_req;
 pub mod trash_proj_req;
 pub mod edit_proj_folder;
 pub mod rename_proj_folder;
+pub mod edit_compile_queue_req;

@@ -3,6 +3,7 @@ pub enum TeXFileCompileStatus {
     Waiting = 0,
     Compiling = 1,
     Compiled = 2,
+    Expired = 3,
 }
 
 impl From<TeXFileCompileStatus> for i32 {
@@ -11,6 +12,7 @@ impl From<TeXFileCompileStatus> for i32 {
             TeXFileCompileStatus::Waiting => 0,
             TeXFileCompileStatus::Compiling => 1,
             TeXFileCompileStatus::Compiled => 2,
+            TeXFileCompileStatus::Expired => 3,
         }
     }
 }
