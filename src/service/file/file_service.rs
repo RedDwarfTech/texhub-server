@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::{self, File, Metadata};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::Path;
 
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
@@ -776,8 +777,13 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
     );
     let pdf_file_path = join_paths(&[proj_base_dir, "app-compile-output".to_owned(), pdf_name]);
     if range.is_none() {
-        let mut file = File::open(&pdf_file_path).expect("Failed to open file");
+        let open_err = format!("Failed to open file, {}", &pdf_file_path);
+        if !Path::new(&pdf_file_path).exists() {
+            error!("file not exists,{}", &pdf_file_path);
+            return HttpResponse::NotFound().body("no content");
+        }
         let mut buf = Vec::new();
+        let mut file = File::open(&pdf_file_path).expect(&open_err);
         let read_result = file.read_to_end(&mut buf);
         if let Err(err) = read_result {
             error!(
