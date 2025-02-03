@@ -7,7 +7,6 @@ use crate::{
 use chrono::{Duration, Utc};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, QueryResult};
 use log::error;
-use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub fn get_proj_working_queue_list(
@@ -69,7 +68,7 @@ pub fn update_expired_proj_queue() {
         .and(
             crate::model::diesel::tex::tex_schema::tex_comp_queue::created_time
                 .lt(expire_time.timestamp_millis()),
-        ).;
+        );
     diesel::update(tex_comp_queue.filter(predicate))
         .set(comp_status.eq(TeXFileCompileStatus::Expired as i32))
         .get_result::<TexCompQueue>(&mut get_connection())
