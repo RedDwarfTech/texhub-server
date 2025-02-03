@@ -41,7 +41,7 @@ pub fn get_latest_file_version_by_fid(fid: &str) -> Option<TexFileVersion> {
             return Some(result);
         }
         Err(err) => {
-            error!("get file version failed, {}", err);
+            error!("get file version failed, {},fid:{}", err, fid);
             return None;
         }
     }
