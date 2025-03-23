@@ -4,7 +4,7 @@ use reqwest::Client;
 use rust_wheel::model::response::api_response::ApiResponse;
 use tokio::task;
 
-fn get_uniq_id() -> Option<i64> {
+pub fn get_uniq_id() -> Option<i64> {
     task::block_in_place(|| {
         // This is safe if you're already within a Tokio runtime
         tokio::runtime::Handle::current().block_on(get_snowflake_id())
