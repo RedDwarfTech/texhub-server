@@ -2,8 +2,16 @@ use std::env;
 use log::error;
 use reqwest::Client;
 use rust_wheel::model::response::api_response::ApiResponse;
+use tokio::task;
 
-pub fn get_uniq_id() -> Option<i64> {
+fn get_uniq_id() -> Option<i64> {
+    task::block_in_place(|| {
+        // This is safe if you're already within a Tokio runtime
+        tokio::runtime::Handle::current().block_on(get_snowflake_id())
+    })
+}
+
+pub fn get_uniq_id_legacy() -> Option<i64> {
     // 构建一个 tokio 运行时： Runtime
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
