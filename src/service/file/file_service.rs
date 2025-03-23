@@ -240,10 +240,14 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
     }
     let gen_file_path = get_file_path(add_req);
     let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info, &gen_file_path);
+    let err_msg = format!(
+        "failed to add new tex file or folder,{}",
+        serde_json::to_string(&new_file).unwrap()
+    );
     let result = diesel::insert_into(tex_file)
         .values(&new_file)
         .get_result::<TexFile>(&mut get_connection())
-        .expect("failed to add new tex file or folder");
+        .expect(&err_msg);
     create_file_on_disk(&result).await;
     del_project_cache(&add_req.project_id).await;
     push_to_fulltext_search(&result, &"hello world".to_string()).await;
