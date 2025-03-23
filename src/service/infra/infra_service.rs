@@ -3,6 +3,16 @@ use log::error;
 use reqwest::Client;
 use rust_wheel::model::response::api_response::ApiResponse;
 
+pub fn get_uniq_id() -> Option<i64> {
+    // 构建一个 tokio 运行时： Runtime
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build().unwrap();
+
+    // 使用运行时来调用异步的连接方法
+    let inner = rt.block_on(get_snowflake_id());
+    inner
+}
 pub async fn get_snowflake_id() -> Option<i64> {
     let client = Client::new();
     let infra_url = env::var("INFRA_URL").expect("INFRA_URL must be set");

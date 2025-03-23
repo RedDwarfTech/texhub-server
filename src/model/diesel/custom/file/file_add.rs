@@ -7,6 +7,7 @@ use crate::model::diesel::tex::custom_tex_models::TexTemplate;
 use crate::model::diesel::tex::tex_schema::*;
 use crate::model::request::file::add::file_add_req::TexFileAddReq;
 use crate::service::infra::infra_service::get_snowflake_id;
+use crate::service::infra::infra_service::get_uniq_id;
 use actix_multipart::form::tempfile::TempFile;
 use futures::executor;
 use log::warn;
@@ -39,7 +40,7 @@ impl TexFileAdd {
     pub(crate) fn gen_tex_main(prj_id: &String, uid: &i64) -> Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
-        let uniq_id = executor::block_on(get_snowflake_id());
+        let uniq_id = get_uniq_id();
         Self {
             id: uniq_id.unwrap(),
             name: "main.tex".to_owned(),
@@ -65,7 +66,7 @@ impl TexFileAdd {
     ) -> Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
-        let uniq_id = executor::block_on(get_snowflake_id());
+        let uniq_id = get_uniq_id();
         Self {
             name: add_file.name.clone(),
             created_time: get_current_millisecond(),
@@ -98,7 +99,7 @@ impl TexFileAdd {
         let f_name = file_name.to_string_lossy().into_owned();
         let is_main_file =
             f_name == main_name.to_owned() && (stored_path == "/" || stored_path.is_empty());
-        let uniq_id = executor::block_on(get_snowflake_id());
+            let uniq_id = get_uniq_id();
         Self {
             name: file_name.to_string_lossy().into_owned(),
             created_time: get_current_millisecond(),
@@ -128,7 +129,7 @@ impl TexFileAdd {
     ) -> Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
-        let uniq_id = executor::block_on(get_snowflake_id());
+        let uniq_id = get_uniq_id();
         Self {
             name: add_file.name.clone(),
             created_time: get_current_millisecond(),
@@ -156,7 +157,7 @@ impl TexFileAdd {
     ) -> Self {
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string().replace("-", "");
-        let uniq_id = executor::block_on(get_snowflake_id());
+        let uniq_id = get_uniq_id();
         Self {
             name: file_name.clone(),
             created_time: get_current_millisecond(),
