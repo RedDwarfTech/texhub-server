@@ -9,6 +9,7 @@ use crate::{
     },
 };
 use diesel::result::Error;
+use diesel::upsert::on_constraint;
 use diesel::{ExpressionMethods, QueryDsl};
 use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
@@ -25,6 +26,8 @@ pub fn create_file_ver(
 
     let result = diesel::insert_into(tex_file_version)
         .values(&new_file)
+        .on_conflict(on_constraint("tex_file_version_file_id_idx"))
+        .do_nothing()
         .get_result::<TexFileVersion>(&mut get_connection())
         .expect("failed to add new tex file version");
     return result;
