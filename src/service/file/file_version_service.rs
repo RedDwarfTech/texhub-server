@@ -9,7 +9,6 @@ use crate::{
     },
 };
 use diesel::result::Error;
-use diesel::upsert::on_constraint;
 use diesel::{ExpressionMethods, QueryDsl};
 use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
@@ -20,17 +19,22 @@ use rust_wheel::model::user::login_user_info::LoginUserInfo;
 pub fn create_file_ver(
     add_req: &TexFileVerAddReq,
     login_user_info: &LoginUserInfo,
-) -> TexFileVersion {
+) -> Option<TexFileVersion> {
     use crate::model::diesel::tex::tex_schema::tex_file_version::dsl::*;
     let new_file = TexFileVersionAdd::gen_tex_file_version(add_req, login_user_info);
 
     let result = diesel::insert_into(tex_file_version)
         .values(&new_file)
-        .on_conflict(on_constraint("tex_file_version_file_id_idx"))
-        .do_nothing()
-        .get_result::<TexFileVersion>(&mut get_connection())
-        .expect("failed to add new tex file version");
-    return result;
+        .get_result::<TexFileVersion>(&mut get_connection());
+    match result {
+        Ok(_) => {
+            return Some(result.unwrap());
+        }
+        Err(err) => {
+            error!("add file version failed, {}", err);
+            return None;
+        }
+    }
 }
 
 pub fn get_latest_file_version_by_fid(fid: &str) -> Option<TexFileVersion> {
