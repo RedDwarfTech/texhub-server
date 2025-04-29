@@ -107,7 +107,11 @@ pub async fn download_file(
 }
 
 pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_cached_file_by_fid(&params.file_id).unwrap();
+    let docs_opt = get_cached_file_by_fid(&params.file_id);
+    if docs_opt.is_none() {
+        return box_err_actix_rest_response(InfraError::DataNotFound);
+    }
+    let docs = docs_opt.unwrap();
     let proj = get_cached_proj_info(&docs.project_id);
     let file_detail = WsFileDetail {
         file_path: docs.file_path,
