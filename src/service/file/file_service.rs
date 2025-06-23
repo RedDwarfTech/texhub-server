@@ -220,6 +220,43 @@ pub fn get_proj_history_page_impl(
     return page_map_result;
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HistoryItem {
+    pub created_time: i64,
+    pub name: String,
+}
+
+pub async fn get_proj_history_page_impl_v1(
+    params: &GetProjPageHistory,
+) -> Vec<HistoryItem> {
+    let client = reqwest::Client::new();
+    let base_url = get_app_config("texhub.y_websocket_api_url");
+    let url = format!(
+        "{}/tex/project/history/page?projId={}&page_num={}&page_size={}",
+        base_url.trim_end_matches('/'),
+        params.project_id,
+        params.page_num.unwrap_or(1),
+        params.page_size.unwrap_or(10)
+    );
+    let resp = client.get(&url).send().await;
+    if let Ok(r) = resp {
+        if let Ok(json) = r.json::<serde_json::Value>().await {
+            if let Some(arr) = json.get("result").and_then(|v| v.as_array()) {
+                return arr
+                    .iter()
+                    .filter_map(|item| {
+                        Some(HistoryItem {
+                            created_time: item.get("created_time")?.as_i64()?,
+                            name: item.get("doc_name")?.as_str()?.to_string(),
+                        })
+                    })
+                    .collect();
+            }
+        }
+    }
+    vec![]
+}
+
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;

@@ -22,7 +22,7 @@ use crate::model::request::project::share::collar_query_params::CollarQueryParam
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::service::file::file_service::{
-    get_cached_file_by_fid, get_proj_history_page_impl, push_to_fulltext_search,
+    get_cached_file_by_fid, get_proj_history_page_impl, get_proj_history_page_impl_v1, push_to_fulltext_search
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
@@ -396,6 +396,11 @@ pub async fn get_proj_his_page(params: web::Query<GetProjPageHistory>) -> impl R
     box_actix_rest_response(proj_history)
 }
 
+pub async fn get_proj_his_page_v1(params: web::Query<GetProjPageHistory>) -> impl Responder {
+    let proj_history = get_proj_history_page_impl_v1(&params.0).await;
+    box_actix_rest_response(proj_history)
+}
+
 pub async fn archive_project(
     form: web::Json<ArchiveProjReq>,
     login_user_info: LoginUserInfo,
@@ -508,6 +513,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/scroll", web::get().to(get_scroll_projects))
             .route("/info", web::get().to(get_project))
             .route("/history/page", web::get().to(get_proj_his_page))
+            .route("/history/v1/page", web::get().to(get_proj_his_page_v1))
             .route("/add", web::post().to(create_project))
             .route("/add-from-tpl", web::post().to(create_project_by_tpl))
             .route("/", web::delete().to(del_proj))
