@@ -232,7 +232,7 @@ pub async fn get_proj_history_page_impl_v1(
     let client = reqwest::Client::new();
     let base_url = get_app_config("texhub.y_websocket_api_url");
     let url = format!(
-        "{}/tex/project/history/page?projId={}&page_num={}&page_size={}",
+        "{}/doc/version/proj/scroll?projId={}&page_num={}&page_size={}",
         base_url.trim_end_matches('/'),
         params.project_id,
         params.page_num.unwrap_or(1),
@@ -240,19 +240,28 @@ pub async fn get_proj_history_page_impl_v1(
     );
     let resp = client.get(&url).send().await;
     if let Ok(r) = resp {
-        if let Ok(json) = r.json::<serde_json::Value>().await {
-            if let Some(arr) = json.get("items").and_then(|v| v.as_array()) {
-                return arr
-                    .iter()
-                    .filter_map(|item| {
-                        Some(HistoryItem {
-                            created_time: item.get("created_time")?.as_i64()?,
-                            name: item.get("doc_name")?.as_str()?.to_string(),
+        let text = r.text().await;
+        if let Ok(ref s) = text {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(s) {
+                if let Some(arr) = json.get("items").and_then(|v| v.as_array()) {
+                    return arr
+                        .iter()
+                        .filter_map(|item| {
+                            Some(HistoryItem {
+                                created_time: item.get("created_time")?.as_i64()?,
+                                name: item.get("doc_name")?.as_str()?.to_string(),
+                            })
                         })
-                    })
-                    .collect();
+                        .collect();
+                } else {
+                    error!("get_proj_history_page_impl_v1: 'items' field missing or not array, json: {:?}", json);
+                }
+            } else {
+                error!("json parse error, raw: {}", s);
             }
         }
+    } else if let Err(e) = resp {
+        error!("get_proj_history_page_impl_v1: http request failed, error: {:?}", e);
     }
     vec![]
 }
