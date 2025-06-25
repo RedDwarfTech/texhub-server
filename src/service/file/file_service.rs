@@ -222,7 +222,7 @@ pub fn get_proj_history_page_impl(
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HistoryItem {
-    pub created_time: i64,
+    pub created_time: String,
     pub name: String,
 }
 
@@ -247,15 +247,14 @@ pub async fn get_proj_history_page_impl_v1(
                     let result_arr = arr
                         .iter()
                         .filter_map(|item| {
-                            println!("item: {:?}", item);
                             let doc_name = item.get("doc_name")?.as_str()?.to_string();
-                            let created_time = item.get("created_time")?.as_i64()?;
+                            let created_time = item.get("created_time")?.as_str()?.to_string();
                             Some(HistoryItem {
                                 created_time,
                                 name: doc_name,
                             })
                         })
-                        .collect::<Vec<_>>();
+                        .collect::<Vec<HistoryItem>>();
                     println!("result_arr: {:?}", result_arr);
                     return result_arr;
                 } else {
