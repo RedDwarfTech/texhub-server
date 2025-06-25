@@ -244,15 +244,20 @@ pub async fn get_proj_history_page_impl_v1(
         if let Ok(ref s) = text {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(s) {
                 if let Some(arr) = json.get("items").and_then(|v| v.as_array()) {
-                    return arr
+                    let result_arr = arr
                         .iter()
                         .filter_map(|item| {
+                            println!("item: {:?}", item);
+                            let doc_name = item.get("doc_name")?.as_str()?.to_string();
+                            let created_time = item.get("created_time")?.as_i64()?;
                             Some(HistoryItem {
-                                created_time: item.get("created_time")?.as_i64()?,
-                                name: item.get("doc_name")?.as_str()?.to_string(),
+                                created_time,
+                                name: doc_name,
                             })
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
+                    println!("result_arr: {:?}", result_arr);
+                    return result_arr;
                 } else {
                     error!("get_proj_history_page_impl_v1: 'items' field missing or not array, json: {:?}", json);
                 }
