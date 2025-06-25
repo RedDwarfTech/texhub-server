@@ -241,7 +241,7 @@ pub async fn get_proj_history_page_impl_v1(
     let resp = client.get(&url).send().await;
     if let Ok(r) = resp {
         if let Ok(json) = r.json::<serde_json::Value>().await {
-            if let Some(arr) = json.get("result").and_then(|v| v.as_array()) {
+            if let Some(arr) = json.get("items").and_then(|v| v.as_array()) {
                 return arr
                     .iter()
                     .filter_map(|item| {
