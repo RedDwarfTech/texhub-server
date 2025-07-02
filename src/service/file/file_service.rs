@@ -44,6 +44,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{del_redis_key, set_value, sync_get_str};
 use rust_wheel::model::response::pagination_response::PaginationResponse;
+use rust_wheel::model::response::pagination::Pagination;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
@@ -229,7 +230,7 @@ pub struct HistoryItem {
 
 pub async fn get_proj_history_page_impl_v1(
     params: &GetProjPageHistory,
-) -> Vec<HistoryItem> {
+) -> PaginationResponse<Vec<HistoryItem>> {
     let client = reqwest::Client::new();
     let base_url = get_app_config("texhub.y_websocket_api_url");
     let url = format!(
@@ -239,38 +240,53 @@ pub async fn get_proj_history_page_impl_v1(
         params.page_num.unwrap_or(1),
         params.page_size.unwrap_or(10)
     );
+
+    let mut data: Vec<HistoryItem> = Vec::new();
+    let mut total: i64 = 0;
+
     let resp = client.get(&url).send().await;
-    if let Ok(r) = resp {
-        let text = r.text().await;
-        if let Ok(ref s) = text {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(s) {
-                if let Some(arr) = json.get("items").and_then(|v| v.as_array()) {
-                    let result_arr = arr
-                        .iter()
-                        .filter_map(|item| {
-                            let doc_name = item.get("doc_name")?.as_str()?.to_string();
-                            let created_time = item.get("created_time")?.as_str()?.to_string();
-                            let diff = item.get("diff")?.as_str()?.to_string();
-                            Some(HistoryItem {
-                                created_time,
-                                name: doc_name,
-                                diff,
-                            })
-                        })
-                        .collect::<Vec<HistoryItem>>();
-                    println!("result_arr: {:?}", result_arr);
-                    return result_arr;
-                } else {
-                    error!("get_proj_history_page_impl_v1: 'items' field missing or not array, json: {:?}", json);
-                }
-            } else {
-                error!("json parse error, raw: {}", s);
-            }
-        }
-    } else if let Err(e) = resp {
+    if let Err(e) = &resp {
         error!("get_proj_history_page_impl_v1: http request failed, error: {:?}", e);
     }
-    vec![]
+    if let Ok(r) = resp {
+        if let Ok(s) = r.text().await {
+            match serde_json::from_str::<serde_json::Value>(&s) {
+                Ok(json) => {
+                    if let Some(arr) = json.get("items").and_then(|v| v.as_array()) {
+                        data = arr
+                            .iter()
+                            .filter_map(|item| {
+                                let doc_name = item.get("doc_name")?.as_str()?.to_string();
+                                let created_time = item.get("created_time")?.as_str()?.to_string();
+                                let diff = item.get("diff")?.as_str()?.to_string();
+                                Some(HistoryItem {
+                                    created_time,
+                                    name: doc_name,
+                                    diff,
+                                })
+                            })
+                            .collect();
+                    } else {
+                        error!("get_proj_history_page_impl_v1: 'items' field missing or not array, json: {:?}", json);
+                    }
+                    total = json.get("total").and_then(|v| v.as_i64()).unwrap_or(0);
+                }
+                Err(_) => {
+                    error!("json parse error, raw: {}", s);
+                }
+            }
+        }
+    }
+
+    let pagination = Pagination {
+        pageNum: params.page_num.unwrap_or(1),
+        pageSize: params.page_size.unwrap_or(10),
+        total,
+    };
+    PaginationResponse {
+        pagination,
+        data,
+    }
 }
 
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
