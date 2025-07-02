@@ -224,6 +224,7 @@ pub fn get_proj_history_page_impl(
 pub struct HistoryItem {
     pub created_time: String,
     pub name: String,
+    pub diff: String,
 }
 
 pub async fn get_proj_history_page_impl_v1(
@@ -249,9 +250,11 @@ pub async fn get_proj_history_page_impl_v1(
                         .filter_map(|item| {
                             let doc_name = item.get("doc_name")?.as_str()?.to_string();
                             let created_time = item.get("created_time")?.as_str()?.to_string();
+                            let diff = item.get("diff")?.as_str()?.to_string();
                             Some(HistoryItem {
                                 created_time,
                                 name: doc_name,
+                                diff,
                             })
                         })
                         .collect::<Vec<HistoryItem>>();
