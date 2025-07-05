@@ -104,9 +104,15 @@ pub fn get_proj_history(
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FileVersionSimple {
+    pub id: String,
+    pub content: String,
+}
+
 pub async fn get_proj_history_v1(
     history_req: &FileVersionParamsV1,
-) -> Option<TexFileVersion> {
+) -> Option<FileVersionSimple> {
     let client = reqwest::Client::new();
     let base_url = get_app_config("texhub.y_websocket_api_url");
     let url = format!(
@@ -141,15 +147,18 @@ pub async fn get_proj_history_v1(
     let data = match json.get("result") {
         Some(d) => d,
         None => {
-            error!("get_proj_history_v1: 'data' field missing, json: {:?}", json);
+            error!("get_proj_history_v1: 'result' field missing, json: {:?}", json);
             return None;
         }
     };
     
-    match serde_json::from_value::<TexFileVersion>(data.clone()) {
-        Ok(version) => Some(version),
-        Err(e) => {
-            error!("get_proj_history_v1: parse TexFileVersion failed: {:?}, json: {:?}", e, data);
+    let id = data.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let content = data.get("content").and_then(|v| v.as_str()).map(|s| s.to_string());
+    
+    match (id, content) {
+        (Some(id), Some(content)) => Some(FileVersionSimple { id, content }),
+        _ => {
+            error!("get_proj_history_v1: missing id or content in result, data: {:?}", data);
             None
         }
     }
