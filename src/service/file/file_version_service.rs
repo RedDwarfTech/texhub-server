@@ -138,7 +138,7 @@ pub async fn get_proj_history_v1(
         }
     };
     
-    let data = match json.get("data") {
+    let data = match json.get("result") {
         Some(d) => d,
         None => {
             error!("get_proj_history_v1: 'data' field missing, json: {:?}", json);
