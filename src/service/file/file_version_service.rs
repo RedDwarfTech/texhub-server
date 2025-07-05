@@ -1,6 +1,7 @@
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_ver_add::TexFileVersionAdd;
 use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
+use crate::model::request::project::query::file_version_params_v1::FileVersionParamsV1;
 use crate::{
     common::database::get_connection,
     model::{
@@ -11,6 +12,7 @@ use crate::{
 use diesel::result::Error;
 use diesel::{ExpressionMethods, QueryDsl};
 use log::error;
+use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 /**
@@ -98,6 +100,57 @@ pub fn get_proj_history(
         Err(e) => {
             error!("get file snapshot error {}", e);
             return None;
+        }
+    }
+}
+
+pub async fn get_proj_history_v1(
+    history_req: &FileVersionParamsV1,
+) -> Option<TexFileVersion> {
+    let client = reqwest::Client::new();
+    let base_url = get_app_config("texhub.y_websocket_api_url");
+    let url = format!(
+        "{}/doc/version/proj/scroll/detail?id={}",
+        base_url.trim_end_matches('/'),
+        history_req.id,
+    );
+    
+    let resp = client.get(&url).send().await;
+    if let Err(e) = &resp {
+        error!("get_proj_history_v1: http request failed, error: {:?}", e);
+        return None;
+    }
+    
+    let r = resp.unwrap();
+    let s = match r.text().await {
+        Ok(text) => text,
+        Err(e) => {
+            error!("get_proj_history_v1: failed to get response text, error: {:?}", e);
+            return None;
+        }
+    };
+    
+    let json = match serde_json::from_str::<serde_json::Value>(&s) {
+        Ok(value) => value,
+        Err(e) => {
+            error!("get_proj_history_v1: json parse error: {:?}, raw: {}", e, s);
+            return None;
+        }
+    };
+    
+    let data = match json.get("data") {
+        Some(d) => d,
+        None => {
+            error!("get_proj_history_v1: 'data' field missing, json: {:?}", json);
+            return None;
+        }
+    };
+    
+    match serde_json::from_value::<TexFileVersion>(data.clone()) {
+        Ok(version) => Some(version),
+        Err(e) => {
+            error!("get_proj_history_v1: parse TexFileVersion failed: {:?}, json: {:?}", e, data);
+            None
         }
     }
 }

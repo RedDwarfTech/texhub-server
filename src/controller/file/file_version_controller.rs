@@ -1,10 +1,10 @@
 use crate::{
     model::request::{
-        project::query::file_version_params::FileVersionParams,
+        project::query::{file_version_params::FileVersionParams, file_version_params_v1::FileVersionParamsV1},
         snippet::{del::snippet_del::SnippetDel, edit::snippet_req::SnippetReq},
     },
     service::{
-        file::file_version_service::get_proj_history,
+        file::file_version_service::{get_proj_history, get_proj_history_v1},
         project::snippet_service::{del_snippet_impl, edit_snippet_impl},
     },
 };
@@ -20,6 +20,14 @@ pub async fn proj_version(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let collar_users = get_proj_history(&form.0, &login_user_info);
+    box_actix_rest_response(collar_users)
+}
+
+pub async fn proj_version_v1(
+    form: web::Query<FileVersionParamsV1>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let collar_users = get_proj_history_v1(&form.0, &login_user_info);
     box_actix_rest_response(collar_users)
 }
 
@@ -59,6 +67,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/tex/fileversion")
             .route("/detail", web::get().to(proj_version))
+            .route("/detail/v1", web::get().to(proj_version_v1))
             .route("/edit", web::put().to(edit_snippet))
             .route("/add", web::put().to(edit_snippet))
             .route("/del", web::delete().to(del_snippet)),
