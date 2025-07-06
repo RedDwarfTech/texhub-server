@@ -356,13 +356,13 @@ fn append_file_name(data: Vec<HistoryItem>) -> Vec<HistoryItem> {
         .map(|item| item.doc_int_id.clone())
         .collect();
     let files = get_file_by_int_ids(&file_ids);
-    let file_name_map: std::collections::HashMap<String, String> = files
+    let file_name_map: std::collections::HashMap<i64, String> = files
         .into_iter()
-        .map(|file| (file.file_id, file.name))
+        .map(|file| (file.id, file.name))
         .collect();
     data.into_iter()
         .map(|mut item| {
-            if let Some(file_name) = file_name_map.get(&item.id) {
+            if let Some(file_name) = file_name_map.get(&item.doc_int_id) {
                 item.name = file_name.clone();
             }
             item
