@@ -242,45 +242,84 @@ pub async fn get_proj_history_page_impl_v1(
         params.page_size.unwrap_or(10)
     );
 
-    let mut data: Vec<HistoryItem> = Vec::new();
-    let mut total: i64 = 0;
-
     let resp = client.get(&url).send().await;
-    if let Err(e) = &resp {
-        error!("get_proj_history_page_impl_v1: http request failed, error: {:?}", e);
-    }
-    if let Ok(r) = resp {
-        if let Ok(s) = r.text().await {
-            match serde_json::from_str::<serde_json::Value>(&s) {
-                Ok(json) => {
-                    if let Some(arr) = json.get("items").and_then(|v| v.as_array()) {
-                        data = arr
-                            .iter()
-                            .filter_map(|item| {
-                                let doc_name = item.get("doc_name")?.as_str()?.to_string();
-                                let created_time = item.get("created_time")?.as_str()?.to_string();
-                                let diff = item.get("diff")?.as_str()?.to_string();
-                                let id = item.get("id")?.as_str()?.to_string();
-                                Some(HistoryItem {
-                                    created_time,
-                                    name: doc_name,
-                                    diff,
-                                    id
-                                })
-                            })
-                            .collect();
-                    } else {
-                        error!("get_proj_history_page_impl_v1: 'items' field missing or not array, json: {:?}", json);
-                    }
-                    total = json.get("total").and_then(|v| v.as_i64()).unwrap_or(0);
-                }
-                Err(_) => {
-                    error!("json parse error, raw: {}", s);
-                }
-            }
+    let r = match resp {
+        Ok(r) => r,
+        Err(e) => {
+            error!("get_proj_history_page_impl_v1: http request failed, error: {:?}", e);
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: params.page_num.unwrap_or(1),
+                    pageSize: params.page_size.unwrap_or(10),
+                    total: 0,
+                },
+                data: vec![],
+            };
         }
-    }
+    };
 
+    let s = match r.text().await {
+        Ok(s) => s,
+        Err(e) => {
+            error!("get_proj_history_page_impl_v1: failed to get response text, error: {:?}", e);
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: params.page_num.unwrap_or(1),
+                    pageSize: params.page_size.unwrap_or(10),
+                    total: 0,
+                },
+                data: vec![],
+            };
+        }
+    };
+
+    let json = match serde_json::from_str::<serde_json::Value>(&s) {
+        Ok(json) => json,
+        Err(e) => {
+            error!("get_proj_history_page_impl_v1: json parse error: {:?}, raw: {}", e, s);
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: params.page_num.unwrap_or(1),
+                    pageSize: params.page_size.unwrap_or(10),
+                    total: 0,
+                },
+                data: vec![],
+            };
+        }
+    };
+
+    let arr = match json.get("items").and_then(|v| v.as_array()) {
+        Some(arr) => arr,
+        None => {
+            error!("get_proj_history_page_impl_v1: 'items' field missing or not array, json: {:?}", json);
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: params.page_num.unwrap_or(1),
+                    pageSize: params.page_size.unwrap_or(10),
+                    total: 0,
+                },
+                data: vec![],
+            };
+        }
+    };
+
+    let data: Vec<HistoryItem> = arr
+        .iter()
+        .filter_map(|item| {
+            let doc_name = item.get("doc_name")?.as_str()?.to_string();
+            let created_time = item.get("created_time")?.as_str()?.to_string();
+            let diff = item.get("diff")?.as_str()?.to_string();
+            let id = item.get("id")?.as_str()?.to_string();
+            Some(HistoryItem {
+                created_time,
+                name: doc_name,
+                diff,
+                id,
+            })
+        })
+        .collect();
+    let rep_name_datas =  append_file_name(data);
+    let total = json.get("total").and_then(|v| v.as_i64()).unwrap_or(0);
     let pagination = Pagination {
         pageNum: params.page_num.unwrap_or(1),
         pageSize: params.page_size.unwrap_or(10),
@@ -288,8 +327,28 @@ pub async fn get_proj_history_page_impl_v1(
     };
     PaginationResponse {
         pagination,
-        data,
+        data: rep_name_datas,
     }
+}
+
+fn append_file_name(data: Vec<HistoryItem>) -> Vec<HistoryItem> {
+    let file_ids: Vec<String> = data
+        .iter()
+        .map(|item| item.id.clone())
+        .collect();
+    let files = get_file_by_ids(&file_ids);
+    let file_name_map: std::collections::HashMap<String, String> = files
+        .into_iter()
+        .map(|file| (file.file_id, file.name))
+        .collect();
+    data.into_iter()
+        .map(|mut item| {
+            if let Some(file_name) = file_name_map.get(&item.id) {
+                item.name = file_name.clone();
+            }
+            item
+        })
+        .collect()
 }
 
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
