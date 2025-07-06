@@ -134,6 +134,22 @@ pub fn get_file_by_ids(ids: &Vec<String>) -> Vec<TexFile> {
     }
 }
 
+pub fn get_file_by_int_ids(ids: &Vec<i64>) -> Vec<TexFile> {
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::id.eq_any(ids));
+    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return result;
+        }
+        Err(err) => {
+            error!("get files by int id failed, {}", err);
+            return Vec::new();
+        }
+    }
+}
+
 pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
@@ -227,6 +243,7 @@ pub struct HistoryItem {
     pub name: String,
     pub diff: String,
     pub id: String,
+    pub doc_int_id: i64
 }
 
 pub async fn get_proj_history_page_impl_v1(
@@ -310,11 +327,13 @@ pub async fn get_proj_history_page_impl_v1(
             let created_time = item.get("created_time")?.as_str()?.to_string();
             let diff = item.get("diff")?.as_str()?.to_string();
             let id = item.get("id")?.as_str()?.to_string();
+            let doc_int_id = item.get("doc_int_id")?.as_i64().unwrap();
             Some(HistoryItem {
                 created_time,
                 name: doc_name,
                 diff,
                 id,
+                doc_int_id
             })
         })
         .collect();
@@ -332,11 +351,11 @@ pub async fn get_proj_history_page_impl_v1(
 }
 
 fn append_file_name(data: Vec<HistoryItem>) -> Vec<HistoryItem> {
-    let file_ids: Vec<String> = data
+    let file_ids: Vec<i64> = data
         .iter()
-        .map(|item| item.id.clone())
+        .map(|item| item.doc_int_id.clone())
         .collect();
-    let files = get_file_by_ids(&file_ids);
+    let files = get_file_by_int_ids(&file_ids);
     let file_name_map: std::collections::HashMap<String, String> = files
         .into_iter()
         .map(|file| (file.file_id, file.name))
