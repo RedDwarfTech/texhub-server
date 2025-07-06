@@ -327,13 +327,16 @@ pub async fn get_proj_history_page_impl_v1(
             let created_time = item.get("created_time")?.as_str()?.to_string();
             let diff = item.get("diff")?.as_str()?.to_string();
             let id = item.get("id")?.as_str()?.to_string();
-            let doc_int_id = item.get("doc_int_id")?.as_i64().unwrap();
+            let doc_int_id = item.get("doc_int_id")?.as_i64();
+            if doc_int_id.is_none() {
+                error!("get_proj_history_page_impl_v1: doc_int_id is empty for item: {:?}", item);
+            }
             Some(HistoryItem {
                 created_time,
                 name: doc_name,
                 diff,
                 id,
-                doc_int_id
+                doc_int_id: doc_int_id.unwrap_or(0)
             })
         })
         .collect();
