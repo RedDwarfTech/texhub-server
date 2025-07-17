@@ -7,6 +7,7 @@ extern crate rust_i18n;
 i18n!("locales");
 
 use crate::controller::profile::profile_controller;
+use crate::controller::project::queue::proj_queue_controller;
 use actix_multipart::MultipartError;
 use actix_web::Error;
 use actix_web::{App, HttpRequest, HttpServer};
@@ -56,6 +57,7 @@ async fn main() -> std::io::Result<()> {
             .configure(proj_share_controller::config)
             .configure(file_version_controller::config)
             .configure(appconf_controller::config)
+            .configure(proj_queue_controller::config)
     })
     .workers(3)
     .bind(address)?
