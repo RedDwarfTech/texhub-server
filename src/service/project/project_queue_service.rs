@@ -6,7 +6,7 @@ use crate::{
 };
 use chrono::{Duration, Utc};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, QueryResult};
-use log::error;
+use log::{error, info};
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub fn get_proj_working_queue_list(
@@ -63,14 +63,24 @@ pub fn get_latest_proj_queue(
 pub fn update_expired_proj_queue() {
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
     let expire_time = Utc::now() + Duration::minutes(10);
-    let predicate = crate::model::diesel::tex::tex_schema::tex_comp_queue::comp_status
-        .eq(TeXFileCompileStatus::Compiling as i32)
-        .and(
-            crate::model::diesel::tex::tex_schema::tex_comp_queue::created_time
-                .lt(expire_time.timestamp_millis()),
-        );
-    diesel::update(tex_comp_queue.filter(predicate))
-        .set(comp_status.eq(TeXFileCompileStatus::Expired as i32))
-        .get_result::<TexCompQueue>(&mut get_connection())
-        .expect("unable to update tex project queue status");
+    use crate::model::diesel::tex::tex_schema::tex_comp_queue as folder_table;
+    let et = expire_time.timestamp_millis();
+    let mut query = folder_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(folder_table::comp_status.eq(TeXFileCompileStatus::Compiling as i32));
+    query = query.filter(folder_table::created_time.lt(et));
+    let cvs: Vec<TexCompQueue> = query
+        .load::<TexCompQueue>(&mut get_connection())
+        .expect("Failed to get compile queue");
+    if !cvs.is_empty() {
+        info!("update record{}", et);
+        let ids: Vec<i64> = cvs.iter().map(|q| q.id).collect();
+        let predicate = comp_status
+            .eq(TeXFileCompileStatus::Compiling as i32)
+            .and(id.eq_any(&ids));
+        let _ = diesel::update(tex_comp_queue.filter(predicate))
+            .set(comp_status.eq(TeXFileCompileStatus::Expired as i32))
+            .execute(&mut get_connection());
+    } else {
+        info!("no compiling record,et:{}", et);
+    }
 }
