@@ -1,11 +1,11 @@
-use crate::model::diesel::tex::custom_tex_models::TexFile;
-use rust_wheel::common::util::convert_to_tree_generic::IntoTree;
 use serde::{Deserialize, Serialize};
+
+use crate::model::diesel::tex::custom_tex_models::TexFile;
 use crate::common::utils::url_parse::json_as_string;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[allow(non_snake_case)]
-pub struct FileTreeResp {
+pub struct TexFileResp {
     #[serde(serialize_with = "json_as_string")]
     pub id: i64,
     pub name: String,
@@ -15,19 +15,18 @@ pub struct FileTreeResp {
     pub doc_status: i32,
     pub project_id: String,
     pub file_type: i32,
-    pub file_path: String,
     pub file_id: String,
     pub parent: String,
     pub main_flag: i16,
+    pub sort: i32,
     pub yjs_initial: i16,
-    pub children: Vec<FileTreeResp>,
+    pub file_path: String
 }
 
-impl Default for FileTreeResp {
+impl Default for TexFileResp {
     fn default() -> Self {
-        FileTreeResp {
+        Self {
             id: 0,
-            children: vec![],
             name: "".to_owned(),
             created_time: 0,
             updated_time: 0,
@@ -40,14 +39,14 @@ impl Default for FileTreeResp {
             file_path: "".to_owned(),
             main_flag: 0,
             yjs_initial: 0,
+            sort: 0,
         }
     }
 }
 
-impl From<&TexFile> for FileTreeResp {
+impl From<&TexFile> for TexFileResp {
     fn from(p: &TexFile) -> Self {
         Self {
-            children: vec![],
             id: p.id,
             name: p.name.clone(),
             created_time: p.created_time,
@@ -61,37 +60,7 @@ impl From<&TexFile> for FileTreeResp {
             parent: p.parent.clone(),
             main_flag: p.main_flag,
             yjs_initial: p.yjs_initial,
-        }
-    }
-}
-
-impl IntoTree<String> for &FileTreeResp {
-    type Output = FileTreeResp;
-
-    fn get_id(&self) -> String {
-        self.file_id.clone()
-    }
-
-    fn get_parent_id(&self) -> String {
-        self.parent.clone()
-    }
-
-    fn convert(&self, children: Vec<Self::Output>) -> Self::Output {
-        FileTreeResp {
-            id: self.id,
-            name: self.name.clone(),
-            created_time: self.created_time,
-            updated_time: self.updated_time,
-            user_id: self.user_id,
-            doc_status: self.doc_status,
-            project_id: self.project_id.clone(),
-            file_path: self.file_path.clone(),
-            file_type: self.file_type,
-            file_id: self.file_id.clone(),
-            parent: self.parent.clone(),
-            main_flag: self.main_flag,
-            children,
-            yjs_initial: self.yjs_initial,
+            sort: p.sort
         }
     }
 }

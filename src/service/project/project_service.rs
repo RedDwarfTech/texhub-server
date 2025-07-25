@@ -63,6 +63,7 @@ use crate::model::request::project::tex_compile_queue_log::TexCompileQueueLog;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_compile_queue_status::TexCompileQueueStatus;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
+use crate::model::response::file::tex_file_resp::TexFileResp;
 use crate::model::response::project::compile_resp::CompileResp;
 use crate::model::response::project::latest_compile::LatestCompile;
 use crate::model::response::project::pdf_pos_resp::PdfPosResp;
@@ -1581,8 +1582,9 @@ pub fn get_cached_proj_info(proj_id: &String) -> Option<TexProjectCache> {
             return None;
         }
         let file = get_main_file_list(proj_id);
+        let file_resp = TexFileResp::from(&file.unwrap());
         let file_tree = get_file_tree(proj_id);
-        let proj_info = TexProjectCache::from_db(&proj.unwrap(), file.unwrap(), file_tree);
+        let proj_info = TexProjectCache::from_db(&proj.unwrap(), file_resp, file_tree);
         let proj_cached_json = serde_json::to_string(&proj_info).unwrap();
         let cache_result = set_value(&cache_key.as_str(), &proj_cached_json.as_str(), 86400);
         if let Err(e) = cache_result {

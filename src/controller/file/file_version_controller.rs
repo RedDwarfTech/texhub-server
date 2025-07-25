@@ -26,8 +26,8 @@ pub async fn proj_version(
 pub async fn proj_version_v1(
     form: web::Query<FileVersionParamsV1>
 ) -> impl Responder {
-    let collar_users = get_proj_history_v1(&form.0).await;
-    box_actix_rest_response(collar_users)
+    let proj_historied = get_proj_history_v1(&form.0).await;
+    box_actix_rest_response(proj_historied)
 }
 
 pub async fn edit_snippet(
