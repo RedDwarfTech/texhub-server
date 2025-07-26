@@ -113,6 +113,10 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
     }
     let docs = docs_opt.unwrap();
     let proj = get_cached_proj_info(&docs.project_id);
+    if proj.is_none() {
+        error!("get proj info failed, proj_id:{}", docs.project_id);
+        return box_err_actix_rest_response(InfraError::DataNotFound);
+    }
     let file_detail = WsFileDetail {
         file_path: docs.file_path,
         project_id: docs.project_id,
