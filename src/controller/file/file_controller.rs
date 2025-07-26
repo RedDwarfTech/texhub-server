@@ -1,7 +1,9 @@
 use crate::{
     model::{
         dict::collar_status::CollarStatus,
-        diesel::tex::custom_tex_models::TexFile,
+        diesel::{
+            custom::project::tex_project_cache::TexProjectCache, tex::custom_tex_models::TexFile,
+        },
         error::texhub_error::TexhubError,
         request::{
             file::{
@@ -112,7 +114,7 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
         return box_err_actix_rest_response(InfraError::DataNotFound);
     }
     let docs = docs_opt.unwrap();
-    let proj = get_cached_proj_info(&docs.project_id);
+    let proj: Option<TexProjectCache> = get_cached_proj_info(&docs.project_id);
     if proj.is_none() {
         error!("get proj info failed, proj_id:{}", docs.project_id);
         return box_err_actix_rest_response(InfraError::DataNotFound);

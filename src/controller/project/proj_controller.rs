@@ -21,8 +21,10 @@ use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::request::project::share::collar_query_params::CollarQueryParams;
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
+use crate::model::response::project::tex_project_cache_resp::TexProjectCacheResp;
 use crate::service::file::file_service::{
-    get_cached_file_by_fid, get_proj_history_page_impl, get_proj_history_page_impl_v1, push_to_fulltext_search
+    get_cached_file_by_fid, get_proj_history_page_impl, get_proj_history_page_impl_v1,
+    push_to_fulltext_search,
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
@@ -137,9 +139,14 @@ pub async fn get_folder_projects(
     HttpResponse::Ok().json(res)
 }
 
+/**
+ * convert to app model to data transport model
+ * we need to convert i64 to string so that the javascript can handle it
+ *  */
 pub async fn get_project(params: web::Query<GetProjParams>) -> impl Responder {
     let proj = get_cached_proj_info(&params.project_id);
-    return box_actix_rest_response(proj.unwrap());
+    let proj_resp = TexProjectCacheResp::from(&proj.unwrap());
+    return box_actix_rest_response(proj_resp);
 }
 
 pub async fn edit_project(params: web::Json<EditProjReq>) -> impl Responder {

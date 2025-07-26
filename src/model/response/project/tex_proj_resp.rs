@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-
 use crate::model::diesel::tex::custom_tex_models::TexProject;
 
 #[derive(Deserialize, Serialize)]
@@ -27,7 +26,7 @@ impl From<&TexProject> for TexProjResp {
             template_id: proj.template_id,
             project_id: proj.project_id.clone(),
             nickname: proj.nickname.clone(),
-            role_id: 0
+            role_id: 0,
         }
     }
 }

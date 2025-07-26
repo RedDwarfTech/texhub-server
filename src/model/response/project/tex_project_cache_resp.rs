@@ -1,7 +1,7 @@
 #![allow(unused)]
 #![allow(clippy::all)]
 
-use crate::model::diesel::custom::file::file_tree::FileTree;
+use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
 use crate::model::diesel::tex::custom_tex_models::TexProject;
 use crate::model::diesel::tex::tex_schema::*;
@@ -13,18 +13,28 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct TexProjectCache {
+pub struct TexProjectCacheResp {
     pub main: TexProject,
-    pub main_file: TexFile,
-    pub tree: Vec<FileTree>,
+    pub main_file: TexFileResp,
+    pub tree: Vec<FileTreeResp>,
 }
 
-impl TexProjectCache {
-    pub(crate) fn from_db(main: &TexProject, main_file: TexFile, tree: Vec<FileTree>) -> Self {
+impl TexProjectCacheResp {
+    pub(crate) fn from_db(main: &TexProject, main_file: TexFileResp, tree: Vec<FileTreeResp>) -> Self {
         Self {
             main: main.clone(),
             main_file,
             tree,
+        }
+    }
+}
+
+impl From<&TexProjectCache> for TexProjectCacheResp {
+    fn from(cached_proj: &TexProjectCache) -> Self {
+        Self {
+            main: cached_proj.main.clone(),
+            main_file: TexFileResp::from(&cached_proj.main_file),
+            tree: cached_proj.tree.iter().map(|t| FileTreeResp::from(t)).collect(),
         }
     }
 }
