@@ -9,8 +9,11 @@ pub struct TexFileResp {
     #[serde(serialize_with = "json_as_string")]
     pub id: i64,
     pub name: String,
+    #[serde(serialize_with = "json_as_string")]
     pub created_time: i64,
+    #[serde(serialize_with = "json_as_string")]
     pub updated_time: i64,
+    #[serde(serialize_with = "json_as_string")]
     pub user_id: i64,
     pub doc_status: i32,
     pub project_id: String,
