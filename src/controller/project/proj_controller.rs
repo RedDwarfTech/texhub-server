@@ -17,6 +17,7 @@ use crate::model::request::project::edit::trash_proj_req::TrashProjReq;
 use crate::model::request::project::query::download_proj::DownloadProj;
 use crate::model::request::project::query::folder_proj_params::FolderProjParams;
 use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
+use crate::model::request::project::query::get_proj_history_scroll::GetProjHistoryScroll;
 use crate::model::request::project::query::search_proj_params::SearchProjParams;
 use crate::model::request::project::share::collar_query_params::CollarQueryParams;
 use crate::model::response::project::proj_resp::ProjResp;
@@ -403,7 +404,7 @@ pub async fn get_proj_his_page(params: web::Query<GetProjPageHistory>) -> impl R
     box_actix_rest_response(proj_history)
 }
 
-pub async fn get_proj_his_page_v1(params: web::Query<GetProjPageHistory>) -> impl Responder {
+pub async fn get_proj_his_page_v1(params: web::Query<GetProjHistoryScroll>) -> impl Responder {
     let proj_history = get_proj_history_page_impl_v1(&params.0).await;
     box_actix_rest_response(proj_history)
 }
