@@ -120,6 +120,7 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
         return box_err_actix_rest_response(InfraError::DataNotFound);
     }
     let file_detail = WsFileDetail {
+        id: docs.id,
         file_path: docs.file_path,
         project_id: docs.project_id,
         created_time: docs.created_time,
