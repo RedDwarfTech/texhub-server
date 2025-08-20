@@ -253,11 +253,12 @@ pub async fn get_proj_history_page_impl_v1(
     let client = reqwest::Client::new();
     let base_url = get_app_config("texhub.y_websocket_api_url");
     let url = format!(
-        "{}/doc/version/proj/scroll?projId={}&offset={}&pageSize={}",
+        "{}/doc/version/proj/scroll?projId={}&offset={}&pageSize={}&fileId={}",
         base_url.trim_end_matches('/'),
         params.project_id,
         params.offset.unwrap_or(i64::MAX),
-        params.page_size.unwrap_or(5)
+        params.page_size.unwrap_or(5),
+        params.file_id.as_ref().unwrap_or(&"".to_string())
     );
 
     let resp = client.get(&url).send().await;
