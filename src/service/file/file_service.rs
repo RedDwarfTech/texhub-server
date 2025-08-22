@@ -258,7 +258,7 @@ pub async fn get_proj_history_page_impl_v1(
         params.project_id,
         params.offset.unwrap_or(i64::MAX),
         params.page_size.unwrap_or(5),
-        params.file_id.as_ref().unwrap_or(&"".to_string())
+        params.file_int_id.as_ref().unwrap_or(&"".to_string())
     );
 
     let resp = client.get(&url).send().await;
