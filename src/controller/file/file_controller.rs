@@ -1,52 +1,126 @@
 use crate::{
     model::{
-        request::file::{
-            add::file_add_req::TexFileAddReq, add::file_add_ver_req::TexFileVerAddReq,
-            edit::move_file_req::MoveFileReq, file_del::TexFileDelReq,
-            file_rename::TexFileRenameReq, query::file_query_params::FileQueryParams,
+        dict::collar_status::CollarStatus,
+        diesel::{
+            custom::project::tex_project_cache::TexProjectCache, tex::custom_tex_models::TexFile,
+        },
+        error::texhub_error::TexhubError,
+        request::{
+            file::{
+                add::{file_add_req::TexFileAddReq, file_add_ver_req::TexFileVerAddReq},
+                del::file_del::TexFileDelReq,
+                edit::move_file_req::MoveFileReq,
+                file_rename::TexFileRenameReq,
+                query::{
+                    download_file_query::DownloadFileQuery, file_code_params::FileCodeParams,
+                    file_query_params::FileQueryParams, main_file_params::MainFileParams,
+                    pdf_partial::PdfPartial, pdf_preview_req::PdfPreviewReq,
+                    pdf_preview_sign::PdfPreviewSign, sub_file_query_params::SubFileQueryParams,
+                },
+            },
+            project::share::collar_query_params::CollarQueryParams,
         },
         response::file::ws_file_detail::WsFileDetail,
     },
     service::{
-        file::file_service::{
-            create_file, create_file_ver, delete_file_recursive, file_init_complete,
-            get_file_by_fid, get_file_list, get_file_tree, get_main_file_list,
-            get_text_file_code, mv_file_impl, rename_trans,
+        file::{
+            file_service::{
+                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
+                get_file_by_ids, get_file_list, get_file_tree, get_full_pdf, get_main_file_list,
+                get_partial_pdf, get_path_content_by_fid, get_text_file_code, mv_file_impl,
+                proj_folder_tree, rename_trans, TexFileService,
+            },
+            file_version_service::{
+                create_file_ver, get_latest_file_version_by_fid, update_file_version,
+                update_version_status,
+            },
+            spec::file_spec::FileSpec,
         },
-        project::project_service::{del_project_cache, get_cached_proj_info},
+        project::{
+            project_service::{del_project_cache, get_cached_proj_info, get_proj_latest_pdf},
+            share::share_service::get_collar_relation,
+        },
     },
 };
-use actix_web::{web, HttpResponse, Responder};
+use actix_files::NamedFile;
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use chrono::{Duration, Utc};
 use log::error;
+use mime::Mime;
+use rust_i18n::t;
 use rust_wheel::{
-    common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
-    model::{response::api_response::ApiResponse, user::login_user_info::LoginUserInfo},
+    common::{
+        infra::user::rd_user::get_user_info,
+        util::{
+            security_util::{generate_signature, verify_signature},
+            time_util::get_current_millisecond,
+        },
+        wrapper::actix_http_resp::{
+            box_actix_rest_response, box_err_actix_rest_response, box_error_actix_rest_response,
+        },
+    },
+    model::{
+        error::infra_error::InfraError,
+        response::api_response::ApiResponse,
+        user::{login_user_info::LoginUserInfo, rd_user_info::RdUserInfo},
+    },
 };
 
-#[derive(serde::Deserialize)]
-pub struct AppParams {
-    parent: String,
-}
-
-#[derive(serde::Deserialize)]
-pub struct MainFileParams {
-    pub project_id: String,
-}
-
-#[derive(serde::Deserialize)]
-pub struct FileCodeParams {
-    pub file_id: String,
-}
-
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_file_by_fid(&params.file_id).unwrap();
+    let docs = get_cached_file_by_fid(&params.file_id).unwrap();
     box_actix_rest_response(docs)
 }
 
+/**
+ * https://stackoverflow.com/questions/73010999/how-to-return-a-namedfile-in-a-httpresponse-using-actix-web
+ */
+pub async fn download_file(
+    req: HttpRequest,
+    params: web::Query<DownloadFileQuery>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let tex_file: Option<TexFile> = get_cached_file_by_fid(&params.file_id);
+    if tex_file.is_none() {
+        return Err(actix_web::error::ErrorBadRequest("File not Found"));
+    }
+    let t_file = tex_file.unwrap();
+    let collar_params: CollarQueryParams = CollarQueryParams {
+        project_id: t_file.project_id.clone(),
+        user_id: login_user_info.userId,
+    };
+    let collar_params = get_collar_relation(&collar_params).await;
+    if collar_params.is_none() || collar_params.unwrap().is_empty() {
+        return Err(actix_web::error::ErrorBadRequest("lack of privilleage"));
+    }
+    let path = get_path_content_by_fid(&t_file);
+    if path.is_none() {
+        return Err(actix_web::error::ErrorBadRequest("File not Found"));
+    }
+    match NamedFile::open(&path.clone().unwrap()) {
+        Ok(file) => {
+            let content_type: Mime = "application/octet-stream".parse().unwrap();
+            Ok(NamedFile::set_content_type(file, content_type).into_response(&req))
+        }
+        Err(e) => {
+            error!("Error open file {},{}", path.unwrap(), e);
+            return Err(actix_web::error::ErrorBadRequest("File not Found"));
+        }
+    }
+}
+
 pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_file_by_fid(&params.file_id).unwrap();
-    let proj = get_cached_proj_info(&docs.project_id);
+    let docs_opt = get_cached_file_by_fid(&params.file_id);
+    if docs_opt.is_none() {
+        return box_err_actix_rest_response(InfraError::DataNotFound);
+    }
+    let docs = docs_opt.unwrap();
+    let proj: Option<TexProjectCache> = get_cached_proj_info(&docs.project_id);
+    if proj.is_none() {
+        error!("get proj info failed, proj_id:{}", docs.project_id);
+        return box_err_actix_rest_response(InfraError::DataNotFound);
+    }
     let file_detail = WsFileDetail {
+        id: docs.id,
         file_path: docs.file_path,
         project_id: docs.project_id,
         created_time: docs.created_time,
@@ -58,7 +132,7 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
     box_actix_rest_response(file_detail)
 }
 
-pub async fn get_files(params: web::Query<AppParams>) -> impl Responder {
+pub async fn get_files(params: web::Query<SubFileQueryParams>) -> impl Responder {
     let docs = get_file_list(&params.parent);
     box_actix_rest_response(docs)
 }
@@ -73,8 +147,13 @@ pub async fn get_file_code(params: web::Query<FileCodeParams>) -> impl Responder
     box_actix_rest_response(file_text)
 }
 
-pub async fn get_files_tree(params: web::Query<AppParams>) -> impl Responder {
+pub async fn get_files_tree(params: web::Query<SubFileQueryParams>) -> impl Responder {
     let docs = get_file_tree(&params.parent);
+    box_actix_rest_response(docs)
+}
+
+pub async fn get_proj_folder_tree(params: web::Query<SubFileQueryParams>) -> impl Responder {
+    let docs = proj_folder_tree(&params.parent);
     box_actix_rest_response(docs)
 }
 
@@ -82,13 +161,43 @@ pub async fn add_file(
     form: actix_web_validator::Json<TexFileAddReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let fs = TexFileService {};
+    let file_count = fs.get_proj_file_count(&form.0.project_id);
+    if file_count > 1000 {
+        return box_error_actix_rest_response(
+            "",
+            "001002D001".to_owned(),
+            "exceed the file limit".to_owned(),
+        );
+    }
     return create_file(&form.0, &login_user_info).await;
 }
 
+///
+/// each version save the file full content
+/// each version may take some disk space
+/// generate file version in peroid time
+/// not every time save
+///
 pub async fn add_file_version(
     form: actix_web_validator::Json<TexFileVerAddReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    let legacy_version = get_latest_file_version_by_fid(&form.0.file_id);
+    if legacy_version.is_some() {
+        let unboxed_version = legacy_version.unwrap();
+        let diff_time = get_current_millisecond() - unboxed_version.created_time;
+        if diff_time < 60000 {
+            // if last version less than 60s, replace it
+            let result = update_file_version(&form.0, &unboxed_version.id);
+            return box_actix_rest_response(result.unwrap());
+        } else {
+            // update and save the new draft version
+            update_version_status(&unboxed_version.id);
+            let tex_file_version = create_file_ver(&form.0, &login_user_info);
+            return box_actix_rest_response(tex_file_version);
+        }
+    }
     let tex_file_version = create_file_ver(&form.0, &login_user_info);
     box_actix_rest_response(tex_file_version)
 }
@@ -98,8 +207,11 @@ pub async fn update_file_init(form: web::Json<FileCodeParams>) -> impl Responder
     box_actix_rest_response(new_file)
 }
 
-pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
-    let db_file = get_file_by_fid(&form.file_id).unwrap();
+pub async fn del_file(
+    form: web::Json<TexFileDelReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let db_file = get_cached_file_by_fid(&form.file_id).unwrap();
     if db_file.main_flag == 1 {
         let res = ApiResponse {
             result: "main file could not be delete",
@@ -108,7 +220,7 @@ pub async fn del_file(form: web::Json<TexFileDelReq>) -> impl Responder {
         };
         return HttpResponse::Ok().json(res);
     }
-    let new_file = delete_file_recursive(&form.0, &db_file).unwrap();
+    let new_file = delete_file_recursive(&form.0, &db_file, login_user_info.userId).unwrap();
     box_actix_rest_response(new_file)
 }
 
@@ -117,6 +229,9 @@ pub async fn rename_file(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let db_file = rename_trans(&form.0, &login_user_info).await;
+    if db_file.is_none() {
+        return box_err_actix_rest_response(TexhubError::RenameFileFailed);
+    }
     box_actix_rest_response(db_file)
 }
 
@@ -124,10 +239,44 @@ pub async fn move_node(
     form: actix_web_validator::Json<MoveFileReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let move_result = mv_file_impl(&form.0, &login_user_info).await;
+    let mut ids = Vec::new();
+    ids.push(form.0.file_id.clone());
+    ids.push(form.0.dist_file_id.clone());
+    let db_files = get_file_by_ids(&ids);
+    let src_file = db_files
+        .clone()
+        .into_iter()
+        .find(|f| f.file_id.eq(&form.0.file_id.clone()));
+    if src_file.is_none() {
+        return box_error_actix_rest_response(
+            "failed",
+            "FILE_NOT_FOUND".to_owned(),
+            "文件未找到".to_owned(),
+        );
+    }
+    if src_file.clone().unwrap().main_flag == 1 {
+        return box_error_actix_rest_response(
+            "",
+            "001001P001".to_owned(),
+            t!("err_cannot_mv_main").to_string(),
+        );
+    }
+    let dist_file = db_files
+        .into_iter()
+        .find(|f| f.file_id.eq(&form.0.dist_file_id.clone()));
+    let move_result = mv_file_impl(
+        &form.0,
+        &login_user_info,
+        &src_file.unwrap(),
+        &dist_file.unwrap(),
+    );
     if let Err(err) = &move_result {
         error!("move file failed,{}", err);
-        box_error_actix_rest_response("failed", "MOVE_FILE_FAILED".to_owned(), "".to_owned());
+        return box_error_actix_rest_response(
+            "failed",
+            "MOVE_FILE_FAILED".to_owned(),
+            "".to_owned(),
+        );
     }
     let db_file = move_result.unwrap();
     if db_file.is_none() {
@@ -138,8 +287,134 @@ pub async fn move_node(
         );
     }
     del_project_cache(&db_file.clone().unwrap().project_id).await;
-    let proj_file_tree = get_file_tree(&db_file.unwrap().project_id);
-    box_actix_rest_response(proj_file_tree)
+    box_actix_rest_response("ok")
+}
+
+/**
+ * when the pdf become huge, loading the whole pdf everytime wasted too much resource
+ * this api provide partial pdf loading to improve the performance and save system resource
+ */
+pub async fn load_partial(
+    req: HttpRequest,
+    params: actix_web_validator::Query<PdfPartial>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &login_user_info.userId).await;
+    if let Err(err) = pdf_info {
+        return box_err_actix_rest_response(err);
+    }
+    let range_header = req.headers().get("Range");
+    let collar_query = CollarQueryParams {
+        project_id: params.0.proj_id.clone(),
+        user_id: login_user_info.userId,
+    };
+    let relation = get_collar_relation(&collar_query).await;
+    if relation.is_none() {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    return get_partial_pdf(&pdf_info.unwrap(), range_header);
+}
+
+pub async fn load_full_pdf_file(
+    req: HttpRequest,
+    params: actix_web_validator::Query<PdfPartial>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &login_user_info.userId).await;
+    if let Err(err) = pdf_info {
+        return box_err_actix_rest_response(err);
+    }
+    let collar_query = CollarQueryParams {
+        project_id: params.0.proj_id.clone(),
+        user_id: login_user_info.userId,
+    };
+    let relation = get_collar_relation(&collar_query).await;
+    if relation.is_none() {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    return get_full_pdf(&pdf_info.unwrap(), req);
+}
+
+pub async fn load_full_pdf_file_sig(
+    req: HttpRequest,
+    params: actix_web_validator::Query<PdfPreviewSign>,
+) -> impl Responder {
+    if params.0.expire < get_current_millisecond() {
+        return box_err_actix_rest_response(InfraError::SignExpired);
+    }
+    // verify the signature
+    let uid: i64 = params.0.access_key.parse().unwrap();
+    let user_info: RdUserInfo = get_user_info(&uid).await.unwrap();
+    let verify_params = vec![
+        ("accessKey".to_string(), params.0.access_key),
+        ("expireTime".to_string(), params.0.expire.to_string()),
+    ];
+    let secret = user_info.salt;
+    let pass = verify_signature(&verify_params, &secret, &params.0.signature);
+    if !pass {
+        error!(
+            "preview pdf sign verify failed, {:?}, secret:{}, signature:{}",
+            &verify_params, secret, &params.0.signature
+        );
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    let pdf_info = get_proj_latest_pdf(&params.0.proj_id, &uid).await;
+    if let Err(err) = pdf_info {
+        return box_err_actix_rest_response(err);
+    }
+    let collar_query = CollarQueryParams {
+        project_id: params.0.proj_id.clone(),
+        user_id: uid,
+    };
+    let relation = get_collar_relation(&collar_query).await;
+    if relation.is_none() {
+        error!("relation is null,{:?}", &collar_query);
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    if relation.unwrap()[0].collar_status == CollarStatus::Exit as i32 {
+        return box_err_actix_rest_response(InfraError::AccessResourceDenied);
+    }
+    return get_full_pdf(&pdf_info.unwrap(), req);
+}
+
+/**
+ * generate a temp url to allow user to access the resource in a peroid of time
+ * follow the aws oss or the aliyun oss access style
+ */
+pub async fn gen_preview_url(
+    _params: actix_web_validator::Query<PdfPreviewReq>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    let user_id = login_user_info.userId.to_string();
+    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let now = Utc::now();
+    let future_time = now + Duration::hours(6);
+    let unix_timestamp = future_time.timestamp_millis();
+    let expire_time = unix_timestamp.to_string();
+    let secret = user_info.salt;
+    let params = vec![
+        ("accessKey".to_string(), user_id.clone()),
+        ("expireTime".to_string(), expire_time),
+    ];
+    let signature = generate_signature(&params, &secret);
+    let url = format!(
+        "{}{}{}{}{}{}{}{}",
+        "/tex/file/pdf/preview?proj_id=",
+        _params.0.proj_id,
+        "&signature=",
+        signature,
+        "&expire=",
+        unix_timestamp,
+        "&access_key=",
+        user_id
+    );
+    return box_actix_rest_response(url);
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -148,6 +423,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/list", web::get().to(get_files))
             .route("/add", web::post().to(add_file))
             .route("/tree", web::get().to(get_files_tree))
+            .route("/folder/tree", web::get().to(get_proj_folder_tree))
             .route("/ver/add", web::post().to(add_file_version))
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
@@ -156,6 +432,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/inited", web::put().to(update_file_init))
             .route("/rename", web::patch().to(rename_file))
             .route("/detail", web::get().to(get_file))
+            .route("/download", web::get().to(download_file))
+            .route("/pdf/partial", web::get().to(load_partial))
+            .route("/pdf/full", web::get().to(load_full_pdf_file))
+            .route("/pdf/preview", web::get().to(load_full_pdf_file_sig))
+            .route("/pdf/preview-url", web::get().to(gen_preview_url))
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }

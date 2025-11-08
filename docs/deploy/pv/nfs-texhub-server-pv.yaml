@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-texhub-server-pv
+  labels:
+    alicloud-pvname: reddwarf-texhub-data
+spec:
+  capacity:
+    storage: 8Gi
+  nfs:
+    server: 915424ab7c-pli25.cn-shanghai.nas.aliyuncs.com
+    path: /k8s/reddwarf-pro/texhub-server-service
+  accessModes:
+    - ReadWriteMany
+  claimRef:
+    kind: PersistentVolumeClaim
+    namespace: reddwarf-pro
+    name: texhub-server-service-pv-claim
+    uid: 0872efc5-53c3-474e-af92-521aa4bf0497
+    apiVersion: v1
+    resourceVersion: '140364610'
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - vers=4.0
+    - noresvport
+  volumeMode: Filesystem

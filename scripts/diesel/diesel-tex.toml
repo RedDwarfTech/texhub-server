@@ -10,6 +10,10 @@ filter = { only_tables = [
     "tex_file",
     "tex_file_version",
     "tex_proj_editor",
-    "tex_comp_queue"
+    "tex_comp_queue",
+    "tex_proj_folder",
+    "tex_proj_folder_map",
+    "tex_snippet",
+    "tex_user_config"
 ] }
 

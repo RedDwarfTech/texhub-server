@@ -1,6 +1,4 @@
-// @generated automatically by Diesel CLI.
-
-diesel::table! {
+table! {
     tex_comp_queue (id) {
         id -> Int8,
         created_time -> Int8,
@@ -14,10 +12,9 @@ diesel::table! {
     }
 }
 
-diesel::table! {
+table! {
     tex_file (id) {
         id -> Int8,
-        #[max_length = 256]
         name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -34,10 +31,9 @@ diesel::table! {
     }
 }
 
-diesel::table! {
+table! {
     tex_file_version (id) {
         id -> Int8,
-        #[max_length = 256]
         name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -47,10 +43,12 @@ diesel::table! {
         content -> Varchar,
         action -> Int4,
         snapshot -> Text,
+        snapshot_hash -> Varchar,
+        version_status -> Int2,
     }
 }
 
-diesel::table! {
+table! {
     tex_proj_editor (id) {
         id -> Int8,
         role_id -> Int4,
@@ -61,14 +59,40 @@ diesel::table! {
         sort -> Int4,
         project_id -> Varchar,
         trash -> Int4,
-        archive_status -> Int4
+        archive_status -> Int4,
+        proj_status -> Int4,
+        nickname -> Varchar,
     }
 }
 
-diesel::table! {
+table! {
+    tex_proj_folder (id) {
+        id -> Int8,
+        folder_name -> Varchar,
+        created_time -> Int8,
+        updated_time -> Int8,
+        user_id -> Int8,
+        sort -> Int4,
+        proj_type -> Int4,
+        default_folder -> Int4,
+    }
+}
+
+table! {
+    tex_proj_folder_map (id) {
+        id -> Int8,
+        folder_id -> Int8,
+        created_time -> Int8,
+        updated_time -> Int8,
+        project_id -> Varchar,
+        user_id -> Int8,
+        proj_type -> Int4,
+    }
+}
+
+table! {
     tex_project (id) {
         id -> Int8,
-        #[max_length = 256]
         proj_name -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -78,16 +102,28 @@ diesel::table! {
         project_id -> Varchar,
         nickname -> Varchar,
         archive_status -> Int4,
-        deleted -> Int4
+        deleted -> Int4,
+        proj_source_type -> Int2,
+        proj_source -> Varchar,
     }
 }
 
-diesel::table! {
+table! {
+    tex_snippet (id) {
+        id -> Int8,
+        snippet -> Varchar,
+        created_time -> Int8,
+        updated_time -> Int8,
+        user_id -> Int8,
+        sort -> Int4,
+        title -> Varchar,
+    }
+}
+
+table! {
     tex_template (id) {
         id -> Int8,
-        #[max_length = 256]
         name -> Varchar,
-        #[max_length = 256]
         remark -> Varchar,
         created_time -> Int8,
         updated_time -> Int8,
@@ -108,11 +144,27 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(
+table! {
+    tex_user_config (id) {
+        id -> Int8,
+        config_key -> Varchar,
+        remark -> Varchar,
+        created_time -> Int8,
+        updated_time -> Int8,
+        config_value -> Varchar,
+        user_id -> Int8,
+    }
+}
+
+allow_tables_to_appear_in_same_query!(
     tex_comp_queue,
     tex_file,
     tex_file_version,
     tex_proj_editor,
+    tex_proj_folder,
+    tex_proj_folder_map,
     tex_project,
+    tex_snippet,
     tex_template,
+    tex_user_config,
 );

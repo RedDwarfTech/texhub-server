@@ -1,49 +1,98 @@
 use std::env;
-use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::fs::{self, File, Metadata};
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::Path;
 
 use crate::common::database::get_connection;
-use crate::controller::file::file_controller::FileCodeParams;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
-use crate::model::diesel::custom::file::file_ver_add::TexFileVersionAdd;
+use crate::model::diesel::custom::file::file_tree::FileTree;
 use crate::model::diesel::custom::file::search_file::SearchFile;
-use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion};
-use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
-use crate::model::request::file::edit::move_file_req::MoveFileReq;
+use crate::model::diesel::tex::custom_tex_models::{TexFile, TexFileVersion, TexFolderTree};
 use crate::model::request::file::add::file_add_req::TexFileAddReq;
-use crate::model::request::file::file_del::TexFileDelReq;
+use crate::model::request::file::del::file_del::TexFileDelReq;
+use crate::model::request::file::edit::move_file_req::MoveFileReq;
 use crate::model::request::file::file_rename::TexFileRenameReq;
-use crate::model::request::project::query::get_proj_history::GetProjHistory;
-use crate::model::response::file::file_tree_resp::FileTreeResp;
+use crate::model::request::file::query::file_code_params::FileCodeParams;
+use crate::model::request::project::query::get_proj_history_page::GetProjPageHistory;
+use crate::model::request::project::query::get_proj_history_scroll::GetProjHistoryScroll;
+use crate::model::response::file::folder_tree_resp::FolderTreeResp;
+use crate::model::response::project::latest_compile::LatestCompile;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
 use crate::service::project::project_service::{del_project_cache, del_project_file};
-use actix_web::HttpResponse;
+use actix_files::NamedFile;
+use actix_web::error::ErrorBadRequest;
+use actix_web::http::header::{CacheControl, CacheDirective, ContentDisposition, DispositionType};
+use actix_web::{HttpRequest, HttpResponse};
 use chrono::Duration;
-use diesel::result::Error;
+use diesel::result::Error::{self, NotFound};
 use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
+    QueryResult,
 };
 use log::error;
+use mime::Mime;
+use reqwest::header::HeaderValue;
+use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
-use rust_wheel::common::util::model_convert::map_entity;
-use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
+use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
+use rust_wheel::common::util::rd_file_util::{
+    create_folder_not_exists, get_filename_without_ext, join_paths,
+};
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::{set_value, sync_get_str, del_redis_key};
+use rust_wheel::config::cache::redis_util::{del_redis_key, set_value, sync_get_str};
+use rust_wheel::model::response::pagination::Pagination;
+use rust_wheel::model::response::pagination_response::PaginationResponse;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
 
-pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
+use super::spec::file_spec::FileSpec;
+
+pub struct TexFileService {}
+
+impl FileSpec for TexFileService {
+    fn get_proj_file_count(&self, proj_id: &str) -> i64 {
+        use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+        let count = cv_work_table::table
+            .filter(cv_work_table::project_id.eq(proj_id))
+            .count()
+            .get_result(&mut get_connection())
+            .unwrap();
+        return count;
+    }
+
+    fn get_file_by_id(&self, fid: &str) -> Option<TexFile> {
+        use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+        let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+        query = query.filter(cv_work_table::file_id.eq(fid));
+        let cvs: Result<TexFile, Error> = query.first::<TexFile>(&mut get_connection());
+        match cvs {
+            Ok(result) => {
+                return Some(result);
+            }
+            Err(err) => {
+                error!("get files failed, {}", err);
+                return None;
+            }
+        }
+    }
+}
+
+pub fn get_cached_file_by_fid(filter_id: &String) -> Option<TexFile> {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &filter_id);
-    let cached_file = sync_get_str(&file_cached_key).unwrap();
+    let cached_file = sync_get_str(&file_cached_key);
     if cached_file.is_some() {
-        let tf: TexFile = serde_json::from_str(&cached_file.unwrap()).unwrap();
-        return Some(tf);
+        let tf = serde_json::from_str(&cached_file.unwrap());
+        if let Err(e) = tf {
+            error!("parse cached file facing issue,{}", e);
+        } else {
+            return Some(tf.unwrap());
+        }
     }
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
@@ -54,10 +103,52 @@ pub fn get_file_by_fid(filter_id: &String) -> Option<TexFile> {
     }
     let file = &files[0];
     let file_json = serde_json::to_string(file).unwrap();
-    let one_day = Duration::days(1);
-    let seconds_in_one_day = one_day.num_seconds();
-    set_value(&file_cached_key, &file_json, seconds_in_one_day as usize).unwrap();
+    let one_day = Duration::try_days(1);
+    let seconds_in_one_day = one_day.unwrap().num_seconds();
+    set_value(&file_cached_key, &file_json, seconds_in_one_day as u64).unwrap();
     return Some(file.to_owned());
+}
+
+pub fn get_path_content_by_fid(dl_file: &TexFile) -> Option<String> {
+    let download_dir = get_proj_base_dir(&dl_file.project_id);
+    let archive_file_path = join_paths(&[
+        download_dir,
+        dl_file.file_path.clone(),
+        dl_file.name.clone(),
+    ]);
+    return Some(archive_file_path);
+}
+
+pub fn get_file_by_ids(ids: &Vec<String>) -> Vec<TexFile> {
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::file_id.eq_any(ids));
+    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return result;
+        }
+        Err(err) => {
+            error!("get files failed, {}", err);
+            return Vec::new();
+        }
+    }
+}
+
+pub fn get_file_by_int_ids(ids: &Vec<i64>) -> Vec<TexFile> {
+    use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::id.eq_any(ids));
+    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    match cvs {
+        Ok(result) => {
+            return result;
+        }
+        Err(err) => {
+            error!("get files by int id failed, {}", err);
+            return Vec::new();
+        }
+    }
 }
 
 pub fn get_file_list(parent_id: &String) -> Vec<TexFile> {
@@ -84,10 +175,16 @@ pub fn get_main_file_list(project_id: &String) -> Option<TexFile> {
             .eq(project_id)
             .and(cv_work_table::main_flag.eq(1)),
     );
-    let cvs: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
-    match cvs {
-        Ok(result) => {
-            return Some(result[0].to_owned());
+    let tex_files: Result<Vec<TexFile>, Error> = query.load::<TexFile>(&mut get_connection());
+    match tex_files {
+        Ok(files) => {
+            let result = if files.len() > 0 {
+                Some(files[0].to_owned())
+            } else {
+                error!("get main files null, pid: {}", project_id);
+                None
+            };
+            return result;
         }
         Err(err) => {
             error!("get main files failed, {}", err);
@@ -121,25 +218,173 @@ pub fn get_text_file_code(filter_file_id: &String) -> String {
     return contents;
 }
 
-pub fn create_file_ver(add_req: &TexFileVerAddReq, login_user_info: &LoginUserInfo) -> TexFileVersion {
-    use crate::model::diesel::tex::tex_schema::tex_file_version::dsl::*;
-    let new_file = TexFileVersionAdd::gen_tex_file(add_req,login_user_info);
-    let result = diesel::insert_into(tex_file_version)
-        .values(&new_file)
-        .get_result::<TexFileVersion>(&mut get_connection())
-        .expect("failed to add new tex file version");
-    return result;
+pub fn get_proj_history_page_impl(
+    params: &GetProjPageHistory,
+) -> PaginationResponse<Vec<TexFileVersion>> {
+    use crate::model::diesel::tex::tex_schema::tex_file_version as file_version_table;
+    let mut query = file_version_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(file_version_table::project_id.eq(params.project_id.clone()));
+    let query = query
+        .order_by(file_version_table::created_time.desc())
+        .paginate(params.page_num.unwrap_or(1).clone())
+        .per_page(params.page_size.unwrap_or(9).clone());
+    let page_result: QueryResult<(Vec<TexFileVersion>, i64, i64)> =
+        query.load_and_count_pages_total::<TexFileVersion>(&mut get_connection());
+    let page_map_result = map_pagination_res(
+        page_result,
+        params.page_num.unwrap_or(1),
+        params.page_size.unwrap_or(10),
+    );
+    return page_map_result;
 }
 
-pub fn get_proj_history(history_req: &GetProjHistory, login_user_info: &LoginUserInfo) -> Vec<TexFileVersion> {
-    use crate::model::diesel::tex::tex_schema::tex_file_version as cv_work_table;
-    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::project_id.eq(history_req.project_id.clone()));
-    query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    let files: Vec<TexFileVersion> = query
-    .load::<TexFileVersion>(&mut get_connection())
-    .expect("get project version facing error");
-    return files;
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HistoryItem {
+    pub created_time: String,
+    pub name: String,
+    pub diff: String,
+    pub id: String,
+    pub doc_int_id: i64,
+}
+
+pub async fn get_proj_history_page_impl_v1(
+    params: &GetProjHistoryScroll,
+) -> PaginationResponse<Vec<HistoryItem>> {
+    let client = reqwest::Client::new();
+    let base_url = get_app_config("texhub.y_websocket_api_url");
+    let url = format!(
+        "{}/doc/version/proj/scroll?projId={}&offset={}&pageSize={}&fileId={}",
+        base_url.trim_end_matches('/'),
+        params.project_id,
+        params.offset.unwrap_or(i64::MAX),
+        params.page_size.unwrap_or(5),
+        params.file_int_id.as_ref().unwrap_or(&"".to_string())
+    );
+
+    let resp = client.get(&url).send().await;
+    let r = match resp {
+        Ok(r) => r,
+        Err(e) => {
+            error!(
+                "get_proj_history_page_impl_v1: http request failed, error: {:?}",
+                e
+            );
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: 1,
+                    pageSize: 10,
+                    total: 0,
+                },
+                data: vec![],
+            };
+        }
+    };
+
+    let s = match r.text().await {
+        Ok(s) => s,
+        Err(e) => {
+            error!(
+                "get_proj_history_page_impl_v1: failed to get response text, error: {:?}",
+                e
+            );
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: 1,
+                    pageSize: 10,
+                    total: 0,
+                },
+                data: vec![],
+            };
+        }
+    };
+
+    let json = match serde_json::from_str::<serde_json::Value>(&s) {
+        Ok(json) => json,
+        Err(e) => {
+            error!(
+                "get_proj_history_page_impl_v1: json parse error: {:?}, raw: {}",
+                e, s
+            );
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: 1,
+                    pageSize: 10,
+                    total: 0,
+                },
+                data: vec![],
+            };
+        }
+    };
+
+    let arr = match json.get("items").and_then(|v| v.as_array()) {
+        Some(arr) => arr,
+        None => {
+            error!(
+                "get_proj_history_page_impl_v1: 'items' field missing or not array, json: {:?}",
+                json
+            );
+            return PaginationResponse {
+                pagination: Pagination {
+                    pageNum: 1,
+                    pageSize: 10,
+                    total: 0,
+                },
+                data: vec![],
+            };
+        }
+    };
+
+    let data: Vec<HistoryItem> = arr
+        .iter()
+        .filter_map(|item| {
+            let doc_name = item.get("doc_name")?.as_str()?.to_string();
+            let created_time = item.get("created_time")?.as_str()?.to_string();
+            let diff = item.get("diff")?.as_str()?.to_string();
+            let id = item.get("id")?.as_str()?.to_string();
+            let doc_int_id = item
+                .get("doc_int_id")
+                .and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse::<i64>().ok()));
+            if doc_int_id.is_none() {
+                error!(
+                    "get_proj_history_page_impl_v1: doc_int_id is empty or invalid for item: {:?}",
+                    item
+                );
+            }
+            Some(HistoryItem {
+                created_time,
+                name: doc_name,
+                diff,
+                id,
+                doc_int_id: doc_int_id.unwrap_or(0),
+            })
+        })
+        .collect();
+    let rep_name_datas = append_file_name(data);
+    let total = json.get("total").and_then(|v| v.as_i64()).unwrap_or(0);
+    let pagination = Pagination {
+        pageNum: 1,
+        pageSize: 10,
+        total,
+    };
+    PaginationResponse {
+        pagination,
+        data: rep_name_datas,
+    }
+}
+
+fn append_file_name(data: Vec<HistoryItem>) -> Vec<HistoryItem> {
+    let file_ids: Vec<i64> = data.iter().map(|item| item.doc_int_id.clone()).collect();
+    let files = get_file_by_int_ids(&file_ids);
+    let file_name_map: std::collections::HashMap<i64, String> =
+        files.into_iter().map(|file| (file.id, file.name)).collect();
+    data.into_iter()
+        .map(|mut item| {
+            if let Some(file_name) = file_name_map.get(&item.doc_int_id) {
+                item.name = file_name.clone();
+            }
+            item
+        })
+        .collect()
 }
 
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
@@ -156,16 +401,20 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
     if !cvs.is_empty() {
         return box_error_actix_rest_response(
             "already exists",
-            "ALREADY_EXISTS".to_owned(),
+            "RESOURCE_ALREADY_EXISTS".to_owned(),
             "file/folder already exists".to_owned(),
         );
     }
     let gen_file_path = get_file_path(add_req);
     let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info, &gen_file_path);
+    let err_msg = format!(
+        "failed to add new tex file or folder,{}",
+        serde_json::to_string(&new_file).unwrap()
+    );
     let result = diesel::insert_into(tex_file)
         .values(&new_file)
         .get_result::<TexFile>(&mut get_connection())
-        .expect("failed to add new tex file or folder");
+        .expect(&err_msg);
     create_file_on_disk(&result).await;
     del_project_cache(&add_req.project_id).await;
     push_to_fulltext_search(&result, &"hello world".to_string()).await;
@@ -191,7 +440,9 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
             );
         }
     }
-    let set_result = movies.set_filterable_attributes(["name","project_id"]).await;
+    let set_result = movies
+        .set_filterable_attributes(["name", "project_id"])
+        .await;
     match set_result {
         Ok(_) => {}
         Err(se) => {
@@ -228,7 +479,7 @@ fn create_disk_file(file_path: &str) -> std::io::Result<()> {
 }
 
 pub fn get_file_path(add_req: &TexFileAddReq) -> String {
-    match get_file_by_fid(&add_req.parent) {
+    match get_cached_file_by_fid(&add_req.parent) {
         None => {
             if add_req.file_type == 0 {
                 format!("/{}", add_req.name)
@@ -265,11 +516,13 @@ pub async fn rename_trans(
     let mut rename_connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> =
         rename_connection.transaction(|connection| {
-            let tex_file = rename_file_impl(&edit_req_copy, login_user_info, connection);
-            Ok(Some(tex_file))
+            return rename_file_impl(&edit_req_copy, login_user_info, connection);
         });
     if let Err(e) = trans_result {
-        error!("rename file failed,{}", e);
+        error!(
+            "rename file failed,{}, edit req: {:?}, login user: {:?}",
+            e, edit_req_copy, login_user_info
+        );
         return None;
     }
     let renamed_file = trans_result.unwrap();
@@ -284,7 +537,7 @@ pub fn rename_file_impl(
     edit_req: &TexFileRenameReq,
     login_user_info: &LoginUserInfo,
     connection: &mut PgConnection,
-) -> TexFile {
+) -> Result<Option<TexFile>, Error> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
     let predicate = tex_file_table::file_id
@@ -295,15 +548,29 @@ pub fn rename_file_impl(
         login_user_info.userId,
         edit_req.file_id.clone()
     );
+    let fs = TexFileService {};
+    let legacy_file = fs.get_file_by_id(&edit_req.file_id);
+    if legacy_file.is_none() {
+        error!("could not found file, {:?}", &edit_req);
+        return Err(NotFound);
+    }
     let update_result = diesel::update(tex_file.filter(predicate))
-        .set(name.eq(edit_req.name.clone()))
+        .set((name.eq(edit_req.name.clone()),))
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
     let proj_dir = get_proj_base_dir(&update_result.project_id);
     if update_result.file_type == ThFileType::Folder as i32 {
-        handle_folder_rename(proj_dir, &update_result);
+        let rename_result = handle_folder_rename(proj_dir, &legacy_file.unwrap(), &update_result);
+        if let Err(err) = rename_result {
+            error!("folder file err,{}", err);
+            return Err(NotFound);
+        }
     } else {
-        handle_file_rename(proj_dir, &update_result, edit_req);
+        let rename_result = handle_file_rename(proj_dir, &update_result, edit_req);
+        if let Err(err) = rename_result {
+            error!("rename file on disk facing err,{}", err);
+            return Err(NotFound);
+        }
     }
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &edit_req.file_id.clone());
@@ -311,24 +578,25 @@ pub fn rename_file_impl(
     if let Err(e) = del_cache_result {
         error!("failed to delete file cache,{}", e);
     }
-    return update_result;
+    return Ok(Some(update_result));
 }
 
-fn handle_folder_rename(proj_dir: String, update_result: &TexFile) {
-    let legacy_path = join_paths(&[proj_dir.clone(), update_result.file_path.clone()]);
-    let new_path = join_paths(&[proj_dir, update_result.file_path.clone()]);
-    match fs::rename(legacy_path.clone(), new_path.clone()) {
-        Ok(()) => {}
-        Err(e) => {
-            error!(
-                "rename project folder facing issue {}, legacy path: {}, new path: {}",
-                e, legacy_path, new_path
-            );
-        }
-    }
+fn handle_folder_rename(
+    proj_dir: String,
+    legacy_file: &TexFile,
+    new_file: &TexFile,
+) -> Result<(), std::io::Error> {
+    let legacy_path = join_paths(&[proj_dir.clone(), legacy_file.file_path.to_string()]);
+
+    let new_path = join_paths(&[proj_dir, new_file.file_path.to_string()]);
+    return fs::rename(legacy_path.clone(), new_path.clone());
 }
 
-fn handle_file_rename(proj_dir: String, update_result: &TexFile, edit_req: &TexFileRenameReq) {
+fn handle_file_rename(
+    proj_dir: String,
+    update_result: &TexFile,
+    edit_req: &TexFileRenameReq,
+) -> Result<(), std::io::Error> {
     let legacy_path = join_paths(&[
         proj_dir.clone(),
         update_result.file_path.clone(),
@@ -339,15 +607,14 @@ fn handle_file_rename(proj_dir: String, update_result: &TexFile, edit_req: &TexF
         update_result.file_path.clone(),
         edit_req.name.clone(),
     ]);
-    match fs::rename(legacy_path.clone(), new_path.clone()) {
-        Ok(()) => {}
-        Err(e) => {
-            error!(
-                "rename project file facing issue {}, legacy path: {}, new path: {}",
-                e, legacy_path, new_path
-            );
-        }
+    let rename_result = fs::rename(legacy_path.clone(), new_path.clone());
+    if let Err(err) = rename_result.as_ref() {
+        error!(
+            "rename file on disk failed, err:{}, legacy path: {}, new path:{},update result: {:?}",
+            err, legacy_path, new_path, update_result
+        );
     }
+    rename_result
 }
 
 fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error> {
@@ -368,18 +635,20 @@ fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error>
     Ok(())
 }
 
-pub async fn mv_file_impl(
-    edit_req: &MoveFileReq,
+pub fn mv_file_impl(
+    move_req: &MoveFileReq,
     login_user_info: &LoginUserInfo,
+    src_file: &TexFile,
+    dist_file: &TexFile,
 ) -> Result<Option<TexFile>, Error> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
     let mut connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> = connection.transaction(|connection| {
-        let proj_dir = get_proj_base_dir(&edit_req.project_id);
-        if edit_req.file_type == ThFileType::Folder as i32 {
-            let src_dir = join_paths(&[proj_dir.clone(), edit_req.src_path.clone()]);
-            let dist_dir = join_paths(&[proj_dir.clone(), edit_req.dist_path.clone()]);
+        let proj_dir = get_proj_base_dir(&move_req.project_id);
+        if src_file.file_type == ThFileType::Folder as i32 {
+            let src_dir = join_paths(&[proj_dir.clone(), src_file.file_path.clone()]);
+            let dist_dir = join_paths(&[proj_dir.clone(), dist_file.file_path.clone()]);
             let m_result = move_directory(&src_dir, &dist_dir);
             if let Err(err) = m_result {
                 error!(
@@ -391,13 +660,15 @@ pub async fn mv_file_impl(
         } else {
             let src_path = join_paths(&[
                 proj_dir.clone(),
-                edit_req.src_path.clone(),
-                edit_req.file_name.clone(),
+                src_file.file_path.clone(),
+                src_file.name.clone(),
             ]);
+            // https://stackoverflow.com/questions/78251705/is-a-directory-os-error-21-when-using-rust-to-move-a-file
             let dist_path = join_paths(&[
                 proj_dir.clone(),
-                edit_req.dist_path.clone(),
-                edit_req.file_name.clone(),
+                dist_file.file_path.clone(),
+                "/".to_owned(),
+                src_file.name.clone(),
             ]);
             let fm = fs::rename(&src_path, &dist_path);
             if let Err(err) = fm {
@@ -409,17 +680,17 @@ pub async fn mv_file_impl(
             }
         }
         let predicate = tex_file_table::file_id
-            .eq(edit_req.file_id.clone())
+            .eq(move_req.file_id.clone())
             .and(tex_file_table::user_id.eq(login_user_info.userId))
-            .and(tex_file_table::project_id.eq(edit_req.project_id.clone()));
-        let new_relative_path = if edit_req.file_type == ThFileType::Folder as i32 {
-            join_paths(&[edit_req.dist_path.clone(), edit_req.file_name.clone()])
+            .and(tex_file_table::project_id.eq(move_req.project_id.clone()));
+        let new_relative_path = if src_file.file_type == ThFileType::Folder as i32 {
+            join_paths(&[dist_file.file_path.clone(), dist_file.name.clone()])
         } else {
-            edit_req.dist_path.clone()
+            dist_file.file_path.clone()
         };
         let update_result = diesel::update(tex_file.filter(predicate))
             .set((
-                parent.eq(edit_req.parent_id.clone()),
+                parent.eq(dist_file.file_id.clone()),
                 file_path.eq(new_relative_path),
             ))
             .get_result::<TexFile>(connection)
@@ -429,13 +700,17 @@ pub async fn mv_file_impl(
     return trans_result;
 }
 
-pub fn delete_file_recursive(del_req: &TexFileDelReq, tex_file: &TexFile) -> Result<usize, Error> {
+pub fn delete_file_recursive(
+    del_req: &TexFileDelReq,
+    tex_file: &TexFile,
+    uid: i64,
+) -> Result<usize, Error> {
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
         let delete_result = del_single_file(&del_req.file_id, connection);
         match delete_result {
             Ok(proj) => {
-                del_project_file(&del_req.file_id, connection);
+                del_project_file(&del_req.file_id, &uid, connection);
                 task::spawn_blocking({
                     let del_tex_file = tex_file.clone();
                     move || {
@@ -483,7 +758,7 @@ pub fn del_single_file(
     return delete_result;
 }
 
-pub fn get_file_tree(parent_id: &String) -> Vec<FileTreeResp> {
+pub fn get_file_tree(parent_id: &String) -> Vec<FileTree> {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::parent.eq(parent_id));
@@ -499,7 +774,71 @@ pub fn get_file_tree(parent_id: &String) -> Vec<FileTreeResp> {
     }
 }
 
-pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> Vec<FileTreeResp> {
+pub fn proj_folder_tree(parent_id: &String) -> Option<FolderTreeResp> {
+    let sub_tree = find_folder_sub_menu_cte_impl(parent_id);
+    // add the virtual root node
+    let virtual_root_node = FolderTreeResp::new_virtual_root(parent_id, sub_tree);
+    return Some(virtual_root_node);
+}
+
+pub fn find_folder_sub_menu_cte_impl(root_id: &String) -> Vec<FolderTreeResp> {
+    let mut connection = get_connection();
+    let cte_query_sub_menus = format!(
+        " with recursive sub_files as (
+            select 
+              id, 
+              name, 
+              sort,
+              file_id, 
+              project_id,
+              file_type,
+              parent,
+              file_path 
+            from 
+              tex_file mr 
+            where 
+              parent = '{}'
+              and file_type = 0
+            union all 
+            select 
+              origin.id, 
+              origin.name,
+              origin.sort,
+              origin.file_id,           
+              origin.project_id,
+              origin.file_type,
+              origin.parent,
+              origin.file_path 
+            from 
+              sub_files
+            join tex_file origin 
+            on origin.parent = sub_files.file_id
+            where origin.file_type = 0
+          ) 
+          select 
+            id, 
+            name, 
+            sort,
+            file_id, 
+            project_id,
+            file_type,
+            parent,
+            file_path 
+          from 
+            sub_files 
+          order by 
+            sort asc;      
+    ",
+        root_id
+    );
+    let cte_menus = sql_query(cte_query_sub_menus)
+        .load::<TexFolderTree>(&mut connection)
+        .expect("Error find file");
+    let menu_resource_resp: Vec<FolderTreeResp> = map_entity(cte_menus);
+    return convert_folder_to_tree_impl(&menu_resource_resp, root_id);
+}
+
+pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> Vec<FileTree> {
     let mut connection = get_connection();
     let cte_query_sub_menus = format!(
         " with recursive sub_files as (
@@ -521,7 +860,7 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
         from 
           tex_file mr 
         where 
-          parent = '{}' 
+          parent = '{}'
         union all 
         select 
           origin.id, 
@@ -567,11 +906,11 @@ pub fn find_sub_menu_cte_impl(_root_menus: &Vec<TexFile>, root_id: &String) -> V
     let cte_menus = sql_query(cte_query_sub_menus)
         .load::<TexFile>(&mut connection)
         .expect("Error find file");
-    let menu_resource_resp: Vec<FileTreeResp> = map_entity(cte_menus);
+    let menu_resource_resp: Vec<FileTree> = map_entity(cte_menus);
     return convert_to_tree_impl(&menu_resource_resp, root_id);
 }
 
-fn convert_to_tree_impl(contents: &Vec<FileTreeResp>, root_id: &str) -> Vec<FileTreeResp> {
+fn convert_to_tree_impl(contents: &Vec<FileTree>, root_id: &str) -> Vec<FileTree> {
     let root_element: Vec<_> = contents
         .iter()
         .filter(|content| content.parent == root_id)
@@ -582,4 +921,121 @@ fn convert_to_tree_impl(contents: &Vec<FileTreeResp>, root_id: &str) -> Vec<File
         .collect();
     let result = convert_to_tree(&root_element, &sub_element);
     return result;
+}
+
+fn convert_folder_to_tree_impl(
+    contents: &Vec<FolderTreeResp>,
+    root_id: &str,
+) -> Vec<FolderTreeResp> {
+    let root_element: Vec<_> = contents
+        .iter()
+        .filter(|content| content.parent == root_id)
+        .collect();
+    let sub_element: Vec<_> = contents
+        .iter()
+        .filter(|content| content.parent != root_id)
+        .collect();
+    let result = convert_to_tree(&root_element, &sub_element);
+    return result;
+}
+
+pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>) -> HttpResponse {
+    let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
+    let pdf_name = format!(
+        "{}{}",
+        get_filename_without_ext(&lastest_pdf.file_name),
+        ".pdf"
+    );
+    let pdf_file_path = join_paths(&[proj_base_dir, "app-compile-output".to_owned(), pdf_name]);
+    if range.is_none() {
+        let open_err = format!("Failed to open file, {}", &pdf_file_path);
+        if !Path::new(&pdf_file_path).exists() {
+            error!("file not exists,{}", &pdf_file_path);
+            return HttpResponse::NotFound().body("no content");
+        }
+        let mut buf = Vec::new();
+        let mut file = File::open(&pdf_file_path).expect(&open_err);
+        let read_result = file.read_to_end(&mut buf);
+        if let Err(err) = read_result {
+            error!(
+                "read file facing issue, path:{},err:{}",
+                &pdf_file_path.clone(),
+                err
+            );
+        }
+        let metadata = file.metadata().expect("Failed to get metadata");
+        let file_size = metadata.len();
+        return HttpResponse::PartialContent()
+            .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+            .append_header(("Accept-Ranges", "bytes"))
+            .append_header(("Content-Length", file_size))
+            .append_header((
+                "Access-Control-Expose-Headers",
+                "Accept-Ranges,Content-Range",
+            ))
+            .content_type("application/pdf")
+            .body(buf);
+    }
+    let bytes_info: Vec<&str> = range.unwrap().to_str().unwrap().split("=").collect();
+    let mut parts = bytes_info[1].split('-');
+    let start = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
+    let end = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
+    let mut file = File::open(pdf_file_path).expect("Failed to open file");
+    let metadata = file.metadata().expect("Failed to get metadata");
+    let file_size = metadata.len();
+    file.seek(SeekFrom::Start(start))
+        .expect("Failed to seek file");
+    let mut buf = vec![0; (end - start + 1) as usize];
+    file.take(end - start + 1)
+        .read_exact(&mut buf)
+        .expect("Failed to read file");
+    let content_range = format!("bytes {}-{}/{}", start, end, file_size);
+    return HttpResponse::PartialContent()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .append_header(("Content-Range", content_range))
+        .append_header(("Accept-Ranges", "bytes"))
+        .append_header(("Content-Length", file_size))
+        .append_header((
+            "Access-Control-Expose-Headers",
+            "Accept-Ranges,Content-Range",
+        ))
+        .content_type("application/pdf")
+        .body(buf);
+}
+
+pub fn get_full_pdf(lastest_pdf: &LatestCompile, req: HttpRequest) -> HttpResponse {
+    let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
+    let pdf_name = format!(
+        "{}{}",
+        get_filename_without_ext(&lastest_pdf.file_name),
+        ".pdf"
+    );
+    let pdf_file_path = join_paths(&[proj_base_dir, "app-compile-output".to_owned(), pdf_name]);
+    match NamedFile::open(&pdf_file_path.clone()) {
+        Ok(file) => {
+            let content_type: Mime = "application/pdf".parse().unwrap();
+            return NamedFile::set_content_type(file, content_type)
+                .set_content_disposition(ContentDisposition {
+                    disposition: DispositionType::Inline,
+                    parameters: vec![],
+                })
+                .into_response(&req);
+        }
+        Err(e) => {
+            error!("Error open pdf file {},{}", pdf_file_path, e);
+            return ErrorBadRequest("File not Found").into();
+        }
+    }
+}
+
+pub fn get_pdf_content_length(lastest_pdf: &LatestCompile) -> Option<Metadata> {
+    let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
+    let pdf_file_path = join_paths(&[proj_base_dir, lastest_pdf.file_name.clone()]);
+    let file = File::open(pdf_file_path.clone());
+    if let Err(err) = file {
+        error!("open file failed: err:{}, path: {}", err, pdf_file_path);
+        return None;
+    }
+    let file_metadata = file.unwrap().metadata().expect("Failed to get metadata");
+    return Some(file_metadata);
 }

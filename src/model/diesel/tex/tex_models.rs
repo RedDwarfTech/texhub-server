@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::model::diesel::tex::tex_schema::*;
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[table_name = "tex_comp_queue"]
+#[diesel(table_name = "tex_comp_queue")]
 pub struct TexCompQueue {
     pub id: i64,
     pub created_time: i64,
@@ -22,7 +22,7 @@ pub struct TexCompQueue {
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[table_name = "tex_file"]
+#[diesel(table_name = "tex_file")]
 pub struct TexFile {
     pub id: i64,
     pub name: String,
@@ -41,7 +41,7 @@ pub struct TexFile {
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[table_name = "tex_file_version"]
+#[diesel(table_name = "tex_file_version")]
 pub struct TexFileVersion {
     pub id: i64,
     pub name: String,
@@ -50,11 +50,15 @@ pub struct TexFileVersion {
     pub user_id: i64,
     pub project_id: String,
     pub file_id: String,
-    pub content: Option<String>,
+    pub content: String,
+    pub action: i32,
+    pub snapshot: String,
+    pub snapshot_hash: String,
+    pub version_status: i16,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[table_name = "tex_proj_editor"]
+#[diesel(table_name = "tex_proj_editor")]
 pub struct TexProjEditor {
     pub id: i64,
     pub role_id: i32,
@@ -64,10 +68,39 @@ pub struct TexProjEditor {
     pub collar_status: i32,
     pub sort: i32,
     pub project_id: String,
+    pub trash: i32,
+    pub archive_status: i32,
+    pub proj_status: i32,
+    pub nickname: String,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[table_name = "tex_project"]
+#[diesel(table_name = "tex_proj_folder")]
+pub struct TexProjFolder {
+    pub id: i64,
+    pub folder_name: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub sort: i32,
+    pub proj_type: i32,
+    pub default_folder: i32,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_proj_folder_map")]
+pub struct TexProjFolderMap {
+    pub id: i64,
+    pub folder_id: i64,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub project_id: String,
+    pub user_id: i64,
+    pub proj_type: i32,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_project")]
 pub struct TexProject {
     pub id: i64,
     pub proj_name: String,
@@ -78,10 +111,25 @@ pub struct TexProject {
     pub template_id: i64,
     pub project_id: String,
     pub nickname: String,
+    pub archive_status: i32,
+    pub deleted: i32,
+    pub proj_source_type: i16,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
-#[table_name = "tex_template"]
+#[diesel(table_name = "tex_snippet")]
+pub struct TexSnippet {
+    pub id: i64,
+    pub snippet: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub sort: i32,
+    pub title: String,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_template")]
 pub struct TexTemplate {
     pub id: i64,
     pub name: String,
@@ -102,5 +150,17 @@ pub struct TexTemplate {
     pub template_type: i32,
     pub pdf_name: String,
     pub main_file_name: String,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = "tex_user_config")]
+pub struct TexUserConfig {
+    pub id: i64,
+    pub config_key: String,
+    pub remark: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub config_value: String,
+    pub user_id: i64,
 }
 

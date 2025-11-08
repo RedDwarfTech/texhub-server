@@ -1,13 +1,16 @@
 use crate::common::database::get_connection;
 use crate::diesel::RunQueryDsl;
+use crate::model::dict::proj_source_type::ProjSourceType;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexProject, TexTemplate};
 use crate::model::request::tpl::query::tpl_query_params::TplQueryParams;
 use crate::model::response::tpl::tex_tpl_resp::TexTplResp;
-use diesel::{ExpressionMethods, QueryDsl, TextExpressionMethods, QueryResult};
+use diesel::{ExpressionMethods, QueryDsl, QueryResult, TextExpressionMethods};
 use log::error;
 use rust_wheel::common::query::pagination::Paginate;
-use rust_wheel::common::util::model_convert::{map_pagination_res, map_entity, map_pagination_from_list};
+use rust_wheel::common::util::model_convert::{
+    map_entity, map_pagination_from_list, map_pagination_res,
+};
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use rust_wheel::model::response::pagination_response::PaginationResponse;
 use uuid::Uuid;
@@ -50,7 +53,8 @@ pub fn get_tpl_page_impl(params: &TplQueryParams) -> PaginationResponse<Vec<TexT
     let query = query
         .paginate(params.page_num.unwrap_or(1).clone())
         .per_page(params.page_size.unwrap_or(9).clone());
-    let page_result:QueryResult<(Vec<TexTemplate>, i64, i64)> = query.load_and_count_pages_total::<TexTemplate>(&mut get_connection());
+    let page_result: QueryResult<(Vec<TexTemplate>, i64, i64)> =
+        query.load_and_count_pages_total::<TexTemplate>(&mut get_connection());
     let page_map_result = map_pagination_res(
         page_result,
         params.page_num.unwrap_or(1),
@@ -74,14 +78,15 @@ pub fn get_tpl_partial_page_impl(params: &TplQueryParams) -> PaginationResponse<
     let query = query
         .paginate(params.page_num.unwrap_or(1).clone())
         .per_page(params.page_size.unwrap_or(9).clone());
-    let page_result:QueryResult<(Vec<TexTemplate>, i64, i64)> = query.load_and_count_pages_total::<TexTemplate>(&mut get_connection());
+    let page_result: QueryResult<(Vec<TexTemplate>, i64, i64)> =
+        query.load_and_count_pages_total::<TexTemplate>(&mut get_connection());
     let tpl_resp: Vec<TexTplResp> = map_entity(page_result.as_ref().unwrap().clone().0);
     let total = page_result.as_ref().unwrap().2;
     let page_map_result = map_pagination_from_list(
         tpl_resp,
         params.page_num.unwrap_or(1),
         params.page_size.unwrap_or(10),
-        total
+        total,
     );
     return page_map_result;
 }
@@ -97,7 +102,9 @@ pub fn create_tpl(input_doc: &String) -> TexProject {
         proj_status: 1,
         template_id: 1,
         project_id: uuid_string,
-        nickname: "default".to_string()
+        nickname: "default".to_string(),
+        proj_source_type: ProjSourceType::TeXHubTemplate as i16,
+        proj_source: "tpl".to_owned(),
     };
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
 
@@ -117,4 +124,3 @@ pub fn get_tempalte_by_id(tpl_id: &i64) -> TexTemplate {
         .expect("error get template by id");
     return tpl.get(0).unwrap().to_owned();
 }
-

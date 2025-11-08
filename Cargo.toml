@@ -7,24 +7,25 @@ edition = "2021"
 
 [dependencies]
 validator = { version = "0.16.1", features = ["derive"] }
-serde = { version = "1.0.64", features = ["derive"] }
-serde_json = "1.0.64"
-rust_wheel = { git = "https://github.com/jiangxiaoqiang/rust_wheel.git", branch = "diesel2.0", features = [
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+rust_wheel = { git = "https://github.com/jiangxiaoqiang/rust_wheel.git", branch = "main", features = [
     "model",
     "common",
     "rwconfig",
     "texhub"
 ] }
-tokio-tungstenite = "0.20.0"
-tokio = { version = "1.17.0", features = ["full"] }
+rustls = { version = "0.23", features = ["ring","logging","tls12"], default-features = false }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+tokio = { version = "1.41.1", features = ["full"] }
 futures-util = { version = "0.3.28", default-features = false, features = [
     "sink",
     "std",
 ] }
 futures-channel = "0.3.28"
-log4rs = "1.2.0"
-log = "0.4.0"
-diesel = { version = "2.1.0", features = [
+log4rs = "1.3.0"
+log = "0.4.22"
+diesel = { version = "2.2.12", features = [
     "postgres",
     "64-column-tables",
     "chrono",
@@ -38,7 +39,7 @@ uuid = { version = "1.4.1", features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ] }
 chrono = { version = "0.4.26" }
-reqwest = { version = "0.11.18", features = ["json", "stream"] }
+reqwest = { version = "0.11.18", features = ["json", "stream","blocking"] }
 futures = "0.3"
 actix-web = "4"
 actix-web-validator = "5.0.1"
@@ -53,9 +54,14 @@ jemalloc-ctl = "0.5.4"
 prometheus = "0.13.3"
 meilisearch-sdk = "0.24.2"
 redlock = "2.0.0"
-redis = "0.23.3"
-zip = "0.6"
+redis = "0.27.2"
+zip = "2.2.0"
 mime = "0.3.17"
+rust-i18n = "3"
+ring = "0.16.20"
+thiserror = "1.0.61"
+git2 = "0.19.0"
+octocrab = "0.41.0"
 
 [dependencies.jemalloc-sys]
 version = "0.5.4"
@@ -65,4 +71,10 @@ features = ["stats", "profiling", "unprefixed_malloc_on_supported_platforms"]
 bindgen = "0.65.1"
 
 [profile.release]
-debug = true
+# https://stackoverflow.com/questions/29008127/why-are-rust-executables-so-huge
+opt-level = 'z'     # Optimize for size
+lto = true          # Enable link-time optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations
+panic = 'abort'     # Abort on panic
+strip = true        # Strip symbols from binary*
+debug = false

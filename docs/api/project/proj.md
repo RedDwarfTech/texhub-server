@@ -1,0 +1,6 @@
+查询项目信息：
+
+```Bash
+curl -X GET -H 'authorization:Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjEwMywiZGV2aWNlSWQiOiI2NjgxMmMwNTgwZmM3N2FjNThkZWFkNTBkMDQwMmYwMyIsImFwcElkIjoibjI5UGEyOVdTMSIsImx0IjoxLCJldCI6MCwicGlkIjoxMywiZXhwIjoxNzUzNTEyMDU2fQ.Uq8OMbM9gUjaWp0yfxjQ9UsIFsvI7ZbPsz3hyHyCC9w' http://127.0.0.1:8000/tex/project/info?project_id=287ea73d1c78463298e9e5b267cab87f
+```
+

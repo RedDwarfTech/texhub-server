@@ -1,10 +1,12 @@
+use crate::model::diesel::{custom::file::file_tree::FileTree, tex::custom_tex_models::TexFile};
 use rust_wheel::common::util::convert_to_tree_generic::IntoTree;
-use serde::{Serialize, Deserialize};
-use crate::model::diesel::tex::custom_tex_models::TexFile;
+use serde::{Deserialize, Serialize};
+use crate::common::utils::url_parse::json_as_string;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct FileTreeResp {
+    #[serde(serialize_with = "json_as_string")]
     pub id: i64,
     pub name: String,
     pub created_time: i64,
@@ -18,7 +20,7 @@ pub struct FileTreeResp {
     pub parent: String,
     pub main_flag: i16,
     pub yjs_initial: i16,
-    pub children: Vec<FileTreeResp>
+    pub children: Vec<FileTreeResp>,
 }
 
 impl Default for FileTreeResp {
@@ -59,6 +61,27 @@ impl From<&TexFile> for FileTreeResp {
             parent: p.parent.clone(),
             main_flag: p.main_flag,
             yjs_initial: p.yjs_initial,
+        }
+    }
+}
+
+impl From<&FileTree> for FileTreeResp {
+    fn from(p: &FileTree) -> Self {
+        Self {
+            id: p.id,
+            name: p.name.clone(),
+            created_time: p.created_time,
+            updated_time: p.updated_time,
+            user_id: p.user_id,
+            doc_status: p.doc_status,
+            project_id: p.project_id.clone(),
+            file_type: p.file_type,
+            file_path: p.file_path.clone(),
+            file_id: p.file_id.clone(),
+            parent: p.parent.clone(),
+            main_flag: p.main_flag,
+            yjs_initial: p.yjs_initial,
+            children: p.children.iter().map(|c| FileTreeResp::from(c)).collect(),
         }
     }
 }

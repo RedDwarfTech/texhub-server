@@ -1,10 +1,12 @@
 #![allow(unused)]
 #![allow(clippy::all)]
 
+use crate::model::diesel::custom::file::file_tree::FileTree;
 use crate::model::diesel::tex::custom_tex_models::TexFile;
 use crate::model::diesel::tex::custom_tex_models::TexProject;
 use crate::model::diesel::tex::tex_schema::*;
 use crate::model::response::file::file_tree_resp::FileTreeResp;
+use crate::model::response::file::tex_file_resp::TexFileResp;
 use rust_wheel::common::util::time_util::get_current_millisecond;
 use serde::Deserialize;
 use serde::Serialize;
@@ -14,11 +16,11 @@ use uuid::Uuid;
 pub struct TexProjectCache {
     pub main: TexProject,
     pub main_file: TexFile,
-    pub tree: Vec<FileTreeResp>,
+    pub tree: Vec<FileTree>,
 }
 
 impl TexProjectCache {
-    pub(crate) fn from_db(main: &TexProject, main_file: TexFile, tree: Vec<FileTreeResp>) -> Self {
+    pub(crate) fn from_db(main: &TexProject, main_file: TexFile, tree: Vec<FileTree>) -> Self {
         Self {
             main: main.clone(),
             main_file,

@@ -1,0 +1,18 @@
+[texhub]
+port = 8000
+compile_base_dir = "/opt/data/project"
+download_base_dir = "/opt/data/download/project"
+tpl_files_base_dir = "/opt/data/tpl-files"
+x_access_token = "demo"
+meilisearch_url = "http://meilisearch.reddwarf-toolbox.svc.cluster.local:7700"
+render_api_url = "http://cv-render-service.reddwarf-pro.svc.cluster.local:8000"
+y_websocket_api_url = "http://texhub-broadcast-service.reddwarf-pro.svc.cluster.local:1234"
+compile_group_name = "g-comp-queue"
+compile_stream_redis_key = "texhub-server:proj:s-comp-queue"
+compile_status_cached_key = "texhub-server:proj:queue"
+fileinfo_redis_key = "texhub-server:proj:file"
+default_tex_document = "\\documentclass{article}\n\n\\begin{document}\nHello, World!\n\\end{document}"
+proj_cache_key = "texhub-server:proj:info"
+yjs_sync_file_type = "tex,cls,bib,bbl,md,txt,cfg,dtx,ins,def,bst"
+sys_events_stream = "sys:event"
+max_github_repo_size = "204800"

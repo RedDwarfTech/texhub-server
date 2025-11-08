@@ -34,7 +34,9 @@ pub struct TexProject {
     pub project_id: String,
     pub nickname: String,
     pub archive_status: i32,
-    pub deleted: i32
+    pub deleted: i32,
+    pub proj_source_type: i16,
+    pub proj_source: String
 }
 
 #[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
@@ -81,6 +83,20 @@ pub struct TexFile {
     pub file_path: String
 }
 
+#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
+#[diesel(table_name = tex_file)]
+#[serde(default)]
+pub struct TexFolderTree {
+    pub id: i64,
+    pub name: String,
+    pub project_id: String,
+    pub file_type: i32,
+    pub file_id: String,
+    pub parent: String,
+    pub sort: i32,
+    pub file_path: String
+}
+
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
 #[diesel(table_name = tex_proj_editor)]
 pub struct TexProjEditor {
@@ -93,7 +109,9 @@ pub struct TexProjEditor {
     pub sort: i32,
     pub project_id: String,
     pub trash: i32,
-    pub archive_status: i32
+    pub archive_status: i32,
+    pub proj_status: i32,
+    pub nickname: String
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
@@ -109,4 +127,55 @@ pub struct TexFileVersion {
     pub content: String,
     pub action: i32,
     pub snapshot: String,
+    pub snapshot_hash: String,
+    pub version_status: i16
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_proj_folder)]
+pub struct TexProjFolder {
+    pub id: i64,
+    pub folder_name: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub sort: i32,
+    pub proj_type: i32,
+    pub default_folder: i32,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_proj_folder_map)]
+pub struct TexProjFolderMap {
+    pub id: i64,
+    pub folder_id: i64,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub project_id: String,
+    pub user_id: i64,
+    pub proj_type: i32,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_snippet)]
+pub struct TexSnippet {
+    pub id: i64,
+    pub snippet: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub user_id: i64,
+    pub sort: i32,
+    pub title: String,
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_user_config)]
+pub struct TexUserConfig {
+    pub id: i64,
+    pub config_key: String,
+    pub remark: String,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub config_value: String,
+    pub user_id: i64,
 }

@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: texhub-server-service
+  namespace: reddwarf-pro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: texhub-server-service
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: texhub-server-service
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2024-06-22T22:21:43+08:00'
+    spec:
+      volumes:
+        - name: texhub-server-service-persistent-storage
+          persistentVolumeClaim:
+            claimName: texhub-server-service-pv-claim
+      containers:
+        - name: texhub-server-service
+          image: >-
+            registry.cn-hongkong.aliyuncs.com/reddwarf-pro/texhub-server:d62c64cb9dbb6db1b5fbcd9e59217b1eda003b29
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            - name: TEXHUB_REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: texhub-server-service-pro-config
+                  key: texhub_redis_addr
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: texhub-server-service-pro-config
+                  key: redis_addr
+            - name: TEX_DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: texhub-server-service-pro-config
+                  key: tex_database_url
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: texhub-server-service-pro-config
+                  key: meili_master_key
+            - name: ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: texhub-server-service-pro-config
+                  key: env
+            - name: INFRA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: texhub-server-service-pro-config
+                  key: infra_url
+          resources:
+            limits:
+              cpu: 100m
+              memory: 90Mi
+            requests:
+              cpu: 20m
+              memory: 15Mi
+          volumeMounts:
+            - name: texhub-server-service-persistent-storage
+              mountPath: /opt/data
+              mountPropagation: HostToContainer
+          livenessProbe:
+            httpGet:
+              path: /texhub/actuator/liveness
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      imagePullSecrets:
+        - name: hongkong-regcred
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
