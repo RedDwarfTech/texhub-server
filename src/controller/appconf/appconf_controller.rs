@@ -24,7 +24,7 @@ pub async fn save_github_token(
 }
 
 pub async fn get_config_by_key(
-    params: web::Json<GithubTokenQuery>
+    params: web::Query<GithubTokenQuery>
 ) -> impl Responder {
     let conf = get_user_config_by_key(&params.0.user_id, params.0.key);
     let res = ApiResponse {
