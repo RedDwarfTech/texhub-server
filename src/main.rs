@@ -6,6 +6,7 @@ extern crate rust_i18n;
 
 i18n!("locales");
 
+use crate::controller::appconf::appconf_inner_controller;
 use crate::controller::profile::profile_controller;
 use crate::controller::project::queue::proj_queue_controller;
 use actix_multipart::MultipartError;
