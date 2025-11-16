@@ -57,6 +57,7 @@ async fn main() -> std::io::Result<()> {
             .configure(proj_share_controller::config)
             .configure(file_version_controller::config)
             .configure(appconf_controller::config)
+            .configure(appconf_inner_controller::config)
             .configure(proj_queue_controller::config)
     })
     .workers(3)

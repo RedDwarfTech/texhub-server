@@ -41,10 +41,3 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/user-one-config", web::get().to(get_config_by_key)),
     );
 }
-
-pub fn inner_config(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/inner-tex/appconf")
-            .route("/user-one-config", web::post().to(get_config_by_key)),
-    );
-}
