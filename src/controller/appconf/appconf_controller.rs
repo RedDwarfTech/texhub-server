@@ -24,10 +24,9 @@ pub async fn save_github_token(
 }
 
 pub async fn get_config_by_key(
-    params: web::Json<GithubTokenQuery>,
-    login_user_info: LoginUserInfo,
+    params: web::Json<GithubTokenQuery>
 ) -> impl Responder {
-    let conf = get_user_config_by_key(&login_user_info.userId, params.0.key);
+    let conf = get_user_config_by_key(&params.0.user_id, params.0.key);
     let res = ApiResponse {
         result: conf,
         ..Default::default()
@@ -40,5 +39,12 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/tex/appconf")
             .route("/github-token", web::put().to(save_github_token))
             .route("/user-one-config", web::get().to(get_config_by_key)),
+    );
+}
+
+pub fn inner_config(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/inner-tex/appconf")
+            .route("/user-one-config", web::post().to(get_config_by_key)),
     );
 }
