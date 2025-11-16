@@ -4,7 +4,7 @@ use crate::{
     common::database::get_connection, model::diesel::tex::custom_tex_models::TexUserConfig,
 };
 use diesel::upsert::on_constraint;
-use diesel::{ExpressionMethods, QueryDsl};
+use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl};
 use log::error;
 
 pub fn get_user_config(uid: &i64) -> Option<Vec<TexUserConfig>> {
@@ -17,6 +17,25 @@ pub fn get_user_config(uid: &i64) -> Option<Vec<TexUserConfig>> {
         return None;
     }
     return Some(files.unwrap());
+}
+
+pub fn get_user_config_by_key(uid: &i64, key: String) -> Option<TexUserConfig> {
+    use crate::model::diesel::tex::tex_schema::tex_user_config as user_config_table;
+    let mut query = user_config_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(
+        user_config_table::user_id
+            .eq(uid)
+            .and(user_config_table::config_key.eq(key)),
+    );
+
+    match query.first::<TexUserConfig>(&mut get_connection()) {
+        Ok(conf) => Some(conf),
+        Err(diesel::result::Error::NotFound) => None,
+        Err(err) => {
+            error!("Failed to get user config,{}", err);
+            None
+        }
+    }
 }
 
 pub fn save_user_config(uid: &i64, key: &String, value: &String) {
