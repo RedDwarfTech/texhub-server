@@ -1295,6 +1295,7 @@ pub async fn add_compile_to_queue(
     let qid = queue_result.as_ref().unwrap().id.to_string();
     let proj_created_time = proj_cache.clone().unwrap().main.created_time;
     let created_time_str = proj_created_time.to_string();
+    let user_id_str = login_user_info.userId.to_string();
     let s_params = [
         ("file_path", file_path.as_str()),
         ("out_path", out_path.as_str()),
@@ -1307,6 +1308,7 @@ pub async fn add_compile_to_queue(
         ),
         ("log_file_name", log_file_name.as_str()),
         ("proj_created_time", created_time_str.as_str()),
+        ("user_id", &user_id_str.as_str()),
     ];
     let p_result = push_to_stream(&stream_key.as_str(), &s_params);
     if let Err(pe) = p_result {
