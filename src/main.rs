@@ -8,7 +8,10 @@ i18n!("locales");
 
 use crate::controller::appconf::appconf_inner_controller;
 use crate::controller::profile::profile_controller;
+use crate::controller::project::proj::proj_inner_controller;
 use crate::controller::project::queue::proj_queue_controller;
+use crate::controller::project::share::proj_share_controller;
+use crate::controller::project::snippet_controller;
 use actix_multipart::MultipartError;
 use actix_web::Error;
 use actix_web::{App, HttpRequest, HttpServer};
@@ -16,9 +19,8 @@ use controller::appconf::appconf_controller;
 use controller::{
     collar::collar_controller,
     file::{file_controller, file_version_controller},
-    project::{
-        proj_controller, proj_event_handler::consume_sys_events, share::proj_share_controller,
-        snippet_controller,
+    project::proj::{
+        proj_controller, proj_event_handler::consume_sys_events
     },
     template::template_controller,
 };
@@ -51,6 +53,7 @@ async fn main() -> std::io::Result<()> {
             .configure(collar_controller::config)
             .configure(health_controller::config)
             .configure(proj_controller::config)
+            .configure(proj_inner_controller::config)
             .configure(template_controller::config)
             .configure(file_controller::config)
             .configure(profile_controller::config)
