@@ -3,5 +3,7 @@
 b = "build"
 
 [build]
-rustflags = ["-L", "./src/so"]
+rustflags = [
+    "-L", "./src/so"
+    ]
 incremental = true

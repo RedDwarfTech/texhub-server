@@ -9,7 +9,7 @@ async fn update_expired_queue_rec() -> HttpResponse {
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/inner-tex/project/queue")
+        web::scope("/inner-tex/queue")
             .route("/expire-check", web::post().to(update_expired_queue_rec)),
     );
 }
