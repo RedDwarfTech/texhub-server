@@ -721,6 +721,31 @@ pub async fn save_proj_file(
     return box_actix_rest_response("ok");
 }
 
+/// Save uploaded files into project's `app-compile-output` directory.
+pub async fn save_proj_output(proj_upload: ProjUploadFile) -> HttpResponse {
+    let proj_id = proj_upload.project_id.clone();
+    for tmp_file in proj_upload.files {
+        let f_name = tmp_file.file_name;
+        // persist tempfile to /tmp to avoid cross-device link issues
+        let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap_or(&"".to_string()));
+        if let Err(e) = tmp_file.file.persist(temp_path.as_str()) {
+            error!("Failed to save upload file to disk,{}, file path: {}", e, temp_path);
+            continue;
+        }
+        let proj_base = get_proj_base_dir(&proj_id);
+        let out_dir = join_paths(&[proj_base, "app-compile-output".to_owned()]);
+        if let Err(e) = create_directory_if_not_exists(&out_dir) {
+            error!("create app-compile-output dir failed,{}", e);
+        }
+        let dest = join_paths(&[out_dir, f_name.unwrap_or_default()]);
+        if let Err(e) = fs::copy(&temp_path, &dest) {
+            error!("copy file failed, {}, src: {}, dst: {}", e, temp_path, dest);
+        }
+        let _ = fs::remove_file(&temp_path);
+    }
+    return box_actix_rest_response("ok");
+}
+
 pub async fn save_full_proj(
     proj_upload: FullProjUpload,
     login_user_info: &LoginUserInfo,

@@ -1,6 +1,9 @@
 use crate::{model::request::project::query::download_proj::DownloadProj, service::project::project_service::handle_compress_proj};
 use actix_files::NamedFile;
-use actix_web::{HttpRequest, web};
+use actix_multipart::form::{MultipartForm, MultipartFormConfig};
+use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
+use crate::service::project::project_service::save_proj_output;
+use actix_web::{HttpRequest, web, HttpResponse};
 use mime::Mime;
 
 pub async fn download_project(
@@ -17,6 +20,21 @@ pub async fn download_project(
     }
 }
 
-pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/inner-tex/project").route("/download", web::put().to(download_project)));
+async fn upload_project_output(
+    MultipartForm(form): MultipartForm<ProjUploadFile>,
+) -> HttpResponse {
+    // Delegate to lower-level service to keep controller thin
+    save_proj_output(form).await
+}
+
+ pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::scope("/inner-tex/project")
+        .route("/download", web::put().to(download_project))
+        .route("/upload-output", web::post().to(upload_project_output))
+    );
+    // configure multipart limits for this inner upload endpoint
+    let inner_upload_config = MultipartFormConfig::default()
+        .total_limit(104857600) // 100 MB
+        .memory_limit(209715200);
+    cfg.service(web::scope("/inner-tex/ul/proj").app_data(inner_upload_config));
 }
