@@ -105,8 +105,9 @@ use rust_wheel::common::wrapper::actix_http_resp::{
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{
-    del_redis_key, get_str_default, push_to_stream, set_value,
+    del_redis_key, get_str_default, push_to_stream, set_value, get_redis_conn,
 };
+use redis::{streams::{StreamReadOptions, StreamReadReply}, RedisResult};
 use rust_wheel::model::error::infra_error::InfraError;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
@@ -124,6 +125,7 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+use redis::Commands;
 
 pub struct TexProjectService {}
 
@@ -1559,6 +1561,50 @@ pub async fn send_render_req(
         }
     }
     Ok(String::new())
+}
+
+/// Read compile logs from Redis stream and forward as SSE messages.
+pub async fn get_redis_comp_log_stream(
+    params: &TexCompileQueueLog,
+    tx: UnboundedSender<SSEMessage<String>>,
+    _login_user_info: &LoginUserInfo,
+) -> Result<String, redis::RedisError> {
+    use std::env;
+    let redis_conn_str = env::var("TEXHUB_REDIS_URL").unwrap();
+    let mut con = get_redis_conn(redis_conn_str.as_str());
+    let stream_key = format!("texhub:compile:log:{}", params.project_id);
+    let mut last_id = "$".to_string();
+
+    loop {
+        if tx.is_closed() {
+            break;
+        }
+        let options = StreamReadOptions::default().count(10).block(5000);
+        let result: RedisResult<StreamReadReply> = con.xread_options(&[stream_key.as_str()], &[last_id.as_str()], &options);
+        if let Err(e) = result.as_ref() {
+            error!("read redis stream failed: {}", e);
+            // continue to try
+            continue;
+        }
+        let stream_reply: StreamReadReply = result.unwrap();
+        for sk in stream_reply.clone().keys {
+            for sid in sk.ids {
+                // build a simple message from values in the stream record
+                let mut parts: Vec<String> = Vec::new();
+                for (k, v) in sid.map.iter() {
+                                let val_str = match redis::from_redis_value::<String>(v) {
+                                    Ok(s) => s,
+                                    Err(_) => format!("{:?}", v),
+                                };
+                    parts.push(format!("{}:{}", k, val_str));
+                }
+                let msg_content = parts.join(" |");
+                do_msg_send_sync(&msg_content.to_string(), &tx, &"TEX_COMP_LOG".to_string());
+                last_id = sid.id.clone();
+            }
+        }
+    }
+    Ok("".to_string())
 }
 
 pub async fn get_cached_queue_status(qid: i64) -> Option<TexCompQueue> {

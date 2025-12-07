@@ -336,6 +336,27 @@ pub async fn get_proj_compile_log_stream(
     response
 }
 
+pub async fn get_redis_log_stream(
+    form: web::Query<TexCompileQueueLog>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    let (tx, rx): (
+        UnboundedSender<SSEMessage<String>>,
+        UnboundedReceiver<SSEMessage<String>>,
+    ) = tokio::sync::mpsc::unbounded_channel();
+    task::spawn(async move {
+        let output = crate::service::project::project_service::get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
+        if let Err(e) = output {
+            error!("handle redis stream sse req error: {}", e);
+        }
+    });
+    let response = HttpResponse::Ok()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .content_type("text/event-stream")
+        .streaming(SseStream { receiver: Some(rx) });
+    response
+}
+
 pub async fn get_proj_compile_log(form: web::Query<TexCompileQueueLog>) -> HttpResponse {
     let output = get_compiled_log(&form.0).await;
     return box_actix_rest_response(output);
@@ -538,6 +559,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 "/compile/log/stream",
                 web::get().to(get_proj_compile_log_stream),
             )
+            .route("/compile/log/redis", web::get().to(get_redis_log_stream))
             .route("/compile/log", web::get().to(get_proj_compile_log))
             .route("/compile/queue", web::post().to(add_compile_req_to_queue))
             .route("/compile/store", web::post().to(add_compile_req_to_db))
