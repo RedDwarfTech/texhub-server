@@ -34,6 +34,7 @@ use crate::service::project::project_service::{
     handle_folder_create, handle_trash_proj, import_from_github_impl, proj_search_impl,
     rename_proj_collection_folder, save_full_proj, TexProjectService,
 };
+use crate::service::config::user_config_service::get_user_config_by_key;
 use crate::service::project::share::share_service::get_collar_relation;
 use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{
@@ -323,10 +324,39 @@ pub async fn get_proj_compile_log_stream(
         UnboundedSender<SSEMessage<String>>,
         UnboundedReceiver<SSEMessage<String>>,
     ) = tokio::sync::mpsc::unbounded_channel();
+    // decide whether to stream from Redis (pipeline) or from file (legacy)
+    let uid = login_user_info.userId;
+    let use_pipeline = match get_user_config_by_key(&uid, "COMPILE_MODE".to_string()) {
+        Some(conf) => {
+            let v = conf.config_value.to_lowercase();
+            v == "pipeline" || v == "true" || v == "1"
+        }
+        None => false,
+    };
+    // if no explicit config, also try alternative keys
+    let use_pipeline = if !use_pipeline {
+        match get_user_config_by_key(&uid, "COMPILE_PIPELINE".to_string()) {
+            Some(conf) => {
+                let v = conf.config_value.to_lowercase();
+                v == "pipeline" || v == "true" || v == "1"
+            }
+            None => false,
+        }
+    } else {
+        true
+    };
+
     task::spawn(async move {
-        let output = get_comp_log_stream(&form.0, tx, &login_user_info).await;
-        if let Err(e) = output {
-            error!("handle sse req error: {}", e);
+        if use_pipeline {
+            let output = crate::service::project::project_service::get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
+            if let Err(e) = output {
+                error!("handle redis stream sse req error: {:?}", e);
+            }
+        } else {
+            let output = get_comp_log_stream(&form.0, tx, &login_user_info).await;
+            if let Err(e) = output {
+                error!("handle sse req error: {:?}", e);
+            }
         }
     });
     let response = HttpResponse::Ok()
