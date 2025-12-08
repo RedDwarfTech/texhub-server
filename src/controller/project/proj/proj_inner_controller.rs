@@ -1,4 +1,4 @@
-use crate::{model::request::project::query::download_proj::DownloadProj, service::project::project_service::handle_compress_proj};
+use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::project_service::handle_compress_proj};
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, MultipartFormConfig};
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
@@ -21,7 +21,7 @@ pub async fn download_project(
 }
 
 async fn upload_project_output(
-    MultipartForm(form): MultipartForm<ProjUploadFile>,
+    MultipartForm(form): MultipartForm<ProjPdfUploadFile>,
 ) -> HttpResponse {
     // Delegate to lower-level service to keep controller thin
     save_proj_output(form).await

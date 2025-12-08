@@ -32,6 +32,7 @@ use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
 use crate::model::diesel::custom::project::upload::github_proj_sync::GithubProjSync;
+use crate::model::diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolderMap;
@@ -724,7 +725,7 @@ pub async fn save_proj_file(
 }
 
 /// Save uploaded files into project's `app-compile-output` directory.
-pub async fn save_proj_output(proj_upload: ProjUploadFile) -> HttpResponse {
+pub async fn save_proj_output(proj_upload: ProjPdfUploadFile) -> HttpResponse {
     let proj_id = proj_upload.project_id.clone();
     for tmp_file in proj_upload.files {
         let f_name = tmp_file.file_name;
