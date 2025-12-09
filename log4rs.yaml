@@ -15,7 +15,7 @@ appenders:
     encoder:
       pattern: "{d(%+)(utc)} [{f}:{L}] {h({l})} {M}:{m}{n}"
 root:
-  level: warn
+  level: info
   appenders:
     - stdout
     - render_file_logger
