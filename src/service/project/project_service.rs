@@ -1461,43 +1461,90 @@ pub async fn get_comp_log_stream(
         .unwrap();
     let log_stdout = cmd.stdout.take().unwrap();
     let reader = std::io::BufReader::new(log_stdout);
+    // spawn a blocking task to stream the child stdout without creating a new runtime
     task::spawn_blocking({
         let queue_log_params = params.clone();
         let uid = login_user_info.userId;
+        let tx_clone = tx.clone();
         move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(comp_log_file_read(reader, &tx, &queue_log_params, &uid));
+            comp_log_file_read_blocking(reader, tx_clone, queue_log_params, uid);
         }
     });
     Ok("".to_owned())
 }
-
-pub async fn comp_log_file_read(
-    reader: BufReader<ChildStdout>,
-    tx: &UnboundedSender<SSEMessage<String>>,
-    params: &TexCompileQueueLog,
-    uid: &i64,
+pub fn comp_log_file_read_blocking(
+    mut reader: BufReader<ChildStdout>,
+    tx: UnboundedSender<SSEMessage<String>>,
+    params: TexCompileQueueLog,
+    uid: i64,
 ) {
+    // Blocking read loop on ChildStdout
     for line in reader.lines() {
-        if let Ok(line) = line {
-            let msg_content = format!("{}\n", line.to_owned());
-            if msg_content.contains("====END====") {
-                let cr = get_proj_latest_pdf(&params.project_id, uid).await;
-                if let Err(err) = cr {
-                    error!("get compile log failed,{}", err);
-                    return;
+        match line {
+            Ok(line) => {
+                let msg_content = format!("{}\n", line.to_owned());
+                if msg_content.contains("====END====") {
+                    // when finished, try to fetch latest pdf and queue status synchronously
+                    // Note: these helper functions are async; here we try to call their sync wrappers if present,
+                    // otherwise we spawn a temporary runtime to run them quickly.
+                    let rt = match tokio::runtime::Handle::try_current() {
+                        Ok(_) => {
+                            // we're in a blocking thread, create a local runtime
+                            match tokio::runtime::Runtime::new() {
+                                Ok(r) => Some(r),
+                                Err(e) => {
+                                    error!("comp_log_file_read_blocking: create runtime failed: {}", e);
+                                    None
+                                }
+                            }
+                        }
+                        Err(_) => match tokio::runtime::Runtime::new() {
+                            Ok(r) => Some(r),
+                            Err(e) => {
+                                error!("comp_log_file_read_blocking: create runtime failed: {}", e);
+                                None
+                            }
+                        },
+                    };
+                    if let Some(rt) = rt {
+                        let params_clone = params.clone();
+                        let uid_clone = uid;
+                        let comp = rt.block_on(async move {
+                            let cr = get_proj_latest_pdf(&params_clone.project_id, &uid_clone).await;
+                            let queue = get_cached_queue_status(params_clone.qid.clone()).await;
+                            (cr, queue)
+                        });
+                        match comp.0 {
+                            Ok(latest) => {
+                                if let Some(queue) = comp.1 {
+                                    let comp_resp = CompileResp::from((latest, queue));
+                                    if let Ok(end_json) = serde_json::to_string(&comp_resp) {
+                                        do_msg_send_sync(&end_json, &tx, &"TEX_COMP_END".to_string());
+                                    }
+                                } else {
+                                    error!("comp_log_file_read_blocking: failed to get cached queue status");
+                                }
+                            }
+                            Err(err) => {
+                                error!("get compile log failed,{}", err);
+                            }
+                        }
+                        // runtime drops here
+                        break;
+                    } else {
+                        error!("comp_log_file_read_blocking: cannot create runtime to fetch compile result");
+                        break;
+                    }
+                } else {
+                    do_msg_send_sync(&msg_content.to_string(), &tx, &"TEX_COMP_LOG".to_string());
                 }
-                let queue = get_cached_queue_status(params.qid).await;
-                let comp_resp = CompileResp::from((cr.unwrap(), queue.unwrap()));
-                let end_json = serde_json::to_string(&comp_resp).unwrap();
-                do_msg_send_sync(&end_json, &tx, &"TEX_COMP_END".to_string());
-                break;
-            } else {
-                do_msg_send_sync(&msg_content.to_string(), &tx, &"TEX_COMP_LOG".to_string());
+            }
+            Err(e) => {
+                error!("comp_log_file_read_blocking: read line error: {}", e);
             }
         }
     }
-    drop(tx.to_owned());
+    drop(tx);
 }
 
 pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {
@@ -1570,42 +1617,73 @@ pub async fn get_redis_comp_log_stream(
     tx: UnboundedSender<SSEMessage<String>>,
     _login_user_info: &LoginUserInfo,
 ) -> Result<String, redis::RedisError> {
+    // Use spawn_blocking so the sync redis client (and its blocking xread) won't block
+    // the async runtime thread. We detect a special end marker `====END====` in the
+    // assembled message and exit the loop when it appears. After exit we close the
+    // provided `tx` so the SSE stream consumer can finish.
     use std::env;
     let redis_conn_str = env::var("TEXHUB_REDIS_URL").unwrap();
-    let mut con = get_redis_conn(redis_conn_str.as_str());
     let stream_key = format!("texhub:compile:log:{}", params.project_id);
-    let mut last_id = "$".to_string();
+    let tx_block = tx.clone();
+    // Move blocking work into a dedicated blocking task
+    let stream_key_block = stream_key.clone();
+    let redis_conn_str_block = redis_conn_str.clone();
 
-    loop {
-        if tx.is_closed() {
-            break;
-        }
-        let options = StreamReadOptions::default().count(10).block(5000);
-        let result: RedisResult<StreamReadReply> = con.xread_options(&[stream_key.as_str()], &[last_id.as_str()], &options);
-        if let Err(e) = result.as_ref() {
-            error!("read redis stream failed: {}", e);
-            // continue to try
-            continue;
-        }
-        let stream_reply: StreamReadReply = result.unwrap();
-        for sk in stream_reply.clone().keys {
-            for sid in sk.ids {
-                // build a simple message from values in the stream record
-                let mut parts: Vec<String> = Vec::new();
-                for (k, v) in sid.map.iter() {
-                                let val_str = match redis::from_redis_value::<String>(v) {
-                                    Ok(s) => s,
-                                    Err(_) => format!("{:?}", v),
-                                };
-                    parts.push(format!("{}:{}", k, val_str));
+    let join_res = task::spawn_blocking(move || -> Result<(), redis::RedisError> {
+        let mut con = get_redis_conn(redis_conn_str_block.as_str());
+        let mut last_id_local = "$".to_string();
+        loop {
+            if tx_block.is_closed() {
+                // caller unsubscribed, exit loop
+                break;
+            }
+            let options = StreamReadOptions::default().count(10).block(5000);
+            let result: RedisResult<StreamReadReply> = con.xread_options(&[stream_key_block.as_str()], &[last_id_local.as_str()], &options);
+            if let Err(e) = result.as_ref() {
+                error!("read redis stream failed: {}", e);
+                // Continue and retry; don't return so transient errors don't terminate the stream
+                continue;
+            }
+            let stream_reply: StreamReadReply = result.unwrap();
+            for sk in stream_reply.clone().keys {
+                for sid in sk.ids {
+                    // build a simple message from values in the stream record
+                    let mut parts: Vec<String> = Vec::new();
+                    for (k, v) in sid.map.iter() {
+                        let val_str = match redis::from_redis_value::<String>(v) {
+                            Ok(s) => s,
+                            Err(_) => format!("{:?}", v),
+                        };
+                        parts.push(format!("{}:{}", k, val_str));
+                    }
+                    let msg_content = parts.join(" |");
+                    do_msg_send_sync(&msg_content.to_string(), &tx_block, &"TEX_COMP_LOG".to_string());
+                    // If we see an explicit end marker in the payload, stop reading and return.
+                    if msg_content.contains("====END====") {
+                        // Optionally send an explicit end event type so clients can react.
+                        do_msg_send_sync(&"====END====".to_string(), &tx_block, &"TEX_COMP_END".to_string());
+                        return Ok(());
+                    }
+                    last_id_local = sid.id.clone();
                 }
-                let msg_content = parts.join(" |");
-                do_msg_send_sync(&msg_content.to_string(), &tx, &"TEX_COMP_LOG".to_string());
-                last_id = sid.id.clone();
             }
         }
+        Ok(())
+    })
+    .await;
+
+    // After the blocking task finishes (normal exit or error), ensure we close the sender
+    // so the SSE stream is ended. Drop the sender to close the channel.
+    drop(tx);
+
+    match join_res {
+        Ok(Ok(())) => Ok("".to_string()),
+        Ok(Err(e)) => Err(e),
+        Err(join_err) => {
+            error!("get_redis_comp_log_stream spawn_blocking panicked: {:?}", join_err);
+            Ok("".to_string())
+        }
     }
-    Ok("".to_string())
 }
 
 pub async fn get_cached_queue_status(qid: i64) -> Option<TexCompQueue> {
