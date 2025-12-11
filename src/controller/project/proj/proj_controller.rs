@@ -29,10 +29,7 @@ use crate::service::file::file_service::{
 };
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
-    del_proj_collection_folder, del_project, del_project_logic, do_proj_copy,
-    get_folder_project_impl, get_proj_folders, handle_archive_proj, handle_compress_proj,
-    handle_folder_create, handle_trash_proj, import_from_github_impl, proj_search_impl,
-    rename_proj_collection_folder, save_full_proj, TexProjectService,
+    TexProjectService, del_proj_collection_folder, del_project, del_project_logic, do_proj_copy, get_folder_project_impl, get_proj_folders, get_redis_comp_log_stream, handle_archive_proj, handle_compress_proj, handle_folder_create, handle_trash_proj, import_from_github_impl, proj_search_impl, rename_proj_collection_folder, save_full_proj
 };
 use crate::service::config::user_config_service::get_user_config_by_key;
 use crate::service::project::share::share_service::get_collar_relation;
@@ -348,7 +345,7 @@ pub async fn get_proj_compile_log_stream(
 
     task::spawn(async move {
         if use_pipeline {
-            let output = crate::service::project::project_service::get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
+            let output = get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
             if let Err(e) = output {
                 error!("handle redis stream sse req error: {:?}", e);
             }

@@ -89,6 +89,7 @@ use diesel::{
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
 use futures_util::{StreamExt, TryStreamExt};
+use log::info;
 use log::{error, warn};
 use meilisearch_sdk::search::*;
 use reqwest::Client;
@@ -1555,7 +1556,9 @@ pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>,
         SSEMessage::from_data(line.to_string(), &msg_type.to_string());
     let send_result = tx.send(sse_msg);
     match send_result {
-        Ok(_) => {}
+        Ok(_) => {
+            log::debug!("do_msg_send_sync: sent message, type={}, len={}", msg_type, line.len());
+        }
         Err(e) => {
             error!("send xelatex compile log facing error: {}", e);
         }
@@ -1628,6 +1631,7 @@ pub async fn get_redis_comp_log_stream(
     // Move blocking work into a dedicated blocking task
     let stream_key_block = stream_key.clone();
     let redis_conn_str_block = redis_conn_str.clone();
+    info!("get_redis_comp_log_stream: starting blocking task for Redis stream key: {}", stream_key_block);
 
     let join_res = task::spawn_blocking(move || -> Result<(), redis::RedisError> {
         let mut con = get_redis_conn(redis_conn_str_block.as_str());
@@ -1656,6 +1660,7 @@ pub async fn get_redis_comp_log_stream(
                         };
                         parts.push(format!("{}:{}", k, val_str));
                     }
+                    info!("Redis stream log record: {}", parts.join(" | "));
                     let msg_content = parts.join(" |");
                     do_msg_send_sync(&msg_content.to_string(), &tx_block, &"TEX_COMP_LOG".to_string());
                     // If we see an explicit end marker in the payload, stop reading and return.
