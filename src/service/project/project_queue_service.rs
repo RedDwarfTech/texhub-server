@@ -63,24 +63,17 @@ pub fn get_latest_proj_queue(
 
 pub fn update_expired_proj_queue() {
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
-    let start = Instant::now();
-    info!("update_expired_proj_queue: start");
     let expire_time = Utc::now() + Duration::minutes(10);
     use crate::model::diesel::tex::tex_schema::tex_comp_queue as folder_table;
     let et = expire_time.timestamp_millis();
-    info!("update_expired_proj_queue: computed expire_time millis={} (now+10m)", et);
 
     // build query
-    let mut query_build_start = Instant::now();
     let mut query = folder_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(folder_table::comp_status.eq(TeXFileCompileStatus::Compiling as i32));
     query = query.filter(folder_table::created_time.lt(et));
-    info!("update_expired_proj_queue: query built in {:?}", query_build_start.elapsed());
 
     // execute query
-    let conn_start = Instant::now();
     let cvs_result = query.load::<TexCompQueue>(&mut get_connection());
-    info!("update_expired_proj_queue: query executed in {:?}", conn_start.elapsed());
 
     let cvs = match cvs_result {
         Ok(list) => list,
@@ -90,26 +83,18 @@ pub fn update_expired_proj_queue() {
         }
     };
 
-    info!("update_expired_proj_queue: found {} compiling records older than {}", cvs.len(), et);
     if !cvs.is_empty() {
-        info!("update_expired_proj_queue: preparing to update {} records", cvs.len());
         let ids: Vec<i64> = cvs.iter().map(|q| q.id).collect();
-        info!("update_expired_proj_queue: sample ids: {:?}", &ids.iter().take(10).collect::<Vec<_>>());
         let predicate = comp_status
             .eq(TeXFileCompileStatus::Compiling as i32)
             .and(id.eq_any(&ids));
 
-        let update_start = Instant::now();
         match diesel::update(tex_comp_queue.filter(predicate))
             .set(comp_status.eq(TeXFileCompileStatus::Expired as i32))
             .execute(&mut get_connection())
         {
-            Ok(count) => info!("update_expired_proj_queue: updated {} rows in {:?}", count, update_start.elapsed()),
+            Ok(count) => {},
             Err(e) => error!("update_expired_proj_queue: failed to update rows: {}", e),
         }
-    } else {
-        info!("update_expired_proj_queue: no compiling record, et={}", et);
     }
-
-    info!("update_expired_proj_queue: finished in {:?}", start.elapsed());
 }
