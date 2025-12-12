@@ -1635,21 +1635,31 @@ pub async fn get_redis_comp_log_stream(
 
     let join_res = task::spawn_blocking(move || -> Result<(), redis::RedisError> {
         let mut con = get_redis_conn(redis_conn_str_block.as_str());
-        let mut last_id_local = "$".to_string();
+        info!("get_redis_comp_log_stream: redis connection established for key={}", stream_key_block);
+        // Start from the beginning of the stream so existing messages are picked up.
+        // Using "$" would only deliver new messages appended after subscription.
+        let mut last_id_local = "0".to_string();
         loop {
             if tx_block.is_closed() {
                 // caller unsubscribed, exit loop
+                info!("get_redis_comp_log_stream: tx closed, exiting loop for key={}", stream_key_block);
                 break;
             }
             let options = StreamReadOptions::default().count(10).block(5000);
+            info!("get_redis_comp_log_stream: xread_options last_id={}, count=10, block=5000", last_id_local);
             let result: RedisResult<StreamReadReply> = con.xread_options(&[stream_key_block.as_str()], &[last_id_local.as_str()], &options);
             if let Err(e) = result.as_ref() {
-                error!("read redis stream failed: {}", e);
+                error!("get_redis_comp_log_stream: read redis stream failed: {}", e);
                 // Continue and retry; don't return so transient errors don't terminate the stream
                 continue;
             }
             let stream_reply: StreamReadReply = result.unwrap();
+            if stream_reply.keys.is_empty() {
+                info!("get_redis_comp_log_stream: xread returned no keys for key={}", stream_key_block);
+                continue;
+            }
             for sk in stream_reply.clone().keys {
+                info!("get_redis_comp_log_stream: got {} ids for key={}", sk.ids.len(), sk.key);
                 for sid in sk.ids {
                     // build a simple message from values in the stream record
                     let mut parts: Vec<String> = Vec::new();
@@ -1660,13 +1670,14 @@ pub async fn get_redis_comp_log_stream(
                         };
                         parts.push(format!("{}:{}", k, val_str));
                     }
-                    info!("Redis stream log record: {}", parts.join(" | "));
-                    let msg_content = parts.join(" |");
-                    do_msg_send_sync(&msg_content.to_string(), &tx_block, &"TEX_COMP_LOG".to_string());
+                    let joined = parts.join(" |");
+                    info!("get_redis_comp_log_stream: record id={} payload={}", sid.id, joined);
+                    do_msg_send_sync(&joined.to_string(), &tx_block, &"TEX_COMP_LOG".to_string());
                     // If we see an explicit end marker in the payload, stop reading and return.
-                    if msg_content.contains("====END====") {
+                    if joined.contains("====END====") {
                         // Optionally send an explicit end event type so clients can react.
                         do_msg_send_sync(&"====END====".to_string(), &tx_block, &"TEX_COMP_END".to_string());
+                        info!("get_redis_comp_log_stream: detected END marker, exiting for key={}", stream_key_block);
                         return Ok(());
                     }
                     last_id_local = sid.id.clone();
