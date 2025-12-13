@@ -1635,7 +1635,30 @@ pub async fn get_redis_comp_log_stream(
 
     let join_res = task::spawn_blocking(move || -> Result<(), redis::RedisError> {
         let mut con = get_redis_conn(redis_conn_str_block.as_str());
-        info!("get_redis_comp_log_stream: redis connection established for key={}", stream_key_block);
+        // Mask password in connection string for logs
+        let mut masked_conn = redis_conn_str_block.clone();
+        if let Some(at_idx) = masked_conn.find('@') {
+            if let Some(scheme_idx) = masked_conn.find("//") {
+                // keep scheme and mask credential part
+                let after = &masked_conn[at_idx + 1..];
+                let scheme = &masked_conn[..scheme_idx + 2];
+                masked_conn = format!("{}***@{}", scheme, after);
+            } else {
+                masked_conn = "***@...".to_string();
+            }
+        }
+        info!("get_redis_comp_log_stream: redis connection established for key={} conn={}", stream_key_block, masked_conn);
+        // Diagnostic: list matching keys in this Redis DB to confirm we're in the expected DB/instance
+        match redis::cmd("KEYS").arg(format!("{}*", stream_key_block)).query::<Vec<String>>(&mut con) {
+            Ok(found_keys) => {
+                let total = found_keys.len();
+                let sample: Vec<String> = found_keys.iter().take(50).cloned().collect();
+                info!("get_redis_comp_log_stream: KEYS pattern '{}*' => total={}, sample={:?}", stream_key_block, total, sample);
+            }
+            Err(e) => {
+                error!("get_redis_comp_log_stream: KEYS error for pattern '{}*': {}", stream_key_block, e);
+            }
+        }
         // Start from the beginning of the stream so existing messages are picked up.
         // Using "$" would only deliver new messages appended after subscription.
         let mut last_id_local = "0-0".to_string();
