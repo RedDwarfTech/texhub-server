@@ -1638,7 +1638,7 @@ pub async fn get_redis_comp_log_stream(
         info!("get_redis_comp_log_stream: redis connection established for key={}", stream_key_block);
         // Start from the beginning of the stream so existing messages are picked up.
         // Using "$" would only deliver new messages appended after subscription.
-        let mut last_id_local = "0".to_string();
+        let mut last_id_local = "0-0".to_string();
         loop {
             if tx_block.is_closed() {
                 // caller unsubscribed, exit loop
