@@ -1647,6 +1647,15 @@ pub async fn get_redis_comp_log_stream(
             }
             let options = StreamReadOptions::default().count(10).block(5000);
             info!("get_redis_comp_log_stream: xread_options last_id={}, count=10, block=5000", last_id_local);
+            // Diagnostic checks: confirm the key exists and stream length
+            match redis::cmd("EXISTS").arg(&stream_key_block).query::<i32>(&mut con) {
+                Ok(v) => info!("get_redis_comp_log_stream: EXISTS {} => {}", stream_key_block, v),
+                Err(e) => error!("get_redis_comp_log_stream: EXISTS error for {}: {}", stream_key_block, e),
+            }
+            match redis::cmd("XLEN").arg(&stream_key_block).query::<i64>(&mut con) {
+                Ok(len) => info!("get_redis_comp_log_stream: XLEN {} => {}", stream_key_block, len),
+                Err(e) => error!("get_redis_comp_log_stream: XLEN error for {}: {}", stream_key_block, e),
+            }
             let result: RedisResult<StreamReadReply> = con.xread_options(&[stream_key_block.as_str()], &[last_id_local.as_str()], &options);
             if let Err(e) = result.as_ref() {
                 error!("get_redis_comp_log_stream: read redis stream failed: {}", e);
