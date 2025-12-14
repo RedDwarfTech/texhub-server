@@ -1625,7 +1625,7 @@ pub async fn get_redis_comp_log_stream(
     // assembled message and exit the loop when it appears. After exit we close the
     // provided `tx` so the SSE stream consumer can finish.
     use std::env;
-    let redis_conn_str = env::var("TEXHUB_REDIS_URL").unwrap();
+    let redis_conn_str = env::var("TEXHUB_RENDER_REDIS_URL").unwrap();
     let stream_key = format!("texhub:compile:log:{}", params.project_id);
     let tx_block = tx.clone();
     // Move blocking work into a dedicated blocking task
