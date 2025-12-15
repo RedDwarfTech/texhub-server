@@ -7,3 +7,4 @@ pub mod snippet_service;
 pub mod share;
 pub mod spec;
 pub mod eden;
+pub mod compile;

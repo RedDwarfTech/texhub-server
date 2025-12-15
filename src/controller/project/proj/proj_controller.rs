@@ -23,15 +23,21 @@ use crate::model::request::project::share::collar_query_params::CollarQueryParam
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::model::response::project::tex_project_cache_resp::TexProjectCacheResp;
+use crate::service::config::user_config_service::get_user_config_by_key;
 use crate::service::file::file_service::{
     get_cached_file_by_fid, get_proj_history_page_impl, get_proj_history_page_impl_v1,
     push_to_fulltext_search,
 };
+use crate::service::project::compile::project_compile_service::{
+    get_comp_log_stream, get_redis_comp_log_stream,
+};
 use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::project_service::{
-    TexProjectService, del_proj_collection_folder, del_project, del_project_logic, do_proj_copy, get_folder_project_impl, get_proj_folders, get_redis_comp_log_stream, handle_archive_proj, handle_compress_proj, handle_folder_create, handle_trash_proj, import_from_github_impl, proj_search_impl, rename_proj_collection_folder, save_full_proj
+    del_proj_collection_folder, del_project, del_project_logic, do_proj_copy,
+    get_folder_project_impl, get_proj_folders, handle_archive_proj, handle_compress_proj,
+    handle_folder_create, handle_trash_proj, import_from_github_impl, proj_search_impl,
+    rename_proj_collection_folder, save_full_proj, TexProjectService,
 };
-use crate::service::config::user_config_service::get_user_config_by_key;
 use crate::service::project::share::share_service::get_collar_relation;
 use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{
@@ -60,8 +66,8 @@ use crate::{
         project::project_service::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
             create_tpl_project, edit_proj, get_cached_proj_info, get_cached_queue_status,
-            get_comp_log_stream, get_compiled_log, get_pdf_pos, get_proj_latest_pdf, get_src_pos,
-            join_project, save_proj_file, send_render_req,
+            get_compiled_log, get_pdf_pos, get_proj_latest_pdf, get_src_pos, join_project,
+            save_proj_file, send_render_req,
         },
         tpl::template_service::get_tempalte_by_id,
     },
@@ -313,77 +319,6 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
-pub async fn get_proj_compile_log_stream(
-    form: web::Query<TexCompileQueueLog>,
-    login_user_info: LoginUserInfo,
-) -> HttpResponse {
-    let (tx, rx): (
-        UnboundedSender<SSEMessage<String>>,
-        UnboundedReceiver<SSEMessage<String>>,
-    ) = tokio::sync::mpsc::unbounded_channel();
-    // decide whether to stream from Redis (pipeline) or from file (legacy)
-    let uid = login_user_info.userId;
-    let use_pipeline = match get_user_config_by_key(&uid, "COMPILE_MODE".to_string()) {
-        Some(conf) => {
-            let v = conf.config_value.to_lowercase();
-            v == "pipeline" || v == "true" || v == "1"
-        }
-        None => false,
-    };
-    // if no explicit config, also try alternative keys
-    let use_pipeline = if !use_pipeline {
-        match get_user_config_by_key(&uid, "COMPILE_PIPELINE".to_string()) {
-            Some(conf) => {
-                let v = conf.config_value.to_lowercase();
-                v == "pipeline" || v == "true" || v == "1"
-            }
-            None => false,
-        }
-    } else {
-        true
-    };
-
-    task::spawn(async move {
-        if use_pipeline {
-            let output = get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
-            if let Err(e) = output {
-                error!("handle redis stream sse req error: {:?}", e);
-            }
-        } else {
-            let output = get_comp_log_stream(&form.0, tx, &login_user_info).await;
-            if let Err(e) = output {
-                error!("handle sse req error: {:?}", e);
-            }
-        }
-    });
-    let response = HttpResponse::Ok()
-        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
-        .content_type("text/event-stream")
-        .streaming(SseStream { receiver: Some(rx) });
-    response
-}
-
-pub async fn get_redis_log_stream(
-    form: web::Query<TexCompileQueueLog>,
-    login_user_info: LoginUserInfo,
-) -> HttpResponse {
-    let (tx, rx): (
-        UnboundedSender<SSEMessage<String>>,
-        UnboundedReceiver<SSEMessage<String>>,
-    ) = tokio::sync::mpsc::unbounded_channel();
-    task::spawn(async move {
-        let output = crate::service::project::project_service::get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
-        if let Err(e) = output {
-            error!("handle redis stream sse req error: {}", e);
-        }
-    });
-    let response = HttpResponse::Ok()
-        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
-        .content_type("text/event-stream")
-        .streaming(SseStream { receiver: Some(rx) });
-    response
-}
-
 pub async fn get_proj_compile_log(form: web::Query<TexCompileQueueLog>) -> HttpResponse {
     let output = get_compiled_log(&form.0).await;
     return box_actix_rest_response(output);
@@ -560,6 +495,77 @@ async fn import_from_github(
         return box_err_actix_rest_response(TexhubError::VipTooMuchProj);
     }
     return import_from_github_impl(&form.0, &login_user_info).await;
+}
+
+pub async fn get_proj_compile_log_stream(
+    form: web::Query<TexCompileQueueLog>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    let (tx, rx): (
+        UnboundedSender<SSEMessage<String>>,
+        UnboundedReceiver<SSEMessage<String>>,
+    ) = tokio::sync::mpsc::unbounded_channel();
+    // decide whether to stream from Redis (pipeline) or from file (legacy)
+    let uid = login_user_info.userId;
+    let use_pipeline = match get_user_config_by_key(&uid, "COMPILE_MODE".to_string()) {
+        Some(conf) => {
+            let v = conf.config_value.to_lowercase();
+            v == "pipeline" || v == "true" || v == "1"
+        }
+        None => false,
+    };
+    // if no explicit config, also try alternative keys
+    let use_pipeline = if !use_pipeline {
+        match get_user_config_by_key(&uid, "COMPILE_PIPELINE".to_string()) {
+            Some(conf) => {
+                let v = conf.config_value.to_lowercase();
+                v == "pipeline" || v == "true" || v == "1"
+            }
+            None => false,
+        }
+    } else {
+        true
+    };
+
+    task::spawn(async move {
+        if use_pipeline {
+            let output = get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
+            if let Err(e) = output {
+                error!("handle redis stream sse req error: {:?}", e);
+            }
+        } else {
+            let output = get_comp_log_stream(&form.0, tx, &login_user_info).await;
+            if let Err(e) = output {
+                error!("handle sse req error: {:?}", e);
+            }
+        }
+    });
+    let response = HttpResponse::Ok()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .content_type("text/event-stream")
+        .streaming(SseStream { receiver: Some(rx) });
+    response
+}
+
+pub async fn get_redis_log_stream(
+    form: web::Query<TexCompileQueueLog>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    let (tx, rx): (
+        UnboundedSender<SSEMessage<String>>,
+        UnboundedReceiver<SSEMessage<String>>,
+    ) = tokio::sync::mpsc::unbounded_channel();
+    task::spawn(async move {
+        let output = get_redis_comp_log_stream(&form.0, tx, &login_user_info).await;
+        if let Err(e) = output {
+            error!("handle redis stream sse req error: {}", e);
+        }
+    });
+    let response = HttpResponse::Ok()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .content_type("text/event-stream")
+        .streaming(SseStream { receiver: Some(rx) });
+    response
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
