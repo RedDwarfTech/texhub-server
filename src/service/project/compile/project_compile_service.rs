@@ -50,10 +50,6 @@ pub async fn get_redis_comp_log_stream(
     // Move blocking work into a dedicated blocking task
     let stream_key_block = stream_key.clone();
     let redis_conn_str_block = redis_conn_str.clone();
-    info!(
-        "get_redis_comp_log_stream: starting blocking task for Redis stream key: {}",
-        stream_key_block
-    );
 
     let join_res = task::spawn_blocking(move || -> Result<(), redis::RedisError> {
         let mut con = get_redis_conn(redis_conn_str_block.as_str());
@@ -69,10 +65,6 @@ pub async fn get_redis_comp_log_stream(
                 masked_conn = "***@...".to_string();
             }
         }
-        info!(
-            "get_redis_comp_log_stream: redis connection established for key={} conn={}",
-            stream_key_block, masked_conn
-        );
         // Diagnostic: list matching keys in this Redis DB to confirm we're in the expected DB/instance
         match redis::cmd("KEYS")
             .arg(format!("{}*", stream_key_block))
@@ -81,10 +73,6 @@ pub async fn get_redis_comp_log_stream(
             Ok(found_keys) => {
                 let total = found_keys.len();
                 let sample: Vec<String> = found_keys.iter().take(50).cloned().collect();
-                info!(
-                    "get_redis_comp_log_stream: KEYS pattern '{}*' => total={}, sample={:?}",
-                    stream_key_block, total, sample
-                );
             }
             Err(e) => {
                 error!(
@@ -99,26 +87,15 @@ pub async fn get_redis_comp_log_stream(
         loop {
             if tx_block.is_closed() {
                 // caller unsubscribed, exit loop
-                info!(
-                    "get_redis_comp_log_stream: tx closed, exiting loop for key={}",
-                    stream_key_block
-                );
                 break;
             }
             let options = StreamReadOptions::default().count(10).block(5000);
-            info!(
-                "get_redis_comp_log_stream: xread_options last_id={}, count=10, block=5000",
-                last_id_local
-            );
             // Diagnostic checks: confirm the key exists and stream length
             match redis::cmd("EXISTS")
                 .arg(&stream_key_block)
                 .query::<i32>(&mut con)
             {
-                Ok(v) => info!(
-                    "get_redis_comp_log_stream: EXISTS {} => {}",
-                    stream_key_block, v
-                ),
+                Ok(v) => {},
                 Err(e) => error!(
                     "get_redis_comp_log_stream: EXISTS error for {}: {}",
                     stream_key_block, e
@@ -128,10 +105,7 @@ pub async fn get_redis_comp_log_stream(
                 .arg(&stream_key_block)
                 .query::<i64>(&mut con)
             {
-                Ok(len) => info!(
-                    "get_redis_comp_log_stream: XLEN {} => {}",
-                    stream_key_block, len
-                ),
+                Ok(len) => {},
                 Err(e) => error!(
                     "get_redis_comp_log_stream: XLEN error for {}: {}",
                     stream_key_block, e
@@ -172,10 +146,6 @@ pub async fn get_redis_comp_log_stream(
                         parts.push(format!("{}:{}", k, val_str));
                     }
                     let joined = parts.join(" |");
-                    info!(
-                        "get_redis_comp_log_stream: record id={} payload={}",
-                        sid.id, joined
-                    );
                     // Build a CompileResp JSON for each message so SSE clients always receive
                     // the expected `CompileResp` structure instead of plain text.
                     // Fetch cached queue status synchronously (similar to get_cached_queue_status).
@@ -245,10 +215,6 @@ pub async fn get_redis_comp_log_stream(
                         if let Ok(end_json) = serde_json::to_string(&end_resp) {
                             do_msg_send_sync(&end_json, &tx_block, &"TEX_COMP_END".to_string());
                         }
-                        info!(
-                            "get_redis_comp_log_stream: detected END marker, exiting for key={}",
-                            stream_key_block
-                        );
                         return Ok(());
                     }
                     last_id_local = sid.id.clone();
