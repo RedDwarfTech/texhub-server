@@ -1628,6 +1628,10 @@ pub async fn get_redis_comp_log_stream(
     let redis_conn_str = env::var("TEXHUB_RENDER_REDIS_URL").unwrap();
     let stream_key = format!("texhub:compile:log:{}", params.project_id);
     let tx_block = tx.clone();
+    // clone params we need inside the blocking closure
+    let project_id_block = params.project_id.clone();
+    let qid_block = params.qid;
+    let file_name_block = params.file_name.clone();
     // Move blocking work into a dedicated blocking task
     let stream_key_block = stream_key.clone();
     let redis_conn_str_block = redis_conn_str.clone();
@@ -1704,11 +1708,72 @@ pub async fn get_redis_comp_log_stream(
                     }
                     let joined = parts.join(" |");
                     info!("get_redis_comp_log_stream: record id={} payload={}", sid.id, joined);
-                    do_msg_send_sync(&joined.to_string(), &tx_block, &"TEX_COMP_LOG".to_string());
+                    // Build a CompileResp JSON for each message so SSE clients always receive
+                    // the expected `CompileResp` structure instead of plain text.
+                    // Fetch cached queue status synchronously (similar to get_cached_queue_status).
+                    let queue_status_key = get_app_config("texhub.compile_status_cached_key");
+                    let full_cached_key = format!("{}:{}", queue_status_key, qid_block);
+                    let mut queue_opt: Option<TexCompQueue> = None;
+                    match get_str_default(&full_cached_key.as_str()) {
+                        Ok(maybe) => {
+                            if let Some(s) = maybe {
+                                if let Ok(q) = serde_json::from_str::<TexCompQueue>(&s) {
+                                    queue_opt = Some(q);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            error!("get_redis_comp_log_stream: get_str_default failed: {}", e);
+                        }
+                    }
+                    let latest = LatestCompile {
+                        path: joined.clone(),
+                        project_id: project_id_block.clone(),
+                        file_name: file_name_block.clone(),
+                    };
+                    // Use a default TexCompQueue if not available so JSON always serializes.
+                    let queue_val = match queue_opt {
+                        Some(q) => q,
+                        None => TexCompQueue::default(),
+                    };
+                    let comp_resp = CompileResp::from((latest, queue_val));
+                    match serde_json::to_string(&comp_resp) {
+                        Ok(json_str) => {
+                            do_msg_send_sync(&json_str, &tx_block, &"TEX_COMP_LOG".to_string());
+                        }
+                        Err(e) => {
+                            error!("get_redis_comp_log_stream: serialize CompileResp failed: {}", e);
+                        }
+                    }
                     // If we see an explicit end marker in the payload, stop reading and return.
                     if joined.contains("====END====") {
-                        // Optionally send an explicit end event type so clients can react.
-                        do_msg_send_sync(&"====END====".to_string(), &tx_block, &"TEX_COMP_END".to_string());
+                        // fetch latest compile and cached queue for final message using a temporary runtime
+                        let mut final_latest = LatestCompile::default();
+                        let mut final_queue = TexCompQueue::default();
+                        match tokio::runtime::Runtime::new() {
+                            Ok(rt) => {
+                                let project_id_clone = project_id_block.clone();
+                                let qid_clone = qid_block;
+                                let comp = rt.block_on(async move {
+                                    let cr = get_proj_latest_pdf(&project_id_clone, &0).await;
+                                    let queue = get_cached_queue_status(qid_clone).await;
+                                    (cr, queue)
+                                });
+                                if let Ok(latest) = comp.0 {
+                                    final_latest = latest;
+                                }
+                                if let Some(q) = comp.1 {
+                                    final_queue = q;
+                                }
+                            }
+                            Err(e) => {
+                                error!("get_redis_comp_log_stream: create runtime failed: {}", e);
+                            }
+                        }
+                        let end_resp = CompileResp::from((final_latest, final_queue));
+                        if let Ok(end_json) = serde_json::to_string(&end_resp) {
+                            do_msg_send_sync(&end_json, &tx_block, &"TEX_COMP_END".to_string());
+                        }
                         info!("get_redis_comp_log_stream: detected END marker, exiting for key={}", stream_key_block);
                         return Ok(());
                     }
