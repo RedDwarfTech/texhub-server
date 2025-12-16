@@ -127,31 +127,52 @@ pub async fn get_redis_comp_log_stream(
                 );
                 for sid in sk.ids {
                     // Extract message from Redis stream record
-                    // Expected format: {"msg": "content", ...other optional fields...}
+                    // Expected format: field value is {"msg": "content", ...other optional fields...}
                     let mut message_content = String::new();
+
+                    // Log all fields in this stream entry for debugging
+                    info!("get_redis_comp_log_stream: stream entry id={}, fields count={}", sid.id, sid.map.len());
+                    for (k, v) in sid.map.iter() {
+                        let val_str = match redis::from_redis_value::<String>(v) {
+                            Ok(s) => s,
+                            Err(_) => format!("{:?}", v),
+                        };
+                        info!("get_redis_comp_log_stream: field key='{}', value='{}'", k, val_str);
+                    }
 
                     // Try to find and parse the "msg" field
                     if let Some(msg_value) = sid.map.get("msg") {
                         if let Ok(msg_str) = redis::from_redis_value::<String>(msg_value) {
+                            info!("get_redis_comp_log_stream: found 'msg' field, raw value: '{}'", msg_str);
                             // Try to parse as JSON first
                             if let Ok(json_obj) =
                                 serde_json::from_str::<serde_json::Value>(&msg_str)
                             {
+                                info!("get_redis_comp_log_stream: parsed as JSON object");
                                 if let Some(msg_field) = json_obj.get("msg") {
                                     if let Some(msg_text) = msg_field.as_str() {
                                         message_content = msg_text.to_string();
+                                        info!("get_redis_comp_log_stream: extracted nested 'msg' field: '{}'", msg_text);
                                     }
+                                } else {
+                                    info!("get_redis_comp_log_stream: JSON has no 'msg' field, using raw value");
+                                    message_content = msg_str;
+                                }
+                            } else {
+                                info!("get_redis_comp_log_stream: not JSON format, using raw value");
+                                // If not JSON or no "msg" field found, use the value directly
+                                if message_content.is_empty() {
+                                    message_content = msg_str;
                                 }
                             }
-                            // If not JSON or no "msg" field found, use the value directly
-                            if message_content.is_empty() {
-                                message_content = msg_str;
-                            }
                         }
+                    } else {
+                        info!("get_redis_comp_log_stream: 'msg' field not found in stream entry, fallback to all fields");
                     }
 
                     // Fallback: if still empty, construct from all fields (for backwards compatibility)
                     if message_content.is_empty() {
+                        info!("get_redis_comp_log_stream: entering fallback logic - constructing from all fields");
                         let mut parts: Vec<String> = Vec::new();
                         for (k, v) in sid.map.iter() {
                             let val_str = match redis::from_redis_value::<String>(v) {
@@ -161,6 +182,7 @@ pub async fn get_redis_comp_log_stream(
                             parts.push(format!("{}:{}", k, val_str));
                         }
                         message_content = parts.join(" |");
+                        info!("get_redis_comp_log_stream: fallback result: '{}'", message_content);
                     }
 
                     let joined = message_content;
