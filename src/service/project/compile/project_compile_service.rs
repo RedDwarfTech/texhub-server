@@ -15,14 +15,8 @@ use redis::{
     Commands, RedisResult,
 };
 use rust_wheel::{
-    common::util::{
-        net::{sse_message::SSEMessage, sse_stream::SseStream},
-        rd_file_util::get_filename_without_ext,
-    },
-    config::{
-        app::app_conf_reader::get_app_config,
-        cache::redis_util::{get_redis_conn, get_str_default},
-    },
+    common::util::{net::sse_message::SSEMessage, rd_file_util::get_filename_without_ext},
+    config::cache::redis_util::get_redis_conn,
     model::user::login_user_info::LoginUserInfo,
 };
 use std::io::{BufRead, BufReader};
@@ -46,7 +40,6 @@ pub async fn get_redis_comp_log_stream(
     // clone params we need inside the blocking closure
     let project_id_block = params.project_id.clone();
     let qid_block = params.qid;
-    let file_name_block = params.file_name.clone();
     // Move blocking work into a dedicated blocking task
     let stream_key_block = stream_key.clone();
     let redis_conn_str_block = redis_conn_str.clone();
@@ -70,10 +63,7 @@ pub async fn get_redis_comp_log_stream(
             .arg(format!("{}*", stream_key_block))
             .query::<Vec<String>>(&mut con)
         {
-            Ok(found_keys) => {
-                let total = found_keys.len();
-                let sample: Vec<String> = found_keys.iter().take(50).cloned().collect();
-            }
+            Ok(found_keys) => {}
             Err(e) => {
                 error!(
                     "get_redis_comp_log_stream: KEYS error for pattern '{}*': {}",
@@ -95,7 +85,7 @@ pub async fn get_redis_comp_log_stream(
                 .arg(&stream_key_block)
                 .query::<i32>(&mut con)
             {
-                Ok(v) => {},
+                Ok(v) => {}
                 Err(e) => error!(
                     "get_redis_comp_log_stream: EXISTS error for {}: {}",
                     stream_key_block, e
@@ -105,7 +95,7 @@ pub async fn get_redis_comp_log_stream(
                 .arg(&stream_key_block)
                 .query::<i64>(&mut con)
             {
-                Ok(len) => {},
+                Ok(len) => {}
                 Err(e) => error!(
                     "get_redis_comp_log_stream: XLEN error for {}: {}",
                     stream_key_block, e
@@ -136,16 +126,44 @@ pub async fn get_redis_comp_log_stream(
                     sk.key
                 );
                 for sid in sk.ids {
-                    // build a simple message from values in the stream record
-                    let mut parts: Vec<String> = Vec::new();
-                    for (k, v) in sid.map.iter() {
-                        let val_str = match redis::from_redis_value::<String>(v) {
-                            Ok(s) => s,
-                            Err(_) => format!("{:?}", v),
-                        };
-                        parts.push(format!("{}:{}", k, val_str));
+                    // Extract message from Redis stream record
+                    // Expected format: {"msg": "content", ...other optional fields...}
+                    let mut message_content = String::new();
+
+                    // Try to find and parse the "msg" field
+                    if let Some(msg_value) = sid.map.get("msg") {
+                        if let Ok(msg_str) = redis::from_redis_value::<String>(msg_value) {
+                            // Try to parse as JSON first
+                            if let Ok(json_obj) =
+                                serde_json::from_str::<serde_json::Value>(&msg_str)
+                            {
+                                if let Some(msg_field) = json_obj.get("msg") {
+                                    if let Some(msg_text) = msg_field.as_str() {
+                                        message_content = msg_text.to_string();
+                                    }
+                                }
+                            }
+                            // If not JSON or no "msg" field found, use the value directly
+                            if message_content.is_empty() {
+                                message_content = msg_str;
+                            }
+                        }
                     }
-                    let joined = parts.join(" |");
+
+                    // Fallback: if still empty, construct from all fields (for backwards compatibility)
+                    if message_content.is_empty() {
+                        let mut parts: Vec<String> = Vec::new();
+                        for (k, v) in sid.map.iter() {
+                            let val_str = match redis::from_redis_value::<String>(v) {
+                                Ok(s) => s,
+                                Err(_) => format!("{:?}", v),
+                            };
+                            parts.push(format!("{}:{}", k, val_str));
+                        }
+                        message_content = parts.join(" |");
+                    }
+
+                    let joined = message_content;
                     // Check for end marker first
                     if joined.contains("====END====") {
                         // fetch latest compile and cached queue for final message using a temporary runtime
@@ -235,6 +253,7 @@ pub async fn get_comp_log_stream(
     });
     Ok("".to_owned())
 }
+
 pub fn comp_log_file_read_blocking(
     reader: BufReader<ChildStdout>,
     tx: UnboundedSender<SSEMessage<String>>,
