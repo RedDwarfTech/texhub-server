@@ -142,28 +142,34 @@ pub async fn get_redis_comp_log_stream(
 
                     // Try to find and parse the "msg" field
                     if let Some(msg_value) = sid.map.get("msg") {
-                        if let Ok(msg_str) = redis::from_redis_value::<String>(msg_value) {
-                            info!("get_redis_comp_log_stream: found 'msg' field, raw value: '{}'", msg_str);
-                            // Try to parse as JSON first
-                            if let Ok(json_obj) =
-                                serde_json::from_str::<serde_json::Value>(&msg_str)
-                            {
-                                info!("get_redis_comp_log_stream: parsed as JSON object");
-                                if let Some(msg_field) = json_obj.get("msg") {
-                                    if let Some(msg_text) = msg_field.as_str() {
-                                        message_content = msg_text.to_string();
-                                        info!("get_redis_comp_log_stream: extracted nested 'msg' field: '{}'", msg_text);
+                        match redis::from_redis_value::<String>(msg_value) {
+                            Ok(msg_str) => {
+                                info!("get_redis_comp_log_stream: found 'msg' field, raw value: '{}' (len={})", msg_str, msg_str.len());
+                                // Try to parse as JSON first
+                                match serde_json::from_str::<serde_json::Value>(&msg_str) {
+                                    Ok(json_obj) => {
+                                        info!("get_redis_comp_log_stream: parsed as JSON object");
+                                        if let Some(msg_field) = json_obj.get("msg") {
+                                            if let Some(msg_text) = msg_field.as_str() {
+                                                message_content = msg_text.to_string();
+                                                info!("get_redis_comp_log_stream: extracted nested 'msg' field: '{}'", msg_text);
+                                            }
+                                        } else {
+                                            info!("get_redis_comp_log_stream: JSON has no nested 'msg' field, using raw value");
+                                            message_content = msg_str;
+                                        }
                                     }
-                                } else {
-                                    info!("get_redis_comp_log_stream: JSON has no 'msg' field, using raw value");
-                                    message_content = msg_str;
+                                    Err(parse_err) => {
+                                        info!("get_redis_comp_log_stream: msg value is not JSON, using raw value; parse_err={}", parse_err);
+                                        if message_content.is_empty() {
+                                            message_content = msg_str;
+                                        }
+                                    }
                                 }
-                            } else {
-                                info!("get_redis_comp_log_stream: not JSON format, using raw value");
-                                // If not JSON or no "msg" field found, use the value directly
-                                if message_content.is_empty() {
-                                    message_content = msg_str;
-                                }
+                            }
+                            Err(decode_err) => {
+                                error!("get_redis_comp_log_stream: failed to decode 'msg' field from Redis value: {:?}", decode_err);
+                                // leave message_content empty to trigger fallback
                             }
                         }
                     } else {
