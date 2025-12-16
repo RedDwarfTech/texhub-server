@@ -146,47 +146,7 @@ pub async fn get_redis_comp_log_stream(
                         parts.push(format!("{}:{}", k, val_str));
                     }
                     let joined = parts.join(" |");
-                    // Build a CompileResp JSON for each message so SSE clients always receive
-                    // the expected `CompileResp` structure instead of plain text.
-                    // Fetch cached queue status synchronously (similar to get_cached_queue_status).
-                    let queue_status_key = get_app_config("texhub.compile_status_cached_key");
-                    let full_cached_key = format!("{}:{}", queue_status_key, qid_block);
-                    let mut queue_opt: Option<TexCompQueue> = None;
-                    match get_str_default(&full_cached_key.as_str()) {
-                        Ok(maybe) => {
-                            if let Some(s) = maybe {
-                                if let Ok(q) = serde_json::from_str::<TexCompQueue>(&s) {
-                                    queue_opt = Some(q);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!("get_redis_comp_log_stream: get_str_default failed: {}", e);
-                        }
-                    }
-                    let latest = LatestCompile {
-                        path: joined.clone(),
-                        project_id: project_id_block.clone(),
-                        file_name: file_name_block.clone(),
-                    };
-                    // Use a default TexCompQueue if not available so JSON always serializes.
-                    let queue_val = match queue_opt {
-                        Some(q) => q,
-                        None => TexCompQueue::default(),
-                    };
-                    let comp_resp = CompileResp::from((latest, queue_val));
-                    match serde_json::to_string(&comp_resp) {
-                        Ok(json_str) => {
-                            do_msg_send_sync(&json_str, &tx_block, &"TEX_COMP_LOG".to_string());
-                        }
-                        Err(e) => {
-                            error!(
-                                "get_redis_comp_log_stream: serialize CompileResp failed: {}",
-                                e
-                            );
-                        }
-                    }
-                    // If we see an explicit end marker in the payload, stop reading and return.
+                    // Check for end marker first
                     if joined.contains("====END====") {
                         // fetch latest compile and cached queue for final message using a temporary runtime
                         let mut final_latest = LatestCompile::default();
@@ -216,6 +176,10 @@ pub async fn get_redis_comp_log_stream(
                             do_msg_send_sync(&end_json, &tx_block, &"TEX_COMP_END".to_string());
                         }
                         return Ok(());
+                    } else {
+                        // For regular messages, send plain message content (like get_comp_log_stream does)
+                        let msg_with_newline = format!("{}\n", joined);
+                        do_msg_send_sync(&msg_with_newline, &tx_block, &"TEX_COMP_LOG".to_string());
                     }
                     last_id_local = sid.id.clone();
                 }
