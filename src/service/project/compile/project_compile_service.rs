@@ -23,6 +23,125 @@ use std::io::{BufRead, BufReader};
 use std::process::{ChildStdout, Command, Stdio};
 use tokio::{sync::mpsc::UnboundedSender, task};
 
+/// Extract and parse message content from Redis stream entry map
+fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, redis::Value>) -> String {
+    let mut message_content = String::new();
+
+    // Log all fields in this stream entry for debugging
+    info!("extract_message_content: fields count={}", stream_entry_map.len());
+    for (k, v) in stream_entry_map.iter() {
+        let val_str = match redis::from_redis_value::<String>(v) {
+            Ok(s) => s,
+            Err(_) => format!("{:?}", v),
+        };
+        info!("extract_message_content: field key='{}', value='{}'", k, val_str);
+    }
+
+    // Try to find and parse the "msg" field
+    if let Some(msg_value) = stream_entry_map.get("msg") {
+        match redis::from_redis_value::<String>(msg_value) {
+            Ok(msg_str) => {
+                info!("extract_message_content: found 'msg' field, raw value: '{}' (len={})", msg_str, msg_str.len());
+                // Try to parse as JSON first
+                match serde_json::from_str::<serde_json::Value>(&msg_str) {
+                    Ok(json_obj) => {
+                        info!("extract_message_content: parsed as JSON object");
+                        if let Some(msg_field) = json_obj.get("msg") {
+                            if let Some(msg_text) = msg_field.as_str() {
+                                message_content = msg_text.to_string();
+                                info!("extract_message_content: extracted nested 'msg' field: '{}'", msg_text);
+                            }
+                        } else {
+                            info!("extract_message_content: JSON has no nested 'msg' field, using raw value");
+                            message_content = msg_str;
+                        }
+                    }
+                    Err(parse_err) => {
+                        info!("extract_message_content: msg value is not JSON, using raw value; parse_err={}", parse_err);
+                        if message_content.is_empty() {
+                            message_content = msg_str;
+                        }
+                    }
+                }
+            }
+            Err(decode_err) => {
+                error!("extract_message_content: failed to decode 'msg' field from Redis value: {:?}", decode_err);
+                // leave message_content empty to trigger fallback
+            }
+        }
+    } else {
+        info!("extract_message_content: 'msg' field not found in stream entry, fallback to all fields");
+    }
+
+    // Fallback: if still empty, construct from all fields (for backwards compatibility)
+    if message_content.is_empty() {
+        info!("extract_message_content: entering fallback logic - constructing from all fields");
+        let mut parts: Vec<String> = Vec::new();
+        for (k, v) in stream_entry_map.iter() {
+            let val_str = match redis::from_redis_value::<String>(v) {
+                Ok(s) => s,
+                Err(_) => format!("{:?}", v),
+            };
+            parts.push(format!("{}:{}", k, val_str));
+        }
+        message_content = parts.join(" |");
+        info!("extract_message_content: fallback result: '{}'", message_content);
+    }
+
+    message_content
+}
+
+/// Delete a processed message from Redis stream
+fn delete_stream_message(con: &mut redis::Connection, stream_key: &str, message_id: &str) {
+    match redis::cmd("XDEL")
+        .arg(stream_key)
+        .arg(message_id)
+        .query::<i32>(con)
+    {
+        Ok(_) => {
+            info!("delete_stream_message: successfully deleted message id={} from stream {}", message_id, stream_key);
+        }
+        Err(e) => {
+            error!("delete_stream_message: failed to delete message id={} from stream {}: {}", message_id, stream_key, e);
+        }
+    }
+}
+
+/// Handle end marker: fetch latest compile and cached queue, send completion response
+async fn handle_end_marker(
+    project_id: &str,
+    qid: i64,
+    tx: &UnboundedSender<SSEMessage<String>>,
+) {
+    let mut final_latest = LatestCompile::default();
+    let mut final_queue = TexCompQueue::default();
+    
+    match tokio::runtime::Runtime::new() {
+        Ok(rt) => {
+            let project_id_clone = project_id.to_string();
+            let comp = rt.block_on(async move {
+                let cr = get_proj_latest_pdf(&project_id_clone, &0).await;
+                let queue = get_cached_queue_status(qid).await;
+                (cr, queue)
+            });
+            if let Ok(latest) = comp.0 {
+                final_latest = latest;
+            }
+            if let Some(q) = comp.1 {
+                final_queue = q;
+            }
+        }
+        Err(e) => {
+            error!("handle_end_marker: create runtime failed: {}", e);
+        }
+    }
+    
+    let end_resp = CompileResp::from((final_latest, final_queue));
+    if let Ok(end_json) = serde_json::to_string(&end_resp) {
+        do_msg_send_sync(&end_json, tx, "TEX_COMP_END");
+    }
+}
+
 /// Read compile logs from Redis stream and forward as SSE messages.
 pub async fn get_redis_comp_log_stream(
     params: &TexCompileQueueLog,
@@ -46,31 +165,7 @@ pub async fn get_redis_comp_log_stream(
 
     let join_res = task::spawn_blocking(move || -> Result<(), redis::RedisError> {
         let mut con = get_redis_conn(redis_conn_str_block.as_str());
-        // Mask password in connection string for logs
-        let mut masked_conn = redis_conn_str_block.clone();
-        if let Some(at_idx) = masked_conn.find('@') {
-            if let Some(scheme_idx) = masked_conn.find("//") {
-                // keep scheme and mask credential part
-                let after = &masked_conn[at_idx + 1..];
-                let scheme = &masked_conn[..scheme_idx + 2];
-                masked_conn = format!("{}***@{}", scheme, after);
-            } else {
-                masked_conn = "***@...".to_string();
-            }
-        }
-        // Diagnostic: list matching keys in this Redis DB to confirm we're in the expected DB/instance
-        match redis::cmd("KEYS")
-            .arg(format!("{}*", stream_key_block))
-            .query::<Vec<String>>(&mut con)
-        {
-            Ok(found_keys) => {}
-            Err(e) => {
-                error!(
-                    "get_redis_comp_log_stream: KEYS error for pattern '{}*': {}",
-                    stream_key_block, e
-                );
-            }
-        }
+        
         // Start from the beginning of the stream so existing messages are picked up.
         // Using "$" would only deliver new messages appended after subscription.
         let mut last_id_local = "0-0".to_string();
@@ -80,27 +175,7 @@ pub async fn get_redis_comp_log_stream(
                 break;
             }
             let options = StreamReadOptions::default().count(10).block(5000);
-            // Diagnostic checks: confirm the key exists and stream length
-            match redis::cmd("EXISTS")
-                .arg(&stream_key_block)
-                .query::<i32>(&mut con)
-            {
-                Ok(v) => {}
-                Err(e) => error!(
-                    "get_redis_comp_log_stream: EXISTS error for {}: {}",
-                    stream_key_block, e
-                ),
-            }
-            match redis::cmd("XLEN")
-                .arg(&stream_key_block)
-                .query::<i64>(&mut con)
-            {
-                Ok(len) => {}
-                Err(e) => error!(
-                    "get_redis_comp_log_stream: XLEN error for {}: {}",
-                    stream_key_block, e
-                ),
-            }
+            
             let result: RedisResult<StreamReadReply> = con.xread_options(
                 &[stream_key_block.as_str()],
                 &[last_id_local.as_str()],
@@ -126,106 +201,34 @@ pub async fn get_redis_comp_log_stream(
                     sk.key
                 );
                 for sid in sk.ids {
-                    // Extract message from Redis stream record
-                    // Expected format: field value is {"msg": "content", ...other optional fields...}
-                    let mut message_content = String::new();
-
-                    // Log all fields in this stream entry for debugging
-                    info!("get_redis_comp_log_stream: stream entry id={}, fields count={}", sid.id, sid.map.len());
-                    for (k, v) in sid.map.iter() {
-                        let val_str = match redis::from_redis_value::<String>(v) {
-                            Ok(s) => s,
-                            Err(_) => format!("{:?}", v),
-                        };
-                        info!("get_redis_comp_log_stream: field key='{}', value='{}'", k, val_str);
-                    }
-
-                    // Try to find and parse the "msg" field
-                    if let Some(msg_value) = sid.map.get("msg") {
-                        match redis::from_redis_value::<String>(msg_value) {
-                            Ok(msg_str) => {
-                                info!("get_redis_comp_log_stream: found 'msg' field, raw value: '{}' (len={})", msg_str, msg_str.len());
-                                // Try to parse as JSON first
-                                match serde_json::from_str::<serde_json::Value>(&msg_str) {
-                                    Ok(json_obj) => {
-                                        info!("get_redis_comp_log_stream: parsed as JSON object");
-                                        if let Some(msg_field) = json_obj.get("msg") {
-                                            if let Some(msg_text) = msg_field.as_str() {
-                                                message_content = msg_text.to_string();
-                                                info!("get_redis_comp_log_stream: extracted nested 'msg' field: '{}'", msg_text);
-                                            }
-                                        } else {
-                                            info!("get_redis_comp_log_stream: JSON has no nested 'msg' field, using raw value");
-                                            message_content = msg_str;
-                                        }
-                                    }
-                                    Err(parse_err) => {
-                                        info!("get_redis_comp_log_stream: msg value is not JSON, using raw value; parse_err={}", parse_err);
-                                        if message_content.is_empty() {
-                                            message_content = msg_str;
-                                        }
-                                    }
-                                }
-                            }
-                            Err(decode_err) => {
-                                error!("get_redis_comp_log_stream: failed to decode 'msg' field from Redis value: {:?}", decode_err);
-                                // leave message_content empty to trigger fallback
-                            }
-                        }
-                    } else {
-                        info!("get_redis_comp_log_stream: 'msg' field not found in stream entry, fallback to all fields");
-                    }
-
-                    // Fallback: if still empty, construct from all fields (for backwards compatibility)
-                    if message_content.is_empty() {
-                        info!("get_redis_comp_log_stream: entering fallback logic - constructing from all fields");
-                        let mut parts: Vec<String> = Vec::new();
-                        for (k, v) in sid.map.iter() {
-                            let val_str = match redis::from_redis_value::<String>(v) {
-                                Ok(s) => s,
-                                Err(_) => format!("{:?}", v),
-                            };
-                            parts.push(format!("{}:{}", k, val_str));
-                        }
-                        message_content = parts.join(" |");
-                        info!("get_redis_comp_log_stream: fallback result: '{}'", message_content);
-                    }
-
-                    let joined = message_content;
+                    let message_content = extract_message_content(&sid.map);
+                    
                     // Check for end marker first
-                    if joined.contains("====END====") {
+                    if message_content.contains("====END====") {
                         // fetch latest compile and cached queue for final message using a temporary runtime
-                        let mut final_latest = LatestCompile::default();
-                        let mut final_queue = TexCompQueue::default();
+                        let project_id_clone = project_id_block.clone();
+                        let qid_clone = qid_block;
+                        let project_id_for_handle = project_id_clone.clone();
+                        
+                        // Handle end marker in blocking context by creating a runtime
                         match tokio::runtime::Runtime::new() {
                             Ok(rt) => {
-                                let project_id_clone = project_id_block.clone();
-                                let qid_clone = qid_block;
-                                let comp = rt.block_on(async move {
-                                    let cr = get_proj_latest_pdf(&project_id_clone, &0).await;
-                                    let queue = get_cached_queue_status(qid_clone).await;
-                                    (cr, queue)
-                                });
-                                if let Ok(latest) = comp.0 {
-                                    final_latest = latest;
-                                }
-                                if let Some(q) = comp.1 {
-                                    final_queue = q;
-                                }
+                                let tx_clone = tx_block.clone();
+                                rt.block_on(handle_end_marker(&project_id_for_handle, qid_clone, &tx_clone));
                             }
                             Err(e) => {
-                                error!("get_redis_comp_log_stream: create runtime failed: {}", e);
+                                error!("get_redis_comp_log_stream: create runtime for end marker failed: {}", e);
                             }
                         }
-                        let end_resp = CompileResp::from((final_latest, final_queue));
-                        if let Ok(end_json) = serde_json::to_string(&end_resp) {
-                            do_msg_send_sync(&end_json, &tx_block, &"TEX_COMP_END".to_string());
-                        }
+                        // Delete the end marker message after successful processing
+                        delete_stream_message(&mut con, &stream_key_block, &sid.id);
                         return Ok(());
                     } else {
-                        // For regular messages, send plain message content (like get_comp_log_stream does)
-                        let msg_with_newline = format!("{}\n", joined);
-                        do_msg_send_sync(&msg_with_newline, &tx_block, &"TEX_COMP_LOG".to_string());
+                        // For regular messages, send plain message content
+                        let msg_with_newline = format!("{}\n", message_content);
+                        do_msg_send_sync(&msg_with_newline, &tx_block, "TEX_COMP_LOG");
+                        // Delete the message after successful sending
+                        delete_stream_message(&mut con, &stream_key_block, &sid.id);
                     }
                     last_id_local = sid.id.clone();
                 }
@@ -336,7 +339,7 @@ pub fn comp_log_file_read_blocking(
                                         do_msg_send_sync(
                                             &end_json,
                                             &tx,
-                                            &"TEX_COMP_END".to_string(),
+                                            "TEX_COMP_END",
                                         );
                                     }
                                 } else {
@@ -354,7 +357,7 @@ pub fn comp_log_file_read_blocking(
                         break;
                     }
                 } else {
-                    do_msg_send_sync(&msg_content.to_string(), &tx, &"TEX_COMP_LOG".to_string());
+                    do_msg_send_sync(&msg_content, &tx, "TEX_COMP_LOG");
                 }
             }
             Err(e) => {
@@ -365,7 +368,7 @@ pub fn comp_log_file_read_blocking(
     drop(tx);
 }
 
-pub fn do_msg_send_sync(line: &String, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {
+pub fn do_msg_send_sync(line: &str, tx: &UnboundedSender<SSEMessage<String>>, msg_type: &str) {
     if tx.is_closed() {
         return;
     }
