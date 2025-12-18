@@ -24,24 +24,36 @@ use std::process::{ChildStdout, Command, Stdio};
 use tokio::{sync::mpsc::UnboundedSender, task};
 
 /// Extract and parse message content from Redis stream entry map
-fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, redis::Value>) -> String {
+fn extract_message_content(
+    stream_entry_map: &std::collections::HashMap<String, redis::Value>,
+) -> String {
     let mut message_content = String::new();
 
     // Log all fields in this stream entry for debugging
-    info!("extract_message_content: fields count={}", stream_entry_map.len());
+    info!(
+        "extract_message_content: fields count={}",
+        stream_entry_map.len()
+    );
     for (k, v) in stream_entry_map.iter() {
         let val_str = match redis::from_redis_value::<String>(v) {
             Ok(s) => s,
             Err(_) => format!("{:?}", v),
         };
-        info!("extract_message_content: field key='{}', value='{}'", k, val_str);
+        info!(
+            "extract_message_content: field key='{}', value='{}'",
+            k, val_str
+        );
     }
 
     // Try to find and parse the "msg" field
     if let Some(msg_value) = stream_entry_map.get("msg") {
         match redis::from_redis_value::<String>(msg_value) {
             Ok(msg_str) => {
-                info!("extract_message_content: found 'msg' field, raw value: '{}' (len={})", msg_str, msg_str.len());
+                info!(
+                    "extract_message_content: found 'msg' field, raw value: '{}' (len={})",
+                    msg_str,
+                    msg_str.len()
+                );
                 // Try to parse as JSON first
                 match serde_json::from_str::<serde_json::Value>(&msg_str) {
                     Ok(json_obj) => {
@@ -49,7 +61,10 @@ fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, 
                         if let Some(msg_field) = json_obj.get("msg") {
                             if let Some(msg_text) = msg_field.as_str() {
                                 message_content = msg_text.to_string();
-                                info!("extract_message_content: extracted nested 'msg' field: '{}'", msg_text);
+                                info!(
+                                    "extract_message_content: extracted nested 'msg' field: '{}'",
+                                    msg_text
+                                );
                             }
                         } else {
                             info!("extract_message_content: JSON has no nested 'msg' field, using raw value");
@@ -57,7 +72,7 @@ fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, 
                         }
                     }
                     Err(parse_err) => {
-                        info!("extract_message_content: msg value is not JSON, using raw value; parse_err={}", parse_err);
+                        info!("extract_message_content: msg value is not JSON, using raw value; parse_err={},msg str:{}", parse_err, msg_str);
                         if message_content.is_empty() {
                             message_content = msg_str;
                         }
@@ -65,8 +80,10 @@ fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, 
                 }
             }
             Err(decode_err) => {
-                error!("extract_message_content: failed to decode 'msg' field from Redis value: {:?}", decode_err);
-                // leave message_content empty to trigger fallback
+                error!(
+                    "extract_message_content: failed to decode 'msg' field from Redis value: {:?}",
+                    decode_err
+                );
             }
         }
     } else {
@@ -85,7 +102,10 @@ fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, 
             parts.push(format!("{}:{}", k, val_str));
         }
         message_content = parts.join(" |");
-        info!("extract_message_content: fallback result: '{}'", message_content);
+        info!(
+            "extract_message_content: fallback result: '{}'",
+            message_content
+        );
     }
 
     message_content
@@ -93,30 +113,26 @@ fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, 
 
 /// Handle end marker: fetch latest compile and cached queue, send completion response
 /// Note: This function must be called from async context, NOT from spawn_blocking
-async fn handle_end_marker(
-    project_id: &str,
-    qid: i64,
-    tx: &UnboundedSender<SSEMessage<String>>,
-) {
+async fn handle_end_marker(project_id: &str, qid: i64, tx: &UnboundedSender<SSEMessage<String>>) {
     let mut final_latest = LatestCompile::default();
     let mut final_queue = TexCompQueue::default();
-    
+
     let project_id_clone = project_id.to_string();
     let cr = get_proj_latest_pdf(&project_id_clone, &0).await;
     let queue = get_cached_queue_status(qid).await;
-    
+
     if let Ok(latest) = cr {
         final_latest = latest;
     } else {
         error!("handle_end_marker: get_proj_latest_pdf failed");
     }
-    
+
     if let Some(q) = queue {
         final_queue = q;
     } else {
         error!("handle_end_marker: get_cached_queue_status failed or returned None");
     }
-    
+
     let end_resp = CompileResp::from((final_latest, final_queue));
     if let Ok(end_json) = serde_json::to_string(&end_resp) {
         do_msg_send_sync(&end_json, tx, "TEX_COMP_END");
@@ -149,7 +165,7 @@ pub async fn get_redis_comp_log_stream(
 
     let join_res = task::spawn_blocking(move || -> Result<bool, redis::RedisError> {
         let mut con = get_redis_conn(redis_conn_str_block.as_str());
-        
+
         // Start from the beginning of the stream so existing messages are picked up.
         // Using "$" would only deliver new messages appended after subscription.
         let mut last_id_local = "0-0".to_string();
@@ -159,7 +175,7 @@ pub async fn get_redis_comp_log_stream(
                 break;
             }
             let options = StreamReadOptions::default().count(10).block(5000);
-            
+
             let result: RedisResult<StreamReadReply> = con.xread_options(
                 &[stream_key_block.as_str()],
                 &[last_id_local.as_str()],
@@ -186,7 +202,7 @@ pub async fn get_redis_comp_log_stream(
                 );
                 for sid in sk.ids {
                     let message_content = extract_message_content(&sid.map);
-                    
+
                     // Check for end marker first
                     if message_content.contains("====END====") {
                         // Return true to signal that we found the end marker
@@ -313,11 +329,7 @@ pub fn comp_log_file_read_blocking(
                                 if let Some(queue) = comp.1 {
                                     let comp_resp = CompileResp::from((latest, queue));
                                     if let Ok(end_json) = serde_json::to_string(&comp_resp) {
-                                        do_msg_send_sync(
-                                            &end_json,
-                                            &tx,
-                                            "TEX_COMP_END",
-                                        );
+                                        do_msg_send_sync(&end_json, &tx, "TEX_COMP_END");
                                     }
                                 } else {
                                     error!("comp_log_file_read_blocking: failed to get cached queue status");
