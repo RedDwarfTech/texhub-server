@@ -221,14 +221,14 @@ pub async fn get_redis_comp_log_stream(
                             }
                         }
                         // Delete the end marker message after successful processing
-                        delete_stream_message(&mut con, &stream_key_block, &sid.id);
+                       // delete_stream_message(&mut con, &stream_key_block, &sid.id);
                         return Ok(());
                     } else {
                         // For regular messages, send plain message content
                         let msg_with_newline = format!("{}\n", message_content);
                         do_msg_send_sync(&msg_with_newline, &tx_block, "TEX_COMP_LOG");
                         // Delete the message after successful sending
-                        delete_stream_message(&mut con, &stream_key_block, &sid.id);
+                        // delete_stream_message(&mut con, &stream_key_block, &sid.id);
                     }
                     last_id_local = sid.id.clone();
                 }
