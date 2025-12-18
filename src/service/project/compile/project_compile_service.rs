@@ -9,7 +9,7 @@ use crate::{
         project::project_service::{get_cached_queue_status, get_proj_latest_pdf},
     },
 };
-use log::{error, info};
+use log::{error, info, warn};
 use redis::{
     streams::{StreamReadOptions, StreamReadReply},
     Commands, RedisResult,
@@ -54,30 +54,7 @@ fn extract_message_content(
                     msg_str,
                     msg_str.len()
                 );
-                // Try to parse as JSON first
-                match serde_json::from_str::<serde_json::Value>(&msg_str) {
-                    Ok(json_obj) => {
-                        info!("extract_message_content: parsed as JSON object");
-                        if let Some(msg_field) = json_obj.get("msg") {
-                            if let Some(msg_text) = msg_field.as_str() {
-                                message_content = msg_text.to_string();
-                                info!(
-                                    "extract_message_content: extracted nested 'msg' field: '{}'",
-                                    msg_text
-                                );
-                            }
-                        } else {
-                            info!("extract_message_content: JSON has no nested 'msg' field, using raw value");
-                            message_content = msg_str;
-                        }
-                    }
-                    Err(parse_err) => {
-                        info!("extract_message_content: msg value is not JSON, using raw value; parse_err={},msg str:{}", parse_err, msg_str);
-                        if message_content.is_empty() {
-                            message_content = msg_str;
-                        }
-                    }
-                }
+                message_content = msg_str;
             }
             Err(decode_err) => {
                 error!(
@@ -87,12 +64,12 @@ fn extract_message_content(
             }
         }
     } else {
-        info!("extract_message_content: 'msg' field not found in stream entry, fallback to all fields");
+        error!("extract_message_content: 'msg' field not found in stream entry, fallback to all fields");
     }
 
     // Fallback: if still empty, construct from all fields (for backwards compatibility)
     if message_content.is_empty() {
-        info!("extract_message_content: entering fallback logic - constructing from all fields");
+        warn!("extract_message_content: entering fallback logic - constructing from all fields");
         let mut parts: Vec<String> = Vec::new();
         for (k, v) in stream_entry_map.iter() {
             let val_str = match redis::from_redis_value::<String>(v) {
