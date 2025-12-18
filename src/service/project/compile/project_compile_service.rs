@@ -91,23 +91,8 @@ fn extract_message_content(stream_entry_map: &std::collections::HashMap<String, 
     message_content
 }
 
-/// Delete a processed message from Redis stream
-fn delete_stream_message(con: &mut redis::Connection, stream_key: &str, message_id: &str) {
-    match redis::cmd("XDEL")
-        .arg(stream_key)
-        .arg(message_id)
-        .query::<i32>(con)
-    {
-        Ok(_) => {
-            info!("delete_stream_message: successfully deleted message id={} from stream {}", message_id, stream_key);
-        }
-        Err(e) => {
-            error!("delete_stream_message: failed to delete message id={} from stream {}: {}", message_id, stream_key, e);
-        }
-    }
-}
-
 /// Handle end marker: fetch latest compile and cached queue, send completion response
+/// Note: This function must be called from async context, NOT from spawn_blocking
 async fn handle_end_marker(
     project_id: &str,
     qid: i64,
@@ -116,29 +101,28 @@ async fn handle_end_marker(
     let mut final_latest = LatestCompile::default();
     let mut final_queue = TexCompQueue::default();
     
-    match tokio::runtime::Runtime::new() {
-        Ok(rt) => {
-            let project_id_clone = project_id.to_string();
-            let comp = rt.block_on(async move {
-                let cr = get_proj_latest_pdf(&project_id_clone, &0).await;
-                let queue = get_cached_queue_status(qid).await;
-                (cr, queue)
-            });
-            if let Ok(latest) = comp.0 {
-                final_latest = latest;
-            }
-            if let Some(q) = comp.1 {
-                final_queue = q;
-            }
-        }
-        Err(e) => {
-            error!("handle_end_marker: create runtime failed: {}", e);
-        }
+    let project_id_clone = project_id.to_string();
+    let cr = get_proj_latest_pdf(&project_id_clone, &0).await;
+    let queue = get_cached_queue_status(qid).await;
+    
+    if let Ok(latest) = cr {
+        final_latest = latest;
+    } else {
+        error!("handle_end_marker: get_proj_latest_pdf failed");
+    }
+    
+    if let Some(q) = queue {
+        final_queue = q;
+    } else {
+        error!("handle_end_marker: get_cached_queue_status failed or returned None");
     }
     
     let end_resp = CompileResp::from((final_latest, final_queue));
     if let Ok(end_json) = serde_json::to_string(&end_resp) {
         do_msg_send_sync(&end_json, tx, "TEX_COMP_END");
+        info!("handle_end_marker: sent end response successfully");
+    } else {
+        error!("handle_end_marker: failed to serialize end response");
     }
 }
 
@@ -163,7 +147,7 @@ pub async fn get_redis_comp_log_stream(
     let stream_key_block = stream_key.clone();
     let redis_conn_str_block = redis_conn_str.clone();
 
-    let join_res = task::spawn_blocking(move || -> Result<(), redis::RedisError> {
+    let join_res = task::spawn_blocking(move || -> Result<bool, redis::RedisError> {
         let mut con = get_redis_conn(redis_conn_str_block.as_str());
         
         // Start from the beginning of the stream so existing messages are picked up.
@@ -205,54 +189,47 @@ pub async fn get_redis_comp_log_stream(
                     
                     // Check for end marker first
                     if message_content.contains("====END====") {
-                        // fetch latest compile and cached queue for final message using a temporary runtime
-                        let project_id_clone = project_id_block.clone();
-                        let qid_clone = qid_block;
-                        let project_id_for_handle = project_id_clone.clone();
-                        
-                        // Handle end marker in blocking context by creating a runtime
-                        match tokio::runtime::Runtime::new() {
-                            Ok(rt) => {
-                                let tx_clone = tx_block.clone();
-                                rt.block_on(handle_end_marker(&project_id_for_handle, qid_clone, &tx_clone));
-                            }
-                            Err(e) => {
-                                error!("get_redis_comp_log_stream: create runtime for end marker failed: {}", e);
-                            }
-                        }
-                        // Delete the end marker message after successful processing
-                       // delete_stream_message(&mut con, &stream_key_block, &sid.id);
-                        return Ok(());
+                        // Return true to signal that we found the end marker
+                        return Ok(true);
                     } else {
                         // For regular messages, send plain message content
                         let msg_with_newline = format!("{}\n", message_content);
                         do_msg_send_sync(&msg_with_newline, &tx_block, "TEX_COMP_LOG");
-                        // Delete the message after successful sending
-                        // delete_stream_message(&mut con, &stream_key_block, &sid.id);
                     }
                     last_id_local = sid.id.clone();
                 }
             }
         }
-        Ok(())
+        Ok(false)
     })
     .await;
 
-    // After the blocking task finishes (normal exit or error), ensure we close the sender
-    // so the SSE stream is ended. Drop the sender to close the channel.
-    drop(tx);
-
-    match join_res {
-        Ok(Ok(())) => Ok("".to_string()),
-        Ok(Err(e)) => Err(e),
+    // After the blocking task finishes, handle the end marker in async context
+    // This ensures we have proper async support for database queries
+    let should_send_end = match join_res {
+        Ok(Ok(found_end)) => found_end,
+        Ok(Err(e)) => {
+            error!("get_redis_comp_log_stream: redis error: {}", e);
+            false
+        }
         Err(join_err) => {
             error!(
                 "get_redis_comp_log_stream spawn_blocking panicked: {:?}",
                 join_err
             );
-            Ok("".to_string())
+            false
         }
+    };
+
+    // Now handle the end marker in async context
+    if should_send_end {
+        handle_end_marker(&params.project_id, params.qid, &tx).await;
     }
+
+    // Finally close the sender
+    drop(tx);
+
+    Ok("".to_string())
 }
 
 pub async fn get_comp_log_stream(
