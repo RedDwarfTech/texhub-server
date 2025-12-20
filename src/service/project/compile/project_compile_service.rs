@@ -249,7 +249,7 @@ pub fn comp_log_file_read_blocking(
     for line in reader.lines() {
         match line {
             Ok(line) => {
-                let msg_content = format!("{}\n", line.to_owned());
+                let msg_content = format!("{}\n换行", line.to_owned());
                 if msg_content.contains("====END====") {
                     // when finished, try to fetch latest pdf and queue status synchronously
                     // Note: these helper functions are async; here we try to call their sync wrappers if present,
