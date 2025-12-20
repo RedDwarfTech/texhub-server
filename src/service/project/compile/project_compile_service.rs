@@ -170,7 +170,7 @@ pub async fn get_redis_comp_log_stream(
                         return Ok(true);
                     } else {
                         // For regular messages, send plain message content
-                        let msg_with_newline = format!("{}\n", message_content);
+                        let msg_with_newline = format!("{}\n换行", message_content);
                         do_msg_send_sync(&msg_with_newline, &tx_block, "TEX_COMP_LOG");
                     }
                     last_id_local = sid.id.clone();
@@ -249,7 +249,7 @@ pub fn comp_log_file_read_blocking(
     for line in reader.lines() {
         match line {
             Ok(line) => {
-                let msg_content = format!("{}\n换行", line.to_owned());
+                let msg_content = format!("{}\n", line.to_owned());
                 if msg_content.contains("====END====") {
                     // when finished, try to fetch latest pdf and queue status synchronously
                     // Note: these helper functions are async; here we try to call their sync wrappers if present,
