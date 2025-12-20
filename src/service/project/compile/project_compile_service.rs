@@ -66,25 +66,9 @@ fn extract_message_content(
     } else {
         error!("extract_message_content: 'msg' field not found in stream entry, fallback to all fields");
     }
-
-    // Fallback: if still empty, construct from all fields (for backwards compatibility)
     if message_content.is_empty() {
-        warn!("extract_message_content: entering fallback logic - constructing from all fields");
-        let mut parts: Vec<String> = Vec::new();
-        for (k, v) in stream_entry_map.iter() {
-            let val_str = match redis::from_redis_value::<String>(v) {
-                Ok(s) => s,
-                Err(_) => format!("{:?}", v),
-            };
-            parts.push(format!("{}:{}", k, val_str));
-        }
-        message_content = parts.join(" |");
-        info!(
-            "extract_message_content: fallback result: '{}'",
-            message_content
-        );
+        message_content = " ".to_string();
     }
-
     message_content
 }
 
