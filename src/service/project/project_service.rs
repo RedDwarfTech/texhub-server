@@ -972,7 +972,7 @@ fn create_proj_file_impl(
 
 pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
     let proj_dir = get_proj_base_dir(&params.project_id);
-    let pdf_file_name = format!("{}{}", get_filename_without_ext(&params.main_file), ".pdf");
+    let pdf_file_name = format!("{}{}{}","app-compile-output", get_filename_without_ext(&params.main_file), ".pdf");
     let full_pdf_file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
     unsafe {
         let c_pdf_full_file_path = CString::new(full_pdf_file_path.clone());

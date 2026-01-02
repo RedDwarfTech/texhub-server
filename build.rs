@@ -6,7 +6,14 @@ fn main() {
     let manifest = env::var("CARGO_MANIFEST_DIR").unwrap();
     let so_dir = Path::new(&manifest).join("src/so");
     if so_dir.exists() {
-        println!("cargo:rustc-link-search=native={}", so_dir.display());
+        let so_dir_str = so_dir.display().to_string();
+        println!("cargo:rustc-link-search=native={}", so_dir_str);
+        
+        // On macOS, also set rpath so the library can be found at runtime
+        #[cfg(target_os = "macos")]
+        {
+            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", so_dir_str);
+        }
     }
 
     // In case some environments need an explicit link-lib directive
