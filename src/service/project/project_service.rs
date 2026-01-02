@@ -722,7 +722,6 @@ pub async fn save_proj_file(
     return box_actix_rest_response("ok");
 }
 
-/// Save uploaded files into project's `app-compile-output` directory.
 pub async fn save_proj_output(proj_upload: ProjPdfUploadFile) -> HttpResponse {
     let proj_id = proj_upload.project_id.clone();
     for tmp_file in proj_upload.files {
@@ -974,11 +973,11 @@ fn create_proj_file_impl(
 pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
     let proj_dir = get_proj_base_dir(&params.project_id);
     let pdf_file_name = format!("{}{}", get_filename_without_ext(&params.main_file), ".pdf");
-    let file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
+    let full_pdf_file_path = join_paths(&[&proj_dir, &pdf_file_name.to_string()]);
     unsafe {
-        let c_file_path = CString::new(file_path.clone());
-        if let Err(e) = c_file_path {
-            error!("parse out path error,{},{}", e, file_path.clone());
+        let c_pdf_full_file_path = CString::new(full_pdf_file_path.clone());
+        if let Err(e) = c_pdf_full_file_path {
+            error!("parse out path error,{},{}", e, full_pdf_file_path.clone());
             return Vec::new();
         }
         let c_build_path = CString::new(proj_dir.clone());
@@ -986,10 +985,10 @@ pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
             error!("parse build path error,{},{}", e, proj_dir.clone());
             return Vec::new();
         }
-        let cstring_file_path = c_file_path.unwrap();
+        let cstring_pdf_full_file_path = c_pdf_full_file_path.unwrap();
         let cstring_build_path = c_build_path.unwrap();
         let scanner = synctex_scanner_new_with_output_file(
-            cstring_file_path.as_ptr(),
+            cstring_pdf_full_file_path.as_ptr(),
             cstring_build_path.as_ptr(),
             1,
         );

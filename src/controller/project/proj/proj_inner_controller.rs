@@ -23,7 +23,6 @@ pub async fn download_project(
 async fn upload_project_output(
     MultipartForm(form): MultipartForm<ProjPdfUploadFile>,
 ) -> HttpResponse {
-    // Delegate to lower-level service to keep controller thin
     save_proj_output(form).await
 }
 
