@@ -337,12 +337,12 @@ async fn upload_proj_file(
 }
 
 async fn get_pdf_position(form: web::Query<GetPdfPosParams>) -> HttpResponse {
-    let pos = get_pdf_pos(&form.0);
+    let pos = get_pdf_pos(&form.0).await;
     box_actix_rest_response(pos)
 }
 
 async fn get_src_position(form: web::Query<GetSrcPosParams>) -> HttpResponse {
-    let pos = get_src_pos(&form.0);
+    let pos = get_src_pos(&form.0).await;
     box_actix_rest_response(pos)
 }
 
