@@ -110,6 +110,7 @@ use rust_wheel::config::cache::redis_util::{
     del_redis_key, get_str_default, push_to_stream, set_value
 };
 use rust_wheel::model::error::infra_error::InfraError;
+use rust_wheel::model::response::api_response::ApiResponse;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_user_info::RdUserInfo;
 use rust_wheel::texhub::proj::compile_result::CompileResult;
@@ -1069,10 +1070,10 @@ pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
                 );
                 return Vec::new();
             }
-            let resp: Result<Vec<SrcPosResp>, reqwest::Error> = r.json().await;
+            let resp: Result<ApiResponse<Vec<SrcPosResp>>, reqwest::Error> = r.json().await;
             match resp {
                 Ok(position_list) => {
-                    return position_list;
+                    return position_list.result;
                 }
                 Err(e) => {
                     error!("parse src pos response failed: {}", e);
