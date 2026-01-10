@@ -1010,7 +1010,9 @@ pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
                 );
                 return Vec::new();
             }
-            let resp: Result<Vec<PdfPosResp>, reqwest::Error> = r.json().await;
+            let rtxt = r.text().await;
+            info!("pdf pos response content: {}", rtxt.as_ref().unwrap_or(&"".to_string()));
+            let resp: Result<Vec<PdfPosResp>, serde_json::Error> = serde_json::from_str(rtxt.as_ref().unwrap_or(&"".to_string()));
             match resp {
                 Ok(position_list) => {
                     return position_list;
