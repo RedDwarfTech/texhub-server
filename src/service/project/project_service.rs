@@ -15,6 +15,7 @@ use crate::common::interop::synctex::{
     synctex_node_page, synctex_scanner_new_with_output_file, synctex_scanner_next_result,
 };
 use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
+use crate::common::utils::rest::http_client;
 use crate::common::zip::compress::gen_zip;
 use crate::common::zip::decompress::exact_upload_zip;
 use crate::diesel::RunQueryDsl;
@@ -107,7 +108,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 use rust_wheel::config::cache::redis_util::{
-    del_redis_key, get_str_default, push_to_stream, set_value
+    del_redis_key, get_str_default, push_to_stream, set_value,
 };
 use rust_wheel::model::error::infra_error::InfraError;
 use rust_wheel::model::response::api_response::ApiResponse;
@@ -117,10 +118,8 @@ use rust_wheel::texhub::proj::compile_result::CompileResult;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use std::collections::HashMap;
 use std::env;
-use std::ffi::{CStr, CString};
 use std::fs::{self, File};
-use std::io::{BufRead, Read};
-use std::os::raw::c_int;
+use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -730,7 +729,10 @@ pub async fn save_proj_output(proj_upload: ProjPdfUploadFile) -> HttpResponse {
         // persist tempfile to /tmp to avoid cross-device link issues
         let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap_or(&"".to_string()));
         if let Err(e) = tmp_file.file.persist(temp_path.as_str()) {
-            error!("Failed to save upload file to disk,{}, file path: {}", e, temp_path);
+            error!(
+                "Failed to save upload file to disk,{}, file path: {}",
+                e, temp_path
+            );
             continue;
         }
         let proj_base = get_proj_base_dir(&proj_id);
@@ -972,21 +974,11 @@ fn create_proj_file_impl(
 }
 
 pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build();
-    
-    if let Err(e) = client {
-        error!("create http client failed: {}", e);
-        return Vec::new();
-    }
-    
-    let client = client.unwrap();
     let url_path = "/tex/project/pos/pdf";
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
 
-    let response = client
+    let response = http_client()
         .get(&url)
         .headers(construct_headers())
         .query(&[
@@ -1000,7 +992,7 @@ pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
         ])
         .send()
         .await;
-    
+
     match response {
         Ok(r) => {
             if !r.status().is_success() {
@@ -1012,8 +1004,12 @@ pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
                 return Vec::new();
             }
             let rtxt = r.text().await;
-            info!("pdf pos response content: {}", rtxt.as_ref().unwrap_or(&"".to_string()));
-            let resp: Result<ApiResponse<Vec<PdfPosResp>>, serde_json::Error> = serde_json::from_str(rtxt.as_ref().unwrap_or(&"".to_string()));
+            info!(
+                "pdf pos response content: {}",
+                rtxt.as_ref().unwrap_or(&"".to_string())
+            );
+            let resp: Result<ApiResponse<Vec<PdfPosResp>>, serde_json::Error> =
+                serde_json::from_str(rtxt.as_ref().unwrap_or(&"".to_string()));
             match resp {
                 Ok(position_list) => {
                     return position_list.result;
@@ -1032,21 +1028,11 @@ pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
 }
 
 pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build();
-    
-    if let Err(e) = client {
-        error!("create http client failed: {}", e);
-        return Vec::new();
-    }
-    
-    let client = client.unwrap();
     let url_path = "/tex/project/pos/src";
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
 
-    let response = client
+    let response = http_client()
         .get(&url)
         .headers(construct_headers())
         .query(&[
@@ -1059,7 +1045,7 @@ pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
         ])
         .send()
         .await;
-    
+
     match response {
         Ok(r) => {
             if !r.status().is_success() {
@@ -1084,23 +1070,6 @@ pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
         Err(e) => {
             error!("request src pos error: {}", e);
             return Vec::new();
-        }
-    }
-}
-
-fn get_file_relative_path(file_full_path: String, proj_dir: String) -> String {
-    let abs_path = Path::new(file_full_path.as_str());
-    let root = Path::new(proj_dir.as_str());
-    match abs_path.strip_prefix(root) {
-        Ok(relative) => {
-            let mut relative_path = PathBuf::from(relative);
-            let path_string = relative_path.as_mut_os_str().to_string_lossy().to_string();
-            let final_path = path_string.replace("./", "");
-            return final_path;
-        }
-        Err(err) => {
-            error!("Failed to get relative path: {}", err);
-            return "".to_owned();
         }
     }
 }

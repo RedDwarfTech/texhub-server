@@ -117,9 +117,6 @@ pub async fn get_redis_comp_log_stream(
     let redis_conn_str = env::var("TEXHUB_RENDER_REDIS_URL").unwrap();
     let stream_key = format!("texhub:compile:log:{}", params.project_id);
     let tx_block = tx.clone();
-    // clone params we need inside the blocking closure
-    let project_id_block = params.project_id.clone();
-    let qid_block = params.qid;
     // Move blocking work into a dedicated blocking task
     let stream_key_block = stream_key.clone();
     let redis_conn_str_block = redis_conn_str.clone();

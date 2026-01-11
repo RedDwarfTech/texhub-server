@@ -6,8 +6,7 @@ use crate::{
 };
 use chrono::{Duration, Utc};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, QueryResult};
-use log::{error, info};
-use std::time::Instant;
+use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
 pub fn get_proj_working_queue_list(
@@ -78,7 +77,10 @@ pub fn update_expired_proj_queue() {
     let cvs = match cvs_result {
         Ok(list) => list,
         Err(e) => {
-            error!("update_expired_proj_queue: failed to load compile queue: {}", e);
+            error!(
+                "update_expired_proj_queue: failed to load compile queue: {}",
+                e
+            );
             return;
         }
     };
@@ -93,7 +95,7 @@ pub fn update_expired_proj_queue() {
             .set(comp_status.eq(TeXFileCompileStatus::Expired as i32))
             .execute(&mut get_connection())
         {
-            Ok(count) => {},
+            Ok(count) => {}
             Err(e) => error!("update_expired_proj_queue: failed to update rows: {}", e),
         }
     }
