@@ -9,6 +9,26 @@ use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, QueryResult};
 use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
+pub fn get_queue_by_id(queue_id: &i64) -> Option<TexCompQueue> {
+    use crate::model::diesel::tex::tex_schema::tex_comp_queue as comp_queue_table;
+    let query = comp_queue_table::table.into_boxed::<diesel::pg::Pg>();
+    let record: QueryResult<TexCompQueue> = query
+        .filter(comp_queue_table::id.eq(queue_id))
+        .first::<TexCompQueue>(&mut get_connection());
+    match record {
+        Ok(rec) => {
+            return Some(rec);
+        }
+        Err(diesel::result::Error::NotFound) => {
+            return None;
+        }
+        Err(e) => {
+            error!("search queue by id error {}, id: {}", e, queue_id);
+            return None;
+        }
+    }
+}
+
 pub fn get_proj_working_queue_list(
     req: &QueueReq,
     login_user_info: &LoginUserInfo,

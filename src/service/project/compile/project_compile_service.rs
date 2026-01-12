@@ -6,7 +6,10 @@ use crate::{
     },
     service::{
         global::proj::proj_util::get_proj_base_dir,
-        project::project_service::{get_cached_queue_status, get_proj_latest_pdf},
+        project::{
+            project_queue_service::get_queue_by_id,
+            project_service::{get_cached_queue_status, get_proj_latest_pdf},
+        },
     },
 };
 use log::{error, info, warn};
@@ -279,7 +282,7 @@ pub fn comp_log_file_read_blocking(
                         let comp = rt.block_on(async move {
                             let cr =
                                 get_proj_latest_pdf(&params_clone.project_id, &uid_clone).await;
-                            let queue = get_cached_queue_status(params_clone.qid.clone()).await;
+                            let queue = get_queue_by_id(&params_clone.qid.clone());
                             (cr, queue)
                         });
                         match comp.0 {
