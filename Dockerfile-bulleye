@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=rust:1.72-bullseye
+ARG BASE_IMAGE=rust:1.75-bookworm
 FROM ${BASE_IMAGE} AS builder
 WORKDIR /app
 COPY . /app
@@ -8,7 +8,7 @@ RUN cd synctex && gcc -c -fPIC *.c && gcc -shared *.o -o libsynctex_parser.so -l
 RUN cp synctex/libsynctex_parser.so ./src/so/
 RUN RUSTFLAGS='-L ./src/so' cargo build --release
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 LABEL maintainer="jiangtingqiang@gmail.com"
 WORKDIR /app
 ENV ROCKET_ADDRESS=0.0.0.0
