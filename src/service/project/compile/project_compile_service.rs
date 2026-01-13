@@ -83,7 +83,7 @@ async fn handle_end_marker(project_id: &str, qid: i64, tx: &UnboundedSender<SSEM
 
     let project_id_clone = project_id.to_string();
     let cr = get_proj_latest_pdf(&project_id_clone, &0).await;
-    let queue = get_cached_queue_status(qid).await;
+    let queue = get_queue_by_id(&qid);
 
     if let Ok(latest) = cr {
         final_latest = latest;
