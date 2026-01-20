@@ -118,7 +118,7 @@ pub async fn get_redis_comp_log_stream(
     // provided `tx` so the SSE stream consumer can finish.
     use std::env;
     let redis_conn_str = env::var("TEXHUB_RENDER_REDIS_URL").unwrap();
-    let stream_key = format!("texhub:compile:log:{}", params.project_id);
+    let stream_key = format!("texhub:compile:log:{}:{}", params.project_id, params.qid);
     let tx_block = tx.clone();
     // Move blocking work into a dedicated blocking task
     let stream_key_block = stream_key.clone();

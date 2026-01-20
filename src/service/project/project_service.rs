@@ -107,6 +107,7 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
+use rust_wheel::config::cache::redis_util::get_redis_conn;
 use rust_wheel::config::cache::redis_util::{
     del_redis_key, get_str_default, push_to_stream, set_value,
 };
