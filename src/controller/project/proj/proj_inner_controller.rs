@@ -1,6 +1,7 @@
 use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::project_service::handle_compress_proj};
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, MultipartFormConfig};
+use log::info;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::service::project::project_service::save_proj_output;
 use actix_web::{HttpRequest, web, HttpResponse};
@@ -10,9 +11,11 @@ pub async fn download_project(
     req: HttpRequest,
     form: web::Json<DownloadProj>,
 ) -> actix_web::Result<impl actix_web::Responder> {
+    info!("start download project");
     let path = handle_compress_proj(&form.0);
     match NamedFile::open(&path) {
         Ok(file) => {
+            info!("process complete");
             let content_type: Mime = "application/zip".parse().unwrap();
             Ok(NamedFile::set_content_type(file, content_type).into_response(&req))
         }
