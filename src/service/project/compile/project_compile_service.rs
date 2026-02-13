@@ -153,7 +153,7 @@ pub async fn get_redis_comp_log_stream(
                     "get_redis_comp_log_stream: xread returned no keys for key={}",
                     stream_key_block
                 );
-                continue;
+                break;
             }
             for sk in stream_reply.clone().keys {
                 info!(
