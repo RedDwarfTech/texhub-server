@@ -235,7 +235,7 @@ pub async fn rename_file(
     box_actix_rest_response(db_file)
 }
 
-pub async fn move_node(
+pub async fn move_file(
     form: actix_web_validator::Json<MoveFileReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
@@ -428,7 +428,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/del", web::delete().to(del_file))
             .route("/main", web::get().to(get_main_file))
             .route("/code", web::get().to(get_file_code))
-            .route("/mv", web::patch().to(move_node))
+            .route("/mv", web::patch().to(move_file))
             .route("/inited", web::put().to(update_file_init))
             .route("/rename", web::patch().to(rename_file))
             .route("/detail", web::get().to(get_file))
