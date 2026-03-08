@@ -61,6 +61,12 @@ pub async fn get_proj_log_name(proj_id: &String) -> String{
     let ct = proj_info.main.created_time;
     let proj_base_dir = get_proj_path(&base_compile_dir, ct);
     let log_name = format!("{}.log", get_filename_without_ext(&proj_info.main_file.name));
-    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned(), log_name]);
+    /*
+     * the project output was the render engine compile output
+     * the render engine was designed stateless
+     * so the compute and store are seperate by default
+     * the app-compile-output store the project output content
+     */
+    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned(), "app-compile-output".to_owned(), log_name]);
     return proj_dir;
 }

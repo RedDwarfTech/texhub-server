@@ -31,32 +31,17 @@ fn extract_message_content(
     stream_entry_map: &std::collections::HashMap<String, redis::Value>,
 ) -> String {
     let mut message_content = String::new();
-
-    // Log all fields in this stream entry for debugging
-    info!(
-        "extract_message_content: fields count={}",
-        stream_entry_map.len()
-    );
     for (k, v) in stream_entry_map.iter() {
         let val_str = match redis::from_redis_value::<String>(v) {
             Ok(s) => s,
             Err(_) => format!("{:?}", v),
         };
-        info!(
-            "extract_message_content: field key='{}', value='{}'",
-            k, val_str
-        );
     }
 
     // Try to find and parse the "msg" field
     if let Some(msg_value) = stream_entry_map.get("msg") {
         match redis::from_redis_value::<String>(msg_value) {
             Ok(msg_str) => {
-                info!(
-                    "extract_message_content: found 'msg' field, raw value: '{}' (len={})",
-                    msg_str,
-                    msg_str.len()
-                );
                 message_content = msg_str;
             }
             Err(decode_err) => {
