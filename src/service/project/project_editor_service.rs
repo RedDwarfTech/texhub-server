@@ -4,7 +4,7 @@ use crate::{
     common::database::get_connection, model::diesel::tex::custom_tex_models::TexProjEditor,
 };
 use diesel::{ExpressionMethods, PgConnection, QueryDsl};
-use rust_wheel::model::user::rd_user_info::RdUserInfo;
+use rust_wheel::model::user::rd_inner_user_info::RdInnerUserInfo;
 
 pub fn get_default_proj_ids(uid: i64, proj_ids: &Vec<String>) -> Vec<String> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as folder_table;
@@ -21,13 +21,12 @@ pub fn get_default_proj_ids(uid: i64, proj_ids: &Vec<String>) -> Vec<String> {
 
 pub fn create_proj_editor(
     proj_id: &String,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     rid: i32,
     connection: &mut PgConnection,
 ) -> Result<TexProjEditor, diesel::result::Error> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as proj_editor_table;
-    let uid: i64 = rd_user_info.id;
-    let proj_editor = TexProjEditorAdd::from_req(proj_id, &uid, rid, &rd_user_info.nickname);
+    let proj_editor = TexProjEditorAdd::from_req(proj_id, &rd_user_info.id, rid, &rd_user_info.nickname);
     let result = diesel::insert_into(proj_editor_table::dsl::tex_proj_editor)
         .values(&proj_editor)
         .get_result::<TexProjEditor>(connection);

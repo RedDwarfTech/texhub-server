@@ -80,6 +80,7 @@ use crate::service::global::proj::proj_util::get_purge_proj_base_dir;
 use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
+use crate::service::infra::user_service::get_user_info;
 use crate::service::project::project_editor_service::get_default_proj_ids;
 use crate::service::project::project_queue_service::get_proj_working_queue_list;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
@@ -94,7 +95,6 @@ use log::info;
 use log::{error, warn};
 use meilisearch_sdk::search::*;
 use reqwest::Client;
-use rust_wheel::common::infra::user::rd_user::get_user_info;
 use rust_wheel::common::util::model_convert::map_entity;
 use rust_wheel::common::util::net::sse_message::SSEMessage;
 use rust_wheel::common::util::rd_file_util::copy_dir_recursive;
@@ -107,14 +107,13 @@ use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
 };
 use rust_wheel::config::app::app_conf_reader::get_app_config;
-use rust_wheel::config::cache::redis_util::get_redis_conn;
 use rust_wheel::config::cache::redis_util::{
     del_redis_key, get_str_default, push_to_stream, set_value,
 };
 use rust_wheel::model::error::infra_error::InfraError;
 use rust_wheel::model::response::api_response::ApiResponse;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
-use rust_wheel::model::user::rd_user_info::RdUserInfo;
+use rust_wheel::model::user::rd_inner_user_info::RdInnerUserInfo;
 use rust_wheel::texhub::proj::compile_result::CompileResult;
 use rust_wheel::texhub::project::{get_proj_path, get_proj_relative_path};
 use std::collections::HashMap;
@@ -394,7 +393,7 @@ pub async fn create_empty_project(
     proj_req: &TexProjectReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProject, Error> {
-    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
         do_create_proj_trans(proj_req, &user_info, connection, login_user_info)
@@ -406,7 +405,7 @@ pub async fn create_tpl_project(
     tex_tpl: &TexTemplate,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
-    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
         do_create_tpl_proj_trans(&tex_tpl, &user_info, connection, login_user_info)
@@ -418,7 +417,7 @@ pub async fn create_cp_project(
     cp_req: &CopyProjReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
-    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let proj = get_cached_proj_info(&cp_req.project_id).unwrap();
     let copied_proj_name = format!("{}{}", proj.main.proj_name, "(Copy)");
@@ -445,19 +444,18 @@ pub async fn create_cp_project(
 
 fn do_create_proj_trans(
     proj_req: &TexProjectReq,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     connection: &mut PgConnection,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProject, Error> {
-    let uid: i64 = rd_user_info.id;
-    let create_result = create_proj(proj_req, connection, rd_user_info);
+    let create_result = create_proj(proj_req, connection, &rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
     do_create_proj_dependencies(proj_req, rd_user_info, connection, &proj);
-    let result = create_main_file(&proj.project_id, connection, &uid);
+    let result = create_main_file(&proj.project_id, connection, &rd_user_info.id);
     match result {
         Ok(file) => {
             let file_create_proj = proj.clone();
@@ -475,7 +473,7 @@ fn do_create_proj_trans(
 
 fn do_create_tpl_proj_trans(
     tpl: &TexTemplate,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     connection: &mut PgConnection,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
@@ -487,21 +485,21 @@ fn do_create_tpl_proj_trans(
         proj_source_type: Some(ProjSourceType::TeXHubTemplate as i16),
         proj_source: Some(tpl.id.to_string()),
     };
-    let create_result = create_proj(&proj_req, connection, rd_user_info);
+    let create_result = create_proj(&proj_req, connection, &rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
     do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
-    do_create_proj_on_disk(&tpl, &proj, rd_user_info, login_user_info);
+    do_create_proj_on_disk(&tpl, &proj, &rd_user_info.id, login_user_info);
     return Ok(Some(proj));
 }
 
 fn do_copy_proj_trans(
     main_name: &String,
     cp_req: &TexProjectReq,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     connection: &mut PgConnection,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
@@ -513,7 +511,7 @@ fn do_copy_proj_trans(
         proj_source_type: cp_req.proj_source_type,
         proj_source: cp_req.proj_source.clone(),
     };
-    let create_result = create_proj(&proj_req, connection, rd_user_info);
+    let create_result = create_proj(&proj_req, connection, &rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create copy proj: {}", ce);
         return Err(ce);
@@ -525,7 +523,7 @@ fn do_copy_proj_trans(
         &legacy_proj_id,
         &proj,
         main_name,
-        rd_user_info,
+        &rd_user_info.id,
         login_user_info,
     );
     return Ok(Some(proj));
@@ -535,10 +533,9 @@ pub fn do_create_copied_proj_on_disk(
     legacy_proj_id: &String,
     proj: &TexProject,
     main_name: &String,
-    rd_user_info: &RdUserInfo,
+    uid: &i64,
     login_user_info: &LoginUserInfo,
 ) {
-    let uid: i64 = rd_user_info.id;
     let create_res = create_copied_proj_files(
         legacy_proj_id,
         &proj.project_id,
@@ -555,10 +552,10 @@ pub fn do_create_copied_proj_on_disk(
 pub fn do_create_proj_on_disk(
     tpl: &TexTemplate,
     proj: &TexProject,
-    rd_user_info: &RdUserInfo,
+    uid: &i64,
     login_user_info: &LoginUserInfo,
 ) {
-    let create_res = create_proj_files(tpl, &proj.project_id, &rd_user_info.id, login_user_info);
+    let create_res = create_proj_files(tpl, &proj.project_id, uid, login_user_info);
     if !create_res {
         error!(
             "create project files failed,tpl: {:?}, project: {:?}",
@@ -1079,7 +1076,7 @@ pub async fn join_project(
     req: &TexJoinProjectReq,
     login_user_info: &LoginUserInfo,
 ) -> Result<TexProjEditor, Error> {
-    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let new_proj_editor = TexProjEditorAdd::from_req(
         &req.project_id,
         &login_user_info.userId,

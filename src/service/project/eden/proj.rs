@@ -24,23 +24,19 @@ use crate::{
         },
     },
     service::{
-        global::proj::proj_util::get_proj_base_dir_instant,
-        project::{
+        global::proj::proj_util::get_proj_base_dir_instant, infra::user_service::get_user_info, project::{
             eden::external_app::init_project_into_yjs,
             project_editor_service::create_proj_editor,
             project_folder_map_service::move_proj_folder,
             project_folder_service::{create_proj_default_folder, get_proj_default_folder},
-        },
+        }
     },
 };
 use diesel::{result::Error, Connection, PgConnection, RunQueryDsl};
 use log::error;
 use rust_wheel::{
-    common::{
-        infra::user::rd_user::get_user_info,
-        util::rd_file_util::{copy_dir_recursive, create_directory_if_not_exists},
-    },
-    model::user::{login_user_info::LoginUserInfo, rd_user_info::RdUserInfo},
+    common::util::rd_file_util::{copy_dir_recursive, create_directory_if_not_exists},
+    model::user::{login_user_info::LoginUserInfo, rd_inner_user_info::RdInnerUserInfo, rd_user_info::RdUserInfo},
     texhub::th_file_type::ThFileType,
 };
 use tokio::task;
@@ -59,7 +55,7 @@ pub async fn create_project_dyn_params(
         );
         return Ok(None);
     }
-    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result: Result<Option<TexProject>, Error> = connection.transaction(|connection| {
         return do_create_tpl_proj_trans(&tpl_params, &user_info, connection, login_user_info);
@@ -69,7 +65,7 @@ pub async fn create_project_dyn_params(
 
 fn do_create_tpl_proj_trans(
     tpl_params: &ProjDynParams,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     connection: &mut PgConnection,
     login_user_info: &LoginUserInfo,
 ) -> Result<Option<TexProject>, Error> {
@@ -81,27 +77,27 @@ fn do_create_tpl_proj_trans(
         proj_source_type: Some(tpl_params.proj_source_type.to_owned()),
         proj_source: Some(tpl_params.proj_source.clone()),
     };
-    let create_result = create_proj(&proj_req, connection, rd_user_info);
+    let create_result = create_proj(&proj_req, connection, &rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
         return Err(ce);
     }
     let proj = create_result.unwrap();
     do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
-    do_create_proj_on_disk(tpl_params, &proj, rd_user_info, login_user_info);
+    do_create_proj_on_disk(tpl_params, &proj, &rd_user_info.id, login_user_info);
     return Ok(Some(proj));
 }
 
 pub fn do_create_proj_on_disk(
     tpl_params: &ProjDynParams,
     proj: &TexProject,
-    rd_user_info: &RdUserInfo,
+    uid: &i64,
     login_user_info: &LoginUserInfo,
 ) {
     let create_res = create_proj_files(
         tpl_params,
         &proj.project_id,
-        &rd_user_info.id,
+        &uid,
         login_user_info,
     );
     if !create_res {
@@ -144,10 +140,9 @@ pub fn create_proj_files(
 pub fn create_proj(
     proj_req: &TexProjectReq,
     connection: &mut PgConnection,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
 ) -> Result<TexProject, diesel::result::Error> {
-    let uid: i64 = rd_user_info.id;
-    let new_proj = TexProjectAdd::from_req(&proj_req, &uid, &rd_user_info.nickname);
+    let new_proj = TexProjectAdd::from_req(&proj_req, &rd_user_info.id, &rd_user_info.nickname);
     use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
     let result = diesel::insert_into(tex_project)
         .values(&new_proj)
@@ -301,11 +296,11 @@ fn handle_proj_files(
 
 pub fn do_create_proj_dependencies(
     proj_req: &TexProjectReq,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     connection: &mut PgConnection,
     proj: &TexProject,
 ) {
-    let default_folder: TexProjFolder = create_default_folder(rd_user_info, connection, &proj);
+    let default_folder: TexProjFolder = create_default_folder(&rd_user_info, connection, &proj);
     let edit_req: EditProjFolder = EditProjFolder {
         project_id: proj.project_id.clone(),
         folder_id: if proj_req.folder_id.is_some() {
@@ -315,8 +310,7 @@ pub fn do_create_proj_dependencies(
         },
         proj_type: 1,
     };
-    let uid: i64 = rd_user_info.id;
-    move_proj_folder(&edit_req, &uid, connection);
+    move_proj_folder(&edit_req, &rd_user_info.id, connection);
     let editor_result = create_proj_editor(
         &proj.project_id.clone(),
         rd_user_info,
@@ -329,11 +323,11 @@ pub fn do_create_proj_dependencies(
 }
 
 fn create_default_folder(
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     connection: &mut PgConnection,
     proj: &TexProject,
 ) -> TexProjFolder {
-    let default_folder = get_proj_default_folder(rd_user_info, connection);
+    let default_folder = get_proj_default_folder(&rd_user_info.id, connection);
     if default_folder.is_none() {
         let default_add = TexFolderReq {
             folder_name: "default".to_owned(),

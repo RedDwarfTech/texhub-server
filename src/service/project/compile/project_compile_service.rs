@@ -6,13 +6,10 @@ use crate::{
     },
     service::{
         global::proj::proj_util::get_proj_base_dir,
-        project::{
-            project_queue_service::get_queue_by_id,
-            project_service::{get_cached_queue_status, get_proj_latest_pdf},
-        },
+        project::{project_queue_service::get_queue_by_id, project_service::get_proj_latest_pdf},
     },
 };
-use log::{error, info, warn};
+use log::{error, info};
 use redis::{
     streams::{StreamReadOptions, StreamReadReply},
     Commands, RedisResult,

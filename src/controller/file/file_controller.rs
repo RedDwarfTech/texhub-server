@@ -25,21 +25,17 @@ use crate::{
     service::{
         file::{
             file_service::{
-                create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid,
-                get_file_by_ids, get_file_list, get_file_tree, get_full_pdf, get_main_file_list,
-                get_partial_pdf, get_path_content_by_fid, get_text_file_code, mv_file_impl,
-                proj_folder_tree, rename_trans, TexFileService,
+                TexFileService, create_file, delete_file_recursive, file_init_complete, get_cached_file_by_fid, get_file_by_ids, get_file_list, get_file_tree, get_full_pdf, get_main_file_list, get_partial_pdf, get_path_content_by_fid, get_text_file_code, mv_file_impl, proj_folder_tree, rename_trans
             },
             file_version_service::{
                 create_file_ver, get_latest_file_version_by_fid, update_file_version,
                 update_version_status,
             },
             spec::file_spec::FileSpec,
-        },
-        project::{
+        }, infra::user_service::get_user_info, project::{
             project_service::{del_project_cache, get_cached_proj_info, get_proj_latest_pdf},
             share::share_service::get_collar_relation,
-        },
+        }
     },
 };
 use actix_files::NamedFile;
@@ -50,7 +46,6 @@ use mime::Mime;
 use rust_i18n::t;
 use rust_wheel::{
     common::{
-        infra::user::rd_user::get_user_info,
         util::{
             security_util::{generate_signature, verify_signature},
             time_util::get_current_millisecond,
@@ -62,7 +57,7 @@ use rust_wheel::{
     model::{
         error::infra_error::InfraError,
         response::api_response::ApiResponse,
-        user::{login_user_info::LoginUserInfo, rd_user_info::RdUserInfo},
+        user::{login_user_info::LoginUserInfo, rd_inner_user_info::RdInnerUserInfo, rd_user_info::RdUserInfo},
     },
 };
 
@@ -350,7 +345,7 @@ pub async fn load_full_pdf_file_sig(
     }
     // verify the signature
     let uid: i64 = params.0.access_key.parse().unwrap();
-    let user_info: RdUserInfo = get_user_info(&uid).await.unwrap();
+    let user_info: RdInnerUserInfo = get_user_info(&uid).await.unwrap();
     let verify_params = vec![
         ("accessKey".to_string(), params.0.access_key),
         ("expireTime".to_string(), params.0.expire.to_string()),
@@ -392,7 +387,7 @@ pub async fn gen_preview_url(
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
     let user_id = login_user_info.userId.to_string();
-    let user_info: RdUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
+    let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let now = Utc::now();
     let future_time = now + Duration::hours(6);
     let unix_timestamp = future_time.timestamp_millis();

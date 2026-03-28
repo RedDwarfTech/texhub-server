@@ -2,15 +2,14 @@ use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
 use crate::model::request::project::add::tex_folder_req::TexFolderReq;
 use crate::{diesel::RunQueryDsl, model::diesel::custom::project::folder::folder_add::FolderAdd};
 use diesel::{ExpressionMethods, PgConnection, QueryDsl};
-use rust_wheel::model::user::rd_user_info::RdUserInfo;
+use rust_wheel::model::user::rd_inner_user_info::RdInnerUserInfo;
 
 pub fn get_proj_default_folder(
-    rd_user_info: &RdUserInfo,
+    uid: &i64,
     connection: &mut PgConnection,
 ) -> Option<TexProjFolder> {
     use crate::model::diesel::tex::tex_schema::tex_proj_folder as folder_table;
     let mut query = folder_table::table.into_boxed::<diesel::pg::Pg>();
-    let uid: i64 = rd_user_info.id;
     query = query.filter(folder_table::user_id.eq(uid));
     query = query.filter(folder_table::default_folder.eq(1));
     query = query.filter(folder_table::proj_type.eq(1));
@@ -28,7 +27,7 @@ pub fn get_proj_default_folder(
 
 pub fn create_proj_default_folder(
     connection: &mut PgConnection,
-    rd_user_info: &RdUserInfo,
+    rd_user_info: &RdInnerUserInfo,
     folder_add: &TexFolderReq,
 ) -> TexProjFolder {
     let uid: i64 = rd_user_info.id;
