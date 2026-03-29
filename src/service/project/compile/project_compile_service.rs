@@ -22,6 +22,7 @@ use rust_wheel::{
 use std::io::{BufRead, BufReader};
 use std::process::{ChildStdout, Command, Stdio};
 use tokio::{sync::mpsc::UnboundedSender, task};
+use redis::{Connection, RedisError};
 
 /// Extract and parse message content from Redis stream entry map
 fn extract_message_content(
