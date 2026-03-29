@@ -36,7 +36,7 @@ use diesel::{result::Error, Connection, PgConnection, RunQueryDsl};
 use log::error;
 use rust_wheel::{
     common::util::rd_file_util::{copy_dir_recursive, create_directory_if_not_exists},
-    model::user::{login_user_info::LoginUserInfo, rd_inner_user_info::RdInnerUserInfo, rd_user_info::RdUserInfo},
+    model::user::{login_user_info::LoginUserInfo, rd_inner_user_info::RdInnerUserInfo},
     texhub::th_file_type::ThFileType,
 };
 use tokio::task;

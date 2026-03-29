@@ -6,7 +6,7 @@ use crate::{
     },
     service::{
         global::proj::proj_util::get_proj_base_dir,
-        project::{project_queue_service::get_queue_by_id, project_service::get_proj_latest_pdf},
+        project::{proj::project_service::get_proj_latest_pdf, project_queue_service::get_queue_by_id},
     },
 };
 use log::{error, info};
@@ -28,10 +28,10 @@ fn extract_message_content(
     stream_entry_map: &std::collections::HashMap<String, redis::Value>,
 ) -> String {
     let mut message_content = String::new();
-    for (k, v) in stream_entry_map.iter() {
-        let val_str = match redis::from_redis_value::<String>(v) {
+    for (_k, _v) in stream_entry_map.iter() {
+        let _val_str = match redis::from_redis_value::<String>(_v) {
             Ok(s) => s,
-            Err(_) => format!("{:?}", v),
+            Err(_) => format!("{:?}", _v),
         };
     }
 

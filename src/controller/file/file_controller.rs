@@ -32,10 +32,7 @@ use crate::{
                 update_version_status,
             },
             spec::file_spec::FileSpec,
-        }, infra::user_service::get_user_info, project::{
-            project_service::{del_project_cache, get_cached_proj_info, get_proj_latest_pdf},
-            share::share_service::get_collar_relation,
-        }
+        }, infra::user_service::get_user_info, project::{proj::project_service::{del_project_cache, get_cached_proj_info, get_proj_latest_pdf}, share::share_service::get_collar_relation}
     },
 };
 use actix_files::NamedFile;
@@ -57,7 +54,7 @@ use rust_wheel::{
     model::{
         error::infra_error::InfraError,
         response::api_response::ApiResponse,
-        user::{login_user_info::LoginUserInfo, rd_inner_user_info::RdInnerUserInfo, rd_user_info::RdUserInfo},
+        user::{login_user_info::LoginUserInfo, rd_inner_user_info::RdInnerUserInfo},
     },
 };
 

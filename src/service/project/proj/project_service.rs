@@ -1,20 +1,3 @@
-use super::eden::external_app::clone_github_repo;
-use super::eden::proj::create_files_into_db;
-use super::eden::proj::create_proj;
-use super::eden::proj::create_project_dyn_params;
-use super::eden::proj::do_create_proj_dependencies;
-use super::project_queue_service::get_latest_proj_queue;
-use super::spec::proj_spec::ProjSpec;
-use crate::common::interop::synctex::synctex_node_visible_h;
-use crate::common::interop::synctex::synctex_node_visible_v;
-use crate::common::interop::synctex::synctex_scanner_get_name;
-use crate::common::interop::synctex::{
-    synctex_display_query, synctex_edit_query, synctex_node_box_visible_depth,
-    synctex_node_box_visible_h, synctex_node_box_visible_height, synctex_node_box_visible_v,
-    synctex_node_box_visible_width, synctex_node_column, synctex_node_line, synctex_node_p,
-    synctex_node_page, synctex_scanner_new_with_output_file, synctex_scanner_next_result,
-};
-use crate::common::interop::synctex::{synctex_node_tag, synctex_scanner_free};
 use crate::common::utils::rest::http_client;
 use crate::common::zip::compress::gen_zip;
 use crate::common::zip::decompress::exact_upload_zip;
@@ -65,7 +48,6 @@ use crate::model::request::project::tex_compile_queue_log::TexCompileQueueLog;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_compile_queue_status::TexCompileQueueStatus;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
-use crate::model::response::project::compile_resp::CompileResp;
 use crate::model::response::project::latest_compile::LatestCompile;
 use crate::model::response::project::pdf_pos_resp::PdfPosResp;
 use crate::model::response::project::src_pos_resp::SrcPosResp;
@@ -81,8 +63,16 @@ use crate::service::global::proj::proj_util::{
     get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
 };
 use crate::service::infra::user_service::get_user_info;
+use crate::service::project::eden::external_app::clone_github_repo;
+use crate::service::project::eden::proj::create_files_into_db;
+use crate::service::project::eden::proj::create_proj;
+use crate::service::project::eden::proj::create_project_dyn_params;
+use crate::service::project::eden::proj::do_create_proj_dependencies;
+use crate::service::project::proj::spec::tex_project_service::TexProjectService;
 use crate::service::project::project_editor_service::get_default_proj_ids;
+use crate::service::project::project_queue_service::get_latest_proj_queue;
 use crate::service::project::project_queue_service::get_proj_working_queue_list;
+use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
 use actix_web::Responder;
@@ -125,10 +115,14 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+use crate::model::app::app_context::AppContext;
 
-pub struct TexProjectService {}
+impl <'a> ProjSpec<'a> for TexProjectService<'a> {
 
-impl ProjSpec for TexProjectService {
+    fn new(context: Option<&'a AppContext>) -> Self {
+        Self { context }
+    }
+
     fn get_proj_count_by_uid(&self, uid: &i64) -> i64 {
         use crate::model::diesel::tex::tex_schema::tex_project::dsl::*;
         let cr: Result<i64, Error> = tex_project
@@ -347,7 +341,7 @@ pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &Logi
 }
 
 pub async fn do_proj_copy(cp_req: &CopyProjReq, login_user_info: &LoginUserInfo) -> impl Responder {
-    let ps = TexProjectService {};
+    let ps = TexProjectService {context: None};
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
         return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
@@ -763,7 +757,7 @@ pub async fn save_full_proj(
         } else {
             return box_err_actix_rest_response(TexhubError::UnexpectFileType);
         }
-        let ps = TexProjectService {};
+        let ps = TexProjectService::default();
         let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
         if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
             return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
@@ -895,7 +889,7 @@ pub async fn import_from_github_impl(
         return box_err_actix_rest_response(TexhubError::ExceedeGithubRepoSize);
     }
     // check the legacy clone
-    let tex_proj_service = TexProjectService {};
+    let tex_proj_service = TexProjectService::default();
     let query_params = ProjListQueryParams {
         proj_source_type: Some(ProjSourceType::GitHubImport as i16),
         name: Some(repo.name.clone()),

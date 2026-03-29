@@ -5,7 +5,7 @@ use crate::{
     model::diesel::custom::file::file_add::TexFileAdd,
     net::y_websocket_client::initial_file_request,
     service::{
-        global::proj::proj_util::get_proj_base_dir_instant, project::project_service::support_sync,
+        global::proj::proj_util::get_proj_base_dir_instant, project::proj::project_service::support_sync
     },
 };
 use log::error;

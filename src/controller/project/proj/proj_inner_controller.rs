@@ -1,9 +1,8 @@
-use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::project_service::handle_compress_proj};
+use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::proj::project_service::handle_compress_proj};
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, MultipartFormConfig};
 use log::info;
-use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
-use crate::service::project::project_service::save_proj_output;
+use crate::service::project::proj::project_service::save_proj_output;
 use actix_web::{HttpRequest, web, HttpResponse};
 use mime::Mime;
 

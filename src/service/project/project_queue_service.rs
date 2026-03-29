@@ -115,7 +115,7 @@ pub fn update_expired_proj_queue() {
             .set(comp_status.eq(TeXFileCompileStatus::Expired as i32))
             .execute(&mut get_connection())
         {
-            Ok(count) => {}
+            Ok(_count) => {}
             Err(e) => error!("update_expired_proj_queue: failed to update rows: {}", e),
         }
     }

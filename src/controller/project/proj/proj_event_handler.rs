@@ -4,7 +4,6 @@ use redis::{
     streams::{StreamId, StreamKey, StreamReadOptions, StreamReadReply},
     RedisError, RedisResult,
 };
-use redlock::{Lock, RedLock};
 use rust_wheel::config::{app::app_conf_reader::get_app_config, cache::redis_util::get_redis_conn};
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -12,7 +11,7 @@ use tokio::task;
 
 use crate::{
     model::request::project::edit::edit_proj_nickname::EditProjNickname,
-    service::project::project_service::handle_update_nickname,
+    service::project::proj::project_service::handle_update_nickname,
 };
 pub fn consume_sys_events() {
     task::spawn_blocking({
@@ -29,20 +28,6 @@ pub async fn listen_nickname_update() {
     let stream_key = get_app_config("texhub.sys_events_stream");
     let stream_id = "0";
     loop {
-        let rl = RedLock::new(vec![redis_conn_str.as_str()]);
-        let lock;
-        loop {
-            match rl.lock("sys-event-mutex".as_bytes(), 1000) {
-                Ok(Some(l)) => {
-                    lock = l;
-                    break;
-                }
-                Ok(None) => (),
-                Err(e) => {
-                    panic!("listen_nickname_update Error communicating with redis: {}", e);
-                },
-            }
-        }
         let options = StreamReadOptions::default().count(1).block(1000).noack();
         let result: RedisResult<StreamReadReply> =
             con.xread_options(&[stream_key.as_str()], &[stream_id], &options);
@@ -54,7 +39,7 @@ pub async fn listen_nickname_update() {
         for sk in stream_reply.clone().keys {
             match sk.key.as_str() {
                 "sys:event" => {
-                    handle_proj_compile_stream(sk, &rl, &lock).await;
+                    handle_proj_compile_stream(sk).await;
                 }
                 _ => {
                     error!("not implement");
@@ -64,16 +49,14 @@ pub async fn listen_nickname_update() {
     }
 }
 
-pub async fn handle_proj_compile_stream(sk: StreamKey, rl: &RedLock, lock: &Lock<'_>) {
+pub async fn handle_proj_compile_stream(sk: StreamKey) {
     for stream_id in sk.clone().ids {
-        handle_proj_compile_record(stream_id, rl, lock, &sk).await;
+        handle_proj_compile_record(stream_id, &sk).await;
     }
 }
 
 async fn handle_proj_compile_record(
     stream_id: StreamId,
-    rl: &RedLock,
-    lock: &Lock<'_>,
     sk: &StreamKey,
 ) {
     let param = do_task(&stream_id);
@@ -88,11 +71,9 @@ async fn handle_proj_compile_record(
                 "delete system event stream failed: {}, stream id: {:?}",
                 e, &stream_id
             );
-            rl.unlock(&lock);
             return;
         }
     }
-    rl.unlock(&lock);
 }
 
 #[derive(Debug, Deserialize, Serialize)]

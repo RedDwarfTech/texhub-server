@@ -23,21 +23,19 @@ use crate::model::request::project::share::collar_query_params::CollarQueryParam
 use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::model::response::project::tex_project_cache_resp::TexProjectCacheResp;
-use crate::service::config::user_config_service::get_user_config_by_key;
 use crate::service::file::file_service::{
     get_cached_file_by_fid, get_proj_history_page_impl, get_proj_history_page_impl_v1,
     push_to_fulltext_search,
 };
-use crate::service::project::compile::project_compile_service::{
-    get_comp_log_stream, get_redis_comp_log_stream,
-};
-use crate::service::project::project_folder_map_service::move_proj_folder;
-use crate::service::project::project_service::{
+use crate::service::project::compile::project_compile_service::get_redis_comp_log_stream;
+use crate::service::project::proj::project_service::{
     del_proj_collection_folder, del_project, del_project_logic, do_proj_copy,
     get_folder_project_impl, get_proj_folders, handle_archive_proj, handle_compress_proj,
     handle_folder_create, handle_trash_proj, import_from_github_impl, proj_search_impl,
-    rename_proj_collection_folder, save_full_proj, TexProjectService,
+    rename_proj_collection_folder, save_full_proj,
 };
+use crate::service::project::proj::spec::tex_project_service::TexProjectService;
+use crate::service::project::project_folder_map_service::move_proj_folder;
 use crate::service::project::share::share_service::get_collar_relation;
 use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{
@@ -63,7 +61,7 @@ use crate::{
         },
     },
     service::{
-        project::project_service::{
+        project::proj::project_service::{
             add_compile_to_queue, compile_project, compile_status_update, create_empty_project,
             create_tpl_project, edit_proj, get_cached_proj_info, get_cached_queue_status,
             get_compiled_log, get_pdf_pos, get_proj_latest_pdf, get_src_pos, join_project,
@@ -104,7 +102,7 @@ pub async fn get_projects(
 ) -> impl Responder {
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
-    let ps = TexProjectService {};
+    let ps = TexProjectService::default();
     let projects: Vec<TexProjResp> =
         ps.get_proj_by_type(&params.0, &login_user_info, default_folder);
     let resp: ProjResp = ProjResp::from_req(folders, projects);
@@ -121,7 +119,7 @@ pub async fn get_scroll_projects(
 ) -> impl Responder {
     let folders: Vec<TexProjFolder> = get_proj_folders(&params.0, &login_user_info);
     let default_folder = folders.iter().find(|folder| folder.default_folder == 1);
-    let ps = TexProjectService {};
+    let ps = TexProjectService::default();
     let projects: Vec<TexProjResp> =
         ps.get_proj_by_type(&params.0, &login_user_info, default_folder);
     let resp: ProjResp = ProjResp::from_req(folders, projects);
@@ -167,7 +165,7 @@ pub async fn create_project(
     form: actix_web_validator::Json<TexProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let ps = TexProjectService {};
+    let ps = TexProjectService::default();
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
         return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
@@ -486,7 +484,7 @@ async fn import_from_github(
     form: actix_web_validator::Json<GithubProjSync>,
     login_user_info: LoginUserInfo,
 ) -> HttpResponse {
-    let ps = TexProjectService {};
+    let ps = TexProjectService::default();
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
         return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);

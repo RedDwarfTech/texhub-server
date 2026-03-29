@@ -19,7 +19,7 @@ use crate::model::request::project::query::get_proj_history_scroll::GetProjHisto
 use crate::model::response::file::folder_tree_resp::FolderTreeResp;
 use crate::model::response::project::latest_compile::LatestCompile;
 use crate::service::global::proj::proj_util::get_proj_base_dir;
-use crate::service::project::project_service::{del_project_cache, del_project_file};
+use crate::service::project::proj::project_service::{del_project_cache, del_project_file};
 use actix_files::NamedFile;
 use actix_web::error::ErrorBadRequest;
 use actix_web::http::header::{CacheControl, CacheDirective, ContentDisposition, DispositionType};
