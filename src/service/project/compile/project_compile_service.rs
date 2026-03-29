@@ -22,7 +22,6 @@ use rust_wheel::{
 use std::io::{BufRead, BufReader};
 use std::process::{ChildStdout, Command, Stdio};
 use tokio::{sync::mpsc::UnboundedSender, task};
-use redis::{Connection, RedisError};
 
 /// Extract and parse message content from Redis stream entry map
 fn extract_message_content(
@@ -30,7 +29,7 @@ fn extract_message_content(
 ) -> String {
     let mut message_content = String::new();
     for (_k, _v) in stream_entry_map.iter() {
-        let _val_str = match redis::from_redis_value::<String>(_v) {
+        let _val_str = match redis::from_redis_value::<String>(_v.clone()) {
             Ok(s) => s,
             Err(_) => format!("{:?}", _v),
         };
@@ -38,7 +37,7 @@ fn extract_message_content(
 
     // Try to find and parse the "msg" field
     if let Some(msg_value) = stream_entry_map.get("msg") {
-        match redis::from_redis_value::<String>(msg_value) {
+        match redis::from_redis_value::<String>(msg_value.clone()) {
             Ok(msg_str) => {
                 message_content = msg_str;
             }
