@@ -24,6 +24,7 @@ use controller::{
 };
 use log::error;
 use monitor::health_controller;
+use rust_wheel::common::util::net::auth_middleware::AuthMiddleware;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
 pub mod common;
@@ -50,6 +51,7 @@ async fn main() -> std::io::Result<()> {
     consume_sys_events();
     HttpServer::new(|| {
         App::new()
+            .wrap(AuthMiddleware)
             .configure(collar_controller::config)
             .configure(health_controller::config)
             .configure(proj_controller::config)
