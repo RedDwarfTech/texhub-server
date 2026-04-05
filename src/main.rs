@@ -19,22 +19,21 @@ use controller::appconf::appconf_controller;
 use controller::{
     collar::collar_controller,
     file::{file_controller, file_version_controller},
-    project::proj::{
-        proj_controller, proj_event_handler::consume_sys_events
-    },
+    project::proj::{proj_controller, proj_event_handler::consume_sys_events},
     template::template_controller,
 };
 use log::error;
 use monitor::health_controller;
 use rust_wheel::config::app::app_conf_reader::get_app_config;
+use rust_wheel::common::util::net::auth_middleware::AuthMiddleware;
 
 pub mod common;
 pub mod controller;
+pub mod external;
 pub mod model;
 pub mod monitor;
 pub mod net;
 pub mod service;
-pub mod external;
 pub mod tests;
 
 #[global_allocator]
@@ -42,7 +41,9 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    rustls::crypto::ring::default_provider().install_default().expect("Failed to install rustls crypto provider");
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
     rust_i18n::set_locale("zh-CN");
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     let port: u16 = get_app_config("texhub.port").parse().unwrap();
@@ -50,6 +51,7 @@ async fn main() -> std::io::Result<()> {
     consume_sys_events();
     HttpServer::new(|| {
         App::new()
+            .wrap(AuthMiddleware)
             .configure(collar_controller::config)
             .configure(health_controller::config)
             .configure(proj_controller::config)
