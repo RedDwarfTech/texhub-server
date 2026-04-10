@@ -1,7 +1,7 @@
 use crate::model::request::profile::profile_active_req::ProfileActiveReq;
 use actix_web::web;
 use actix_web::HttpResponse;
-use jemalloc_ctl::{Access, AsName};
+use tikv_jemalloc_ctl::{Access, AsName};
 use log::error;
 use rust_wheel::common::wrapper::actix_http_resp::box_actix_rest_response;
 
