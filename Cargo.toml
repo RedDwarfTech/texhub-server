@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-validator = { version = "0.16.1", features = ["derive"] }
+validator = { version = "0.20.0", features = ["derive"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 rust_wheel = { version = "0.1.14", features = [
@@ -39,7 +39,7 @@ uuid = { version = "1.23.1", features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ] }
 chrono = { version = "0.4.44" }
-reqwest = { version = "0.11.27", features = ["json", "stream","blocking","rustls-tls"] }
+reqwest = { version = "0.13.4", features = ["json", "stream","blocking","rustls"] }
 futures = "0.3"
 actix-web = "4.13.0"
 actix-web-validator = "5.0.1"
@@ -61,7 +61,7 @@ rust-i18n = "4.1.0"
 ring = "0.17.14"
 thiserror = "2.0.18"
 git2 = "0.21.0"
-octocrab = "0.41.2"
+octocrab = "0.51.0"
 
 [dependencies.tikv-jemalloc-sys]
 version = "0.7"
