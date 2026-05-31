@@ -9,7 +9,7 @@ edition = "2021"
 validator = { version = "0.20.0", features = ["derive"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-rust_wheel = { version = "0.1.14", features = [
+rust_wheel = { version = "0.1.16", features = [
     "model",
     "common",
     "rwconfig",
