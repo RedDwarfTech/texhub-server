@@ -295,7 +295,10 @@ pub async fn load_partial(
     if let Err(err) = pdf_info {
         return box_err_actix_rest_response(err);
     }
-    let range_header = req.headers().get("Range");
+    let range_header = req
+        .headers()
+        .get("Range")
+        .and_then(|value| value.to_str().ok().map(|s| s.to_string()));
     let collar_query = CollarQueryParams {
         project_id: params.0.proj_id.clone(),
         user_id: login_user_info.userId,

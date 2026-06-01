@@ -970,18 +970,19 @@ pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
 
+    let full_url = format!("{}?{}", url, vec![
+        format!("project_id={}", params.project_id),
+        format!("path={}", params.path),
+        format!("file={}", params.file),
+        format!("main_file={}", params.main_file),
+        format!("line={}", params.line.to_string()),
+        format!("column={}", params.column.to_string()),
+        format!("created_time={}", proj.unwrap().main.created_time.to_string()),
+    ].join("&"));
+
     let response = http_client()
-        .get(&url)
+        .get(&full_url)
         .headers(construct_headers())
-        .query(&[
-            ("project_id", &params.project_id),
-            ("path", &params.path),
-            ("file", &params.file),
-            ("main_file", &params.main_file),
-            ("line", &params.line.to_string()),
-            ("column", &params.column.to_string()),
-            ("created_time", &proj.unwrap().main.created_time.to_string()),
-        ])
         .send()
         .await;
 
@@ -1024,17 +1025,18 @@ pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
 
+    let full_url = format!("{}?{}", url, vec![
+        format!("project_id={}", params.project_id),
+        format!("main_file={}", params.main_file),
+        format!("page={}", params.page.to_string()),
+        format!("h={}", params.h.to_string()),
+        format!("v={}", params.v.to_string()),
+        format!("created_time={}", proj.unwrap().main.created_time.to_string()),
+    ].join("&"));
+
     let response = http_client()
-        .get(&url)
+        .get(&full_url)
         .headers(construct_headers())
-        .query(&[
-            ("project_id", &params.project_id),
-            ("main_file", &params.main_file),
-            ("page", &params.page.to_string()),
-            ("h", &params.h.to_string()),
-            ("v", &params.v.to_string()),
-            ("created_time", &proj.unwrap().main.created_time.to_string()),
-        ])
         .send()
         .await;
 
@@ -1432,10 +1434,22 @@ pub async fn send_render_req(
     let url_path = format!("{}", "/render/compile/v1/project/sse");
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let json_data = get_proj_compile_req(&params.project_id, &params.file_name);
+    use serde_json::Value;
+    let qp: Vec<String> = match &json_data {
+        Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| {
+                let vstr = v.as_str().map(|s| s.to_string()).unwrap_or_else(|| v.to_string());
+                format!("{}={}", k, vstr)
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    let full_url = if qp.is_empty() { url } else { format!("{}?{}", url, qp.join("&")) };
+
     let resp = client
-        .get(url)
+        .get(full_url)
         .headers(construct_headers())
-        .query(&json_data)
         .send()
         .await?
         .bytes_stream()

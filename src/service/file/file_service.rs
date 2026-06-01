@@ -32,7 +32,6 @@ use diesel::{
 };
 use log::error;
 use mime::Mime;
-use reqwest::header::HeaderValue;
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
@@ -939,7 +938,7 @@ fn convert_folder_to_tree_impl(
     return result;
 }
 
-pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>) -> HttpResponse {
+pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<String>) -> HttpResponse {
     let proj_base_dir = get_proj_base_dir(&lastest_pdf.project_id);
     let pdf_name = format!(
         "{}{}",
@@ -976,7 +975,7 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<&HeaderValue>)
             .content_type("application/pdf")
             .body(buf);
     }
-    let bytes_info: Vec<&str> = range.unwrap().to_str().unwrap().split("=").collect();
+    let bytes_info: Vec<&str> = range.as_ref().unwrap().split("=").collect();
     let mut parts = bytes_info[1].split('-');
     let start = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
     let end = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
