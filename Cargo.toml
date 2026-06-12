@@ -61,7 +61,7 @@ rust-i18n = "4.1.0"
 ring = "0.17.14"
 thiserror = "2.0.18"
 git2 = "0.21.0"
-octocrab = "0.51.0"
+octocrab = "0.53.1"
 
 [dependencies.tikv-jemalloc-sys]
 version = "0.7"
