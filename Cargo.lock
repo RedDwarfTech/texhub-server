@@ -5119,7 +5119,7 @@ dependencies = [
  "mime",
  "octocrab",
  "openssl",
- "openssl-probe 0.1.6",
+ "openssl-probe 0.2.1",
  "prometheus",
  "redis",
  "regex",
