@@ -1,10 +1,11 @@
-use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::proj::project_service::handle_compress_proj};
+use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::proj::project_service::{handle_compress_proj, save_full_proj_output}};
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, MultipartFormConfig};
 use log::info;
 use crate::service::project::proj::project_service::save_proj_output;
 use actix_web::{HttpRequest, web, HttpResponse};
 use mime::Mime;
+use crate::model::diesel::custom::project::upload::proj_full_upload_file::ProjFullUploadFile;
 
 pub async fn download_project(
     req: HttpRequest,
@@ -28,10 +29,17 @@ async fn upload_project_output(
     save_proj_output(form).await
 }
 
+async fn upload_full_project_output(
+    MultipartForm(form): MultipartForm<ProjFullUploadFile>,
+) -> HttpResponse {
+    save_full_proj_output(form).await
+}
+
  pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/inner-tex/project")
         .route("/download", web::put().to(download_project))
         .route("/upload-output", web::post().to(upload_project_output))
+        .route("/upload-full-output", web::put().to(upload_full_project_output))
     );
     // configure multipart limits for this inner upload endpoint
     let inner_upload_config = MultipartFormConfig::default()
