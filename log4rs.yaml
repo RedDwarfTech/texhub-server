@@ -15,15 +15,7 @@ appenders:
     encoder:
       pattern: "{d(%+)(utc)} [{f}:{L}] {h({l})} {M}:{m}{n}"
 root:
-  level: info
+  level: warn
   appenders:
     - stdout
     - render_file_logger
-loggers:
-  app::backend::db:
-    level: info
-  app::requests:
-    level: info
-    appenders:
-      - requests
-    additive: false
