@@ -39,7 +39,7 @@ async fn upload_full_project_output(
     cfg.service(web::scope("/inner-tex/project")
         .route("/download", web::put().to(download_project))
         .route("/upload-output", web::post().to(upload_project_output))
-        .route("/upload-full-output", web::put().to(upload_full_project_output))
+        .route("/upload-full-output", web::post().to(upload_full_project_output))
     );
     // configure multipart limits for this inner upload endpoint
     let inner_upload_config = MultipartFormConfig::default()
