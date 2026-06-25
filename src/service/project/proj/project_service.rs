@@ -4,6 +4,7 @@ use crate::common::zip::decompress::exact_upload_zip;
 use crate::diesel::RunQueryDsl;
 use crate::external::github::repo::repo_file::get_github_repo_size;
 use crate::external::github::repo::repo_file::repo_file_exists;
+use crate::model::app::app_context::AppContext;
 use crate::model::app::tpl_params::ProjDynParams;
 use crate::model::dict::proj_source_type::ProjSourceType;
 use crate::model::dict::tex_file_compile_status::TeXFileCompileStatus;
@@ -16,6 +17,7 @@ use crate::model::diesel::custom::project::tex_proj_editor_add::TexProjEditorAdd
 use crate::model::diesel::custom::project::tex_project_cache::TexProjectCache;
 use crate::model::diesel::custom::project::upload::full_proj_upload::FullProjUpload;
 use crate::model::diesel::custom::project::upload::github_proj_sync::GithubProjSync;
+use crate::model::diesel::custom::project::upload::proj_full_upload_file::ProjFullUploadFile;
 use crate::model::diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile;
 use crate::model::diesel::custom::project::upload::proj_upload_file::ProjUploadFile;
 use crate::model::diesel::tex::custom_tex_models::TexProjFolder;
@@ -115,10 +117,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
-use crate::model::app::app_context::AppContext;
 
-impl <'a> ProjSpec<'a> for TexProjectService<'a> {
-
+impl<'a> ProjSpec<'a> for TexProjectService<'a> {
     fn new(context: Option<&'a AppContext>) -> Self {
         Self { context }
     }
@@ -341,7 +341,7 @@ pub fn del_proj_collection_folder(del_req: &DelFolderReq, login_user_info: &Logi
 }
 
 pub async fn do_proj_copy(cp_req: &CopyProjReq, login_user_info: &LoginUserInfo) -> impl Responder {
-    let ps = TexProjectService {context: None};
+    let ps = TexProjectService { context: None };
     let project_count = ps.get_proj_count_by_uid(&login_user_info.userId);
     if project_count > 2 && login_user_info.vipExpireTime < get_current_millisecond() {
         return box_err_actix_rest_response(TexhubError::NonVipTooMuchProj);
@@ -741,6 +741,50 @@ pub async fn save_proj_output(proj_upload: ProjPdfUploadFile) -> HttpResponse {
     return box_actix_rest_response("ok");
 }
 
+// the client will upload a zip file, we need to unzip it and save the files to the project compile output directory
+pub async fn save_full_proj_output(proj_upload: ProjFullUploadFile) -> HttpResponse {
+    let proj_id = proj_upload.project_id.clone();
+    let tmp_file = proj_upload.file;
+    if tmp_file.size > 100 * 1024 * 1024 {
+        return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
+    }
+    let f_name = tmp_file.file_name;
+    if let Some(ext) = Path::new(&f_name.clone().unwrap_or_default()).extension() {
+        if ext != "zip" {
+            return box_err_actix_rest_response(TexhubError::UnexpectFileType);
+        }
+    } else {
+        return box_err_actix_rest_response(TexhubError::UnexpectFileType);
+    }
+    // persist tempfile to /tmp to avoid cross-device link issues
+    let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap_or(&"".to_string()));
+    if let Err(e) = tmp_file.file.persist(temp_path.as_str()) {
+        error!(
+            "Failed to save upload file to disk,{}, file path: {}",
+            e, temp_path
+        );
+        return box_error_actix_rest_response(
+            "",
+            "001002P001".to_owned(),
+            "exceed limit".to_owned(),
+        );
+    }
+    let proj_base = get_proj_base_dir(&proj_id);
+    let out_dir = join_paths(&[proj_base, "app-compile-output".to_owned()]);
+    if let Err(e) = create_directory_if_not_exists(&out_dir) {
+        error!("create app-compile-output dir failed,{}", e);
+        let _ = fs::remove_file(&temp_path);
+        return actix_web::error::ErrorInternalServerError("create output dir failed").into();
+    }
+    let exact_result = exact_upload_zip(&temp_path, &out_dir);
+    let _ = fs::remove_file(&temp_path);
+    if let Err(e) = exact_result {
+        error!("exact compile output zip failed, {}", e);
+        return actix_web::error::ErrorInternalServerError("exact file failed").into();
+    }
+    return box_actix_rest_response("ok");
+}
+
 pub async fn save_full_proj(
     proj_upload: FullProjUpload,
     login_user_info: &LoginUserInfo,
@@ -970,15 +1014,23 @@ pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
 
-    let full_url = format!("{}?{}", url, vec![
-        format!("project_id={}", params.project_id),
-        format!("path={}", params.path),
-        format!("file={}", params.file),
-        format!("main_file={}", params.main_file),
-        format!("line={}", params.line.to_string()),
-        format!("column={}", params.column.to_string()),
-        format!("created_time={}", proj.unwrap().main.created_time.to_string()),
-    ].join("&"));
+    let full_url = format!(
+        "{}?{}",
+        url,
+        vec![
+            format!("project_id={}", params.project_id),
+            format!("path={}", params.path),
+            format!("file={}", params.file),
+            format!("main_file={}", params.main_file),
+            format!("line={}", params.line.to_string()),
+            format!("column={}", params.column.to_string()),
+            format!(
+                "created_time={}",
+                proj.unwrap().main.created_time.to_string()
+            ),
+        ]
+        .join("&")
+    );
 
     let response = http_client()
         .get(&full_url)
@@ -1025,14 +1077,22 @@ pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
 
-    let full_url = format!("{}?{}", url, vec![
-        format!("project_id={}", params.project_id),
-        format!("main_file={}", params.main_file),
-        format!("page={}", params.page.to_string()),
-        format!("h={}", params.h.to_string()),
-        format!("v={}", params.v.to_string()),
-        format!("created_time={}", proj.unwrap().main.created_time.to_string()),
-    ].join("&"));
+    let full_url = format!(
+        "{}?{}",
+        url,
+        vec![
+            format!("project_id={}", params.project_id),
+            format!("main_file={}", params.main_file),
+            format!("page={}", params.page.to_string()),
+            format!("h={}", params.h.to_string()),
+            format!("v={}", params.v.to_string()),
+            format!(
+                "created_time={}",
+                proj.unwrap().main.created_time.to_string()
+            ),
+        ]
+        .join("&")
+    );
 
     let response = http_client()
         .get(&full_url)
@@ -1439,13 +1499,20 @@ pub async fn send_render_req(
         Value::Object(map) => map
             .iter()
             .map(|(k, v)| {
-                let vstr = v.as_str().map(|s| s.to_string()).unwrap_or_else(|| v.to_string());
+                let vstr = v
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| v.to_string());
                 format!("{}={}", k, vstr)
             })
             .collect(),
         _ => Vec::new(),
     };
-    let full_url = if qp.is_empty() { url } else { format!("{}?{}", url, qp.join("&")) };
+    let full_url = if qp.is_empty() {
+        url
+    } else {
+        format!("{}?{}", url, qp.join("&"))
+    };
 
     let resp = client
         .get(full_url)
