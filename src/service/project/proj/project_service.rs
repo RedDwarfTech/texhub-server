@@ -114,7 +114,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
 
@@ -1704,5 +1704,18 @@ pub fn handle_compress_proj(req: &DownloadProj) -> String {
 }
 
 pub async fn handle_compress_proj_async(req: DownloadProj) -> Result<String, task::JoinError> {
-    task::spawn_blocking(move || handle_compress_proj(&req)).await
+    let start = Instant::now();
+    let project_id = req.project_id.clone();
+    let result = task::spawn_blocking(move || handle_compress_proj(&req)).await;
+    match &result {
+        Ok(path) => info!(
+            "handle_compress_proj_async done: project_id={}, archive={}, elapsed={:?}",
+            project_id, path, start.elapsed()
+        ),
+        Err(e) => error!(
+            "handle_compress_proj_async failed: project_id={}, elapsed={:?}, err={:?}",
+            project_id, start.elapsed(), e
+        ),
+    }
+    result
 }
