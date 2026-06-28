@@ -1,4 +1,4 @@
-use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::proj::project_service::{handle_compress_proj, save_full_proj_output}};
+use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::proj::project_service::{handle_compress_proj_async, save_full_proj_output}};
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, MultipartFormConfig};
 use log::info;
@@ -12,8 +12,19 @@ pub async fn download_project(
     form: web::Json<DownloadProj>,
 ) -> actix_web::Result<impl actix_web::Responder> {
     info!("start download project");
-    let path = handle_compress_proj(&form.0);
-    match NamedFile::open(&path) {
+    let path = handle_compress_proj_async(form.into_inner())
+        .await
+        .map_err(|e| {
+            log::error!("compress project panicked: {:?}", e);
+            actix_web::error::ErrorInternalServerError("compress failed")
+        })?;
+    let file = tokio::task::spawn_blocking(move || NamedFile::open(&path))
+        .await
+        .map_err(|e| {
+            log::error!("open archive panicked: {:?}", e);
+            actix_web::error::ErrorInternalServerError("open archive failed")
+        })?;
+    match file {
         Ok(file) => {
             info!("process complete");
             let content_type: Mime = "application/zip".parse().unwrap();

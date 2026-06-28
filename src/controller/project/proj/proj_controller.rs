@@ -31,7 +31,8 @@ use crate::service::project::compile::project_compile_service::get_redis_comp_lo
 use crate::service::project::proj::project_service::{
     del_proj_collection_folder, del_project, del_project_logic, do_proj_copy,
     get_folder_project_impl, get_proj_folders, handle_archive_proj, handle_compress_proj,
-    handle_folder_create, handle_trash_proj, import_from_github_impl, proj_search_impl,
+    handle_compress_proj_async, handle_folder_create, handle_trash_proj, import_from_github_impl,
+    proj_search_impl,
     rename_proj_collection_folder, save_full_proj,
 };
 use crate::service::project::proj::spec::tex_project_service::TexProjectService;
@@ -419,8 +420,19 @@ pub async fn download_project(
     req: HttpRequest,
     form: web::Json<DownloadProj>,
 ) -> actix_web::Result<impl actix_web::Responder> {
-    let path = handle_compress_proj(&form.0);
-    match NamedFile::open(&path) {
+    let path = handle_compress_proj_async(form.into_inner())
+        .await
+        .map_err(|e| {
+            log::error!("compress project panicked: {:?}", e);
+            actix_web::error::ErrorInternalServerError("compress failed")
+        })?;
+    let file = tokio::task::spawn_blocking(move || NamedFile::open(&path))
+        .await
+        .map_err(|e| {
+            log::error!("open archive panicked: {:?}", e);
+            actix_web::error::ErrorInternalServerError("open archive failed")
+        })?;
+    match file {
         Ok(file) => {
             let content_type: Mime = "application/zip".parse().unwrap();
             Ok(NamedFile::set_content_type(file, content_type).into_response(&req))

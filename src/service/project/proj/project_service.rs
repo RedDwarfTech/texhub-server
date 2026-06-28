@@ -1702,3 +1702,7 @@ pub fn handle_compress_proj(req: &DownloadProj) -> String {
     let archive_path = gen_zip(&req.project_id);
     return archive_path;
 }
+
+pub async fn handle_compress_proj_async(req: DownloadProj) -> Result<String, task::JoinError> {
+    task::spawn_blocking(move || handle_compress_proj(&req)).await
+}
