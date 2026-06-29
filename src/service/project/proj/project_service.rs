@@ -1378,6 +1378,7 @@ pub async fn add_compile_to_queue(
         ("log_file_name", log_file_name.as_str()),
         ("proj_created_time", created_time_str.as_str()),
         ("user_id", &user_id_str.as_str()),
+        ("x-request-id", login_user_info.xRequestId.as_str()),
     ];
     let p_result = push_to_stream(&stream_key.as_str(), &s_params);
     if let Err(pe) = p_result {
