@@ -4,12 +4,15 @@ use log::error;
 use reqwest::Client;
 use rust_wheel::model::{response::api_response::ApiResponse, user::rd_inner_user_info::RdInnerUserInfo};
 
+use crate::common::utils::rest::OutboundRequestExt;
+
 pub async fn get_user_info(input_user_id: &i64) -> Option<RdInnerUserInfo> {
     let client = Client::new();
     let infra_url = env::var("INFRA_URL").expect("INFRA_URL must be set");
     let url = format!("{}{}", infra_url, "/infra-inner/user/detail");
     let resp = client
         .get(format!("{}?id={}", url, input_user_id))
+        .with_request_id()
         .body("{}")
         .send()
         .await;

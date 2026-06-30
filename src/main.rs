@@ -22,6 +22,8 @@ use controller::{
     project::proj::{proj_controller, proj_event_handler::consume_sys_events},
     template::template_controller,
 };
+use common::logging::init_logging;
+use common::middleware::request_id_middleware::RequestIdMiddleware;
 use log::error;
 use monitor::health_controller;
 use rust_wheel::common::util::net::auth_middleware::AuthMiddleware;
@@ -45,12 +47,13 @@ async fn main() -> std::io::Result<()> {
         .install_default()
         .expect("Failed to install rustls crypto provider");
     rust_i18n::set_locale("zh-CN");
-    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
+    init_logging().expect("failed to init logging");
     let port: u16 = get_app_config("texhub.port").parse().unwrap();
     let address = ("0.0.0.0", port);
     consume_sys_events();
     HttpServer::new(|| {
         App::new()
+            .wrap(RequestIdMiddleware)
             .wrap(AuthMiddleware)
             .configure(collar_controller::config)
             .configure(health_controller::config)

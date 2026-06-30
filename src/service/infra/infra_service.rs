@@ -3,6 +3,8 @@ use log::error;
 use reqwest::blocking::Client;
 use rust_wheel::model::response::api_response::ApiResponse;
 
+use crate::common::utils::rest::OutboundRequestExt;
+
 pub fn get_uniq_id() -> Option<i64> {
     return get_snowflake_id();
 }
@@ -13,6 +15,7 @@ pub fn get_snowflake_id() -> Option<i64> {
     let url = format!("{}{}", infra_url, "/infra-inner/util/uniqid/gen");
     let resp = client
         .get(format!("{}", url))
+        .with_request_id()
         .body("{}")
         .send();
     if let Err(e) = resp {

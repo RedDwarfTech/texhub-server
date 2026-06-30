@@ -4,6 +4,7 @@ use crate::model::request::file::add::file_add_ver_req::TexFileVerAddReq;
 use crate::model::request::project::query::file_version_params_v1::FileVersionParamsV1;
 use crate::{
     common::database::get_connection,
+    common::utils::rest::OutboundRequestExt,
     model::{
         diesel::tex::custom_tex_models::TexFileVersion,
         request::project::query::file_version_params::FileVersionParams,
@@ -121,7 +122,7 @@ pub async fn get_proj_history_v1(
         history_req.id,
     );
     
-    let resp = client.get(&url).send().await;
+    let resp = client.get(&url).with_request_id().send().await;
     if let Err(e) = &resp {
         error!("get_proj_history_v1: http request failed, error: {:?}", e);
         return None;

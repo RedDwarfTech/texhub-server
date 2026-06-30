@@ -4,6 +4,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use crate::common::database::get_connection;
+use crate::common::utils::rest::OutboundRequestExt;
 use crate::diesel::RunQueryDsl;
 use crate::model::diesel::custom::file::file_add::TexFileAdd;
 use crate::model::diesel::custom::file::file_tree::FileTree;
@@ -260,7 +261,7 @@ pub async fn get_proj_history_page_impl_v1(
         params.file_int_id.as_ref().unwrap_or(&"".to_string())
     );
 
-    let resp = client.get(&url).send().await;
+    let resp = client.get(&url).with_request_id().send().await;
     let r = match resp {
         Ok(r) => r,
         Err(e) => {

@@ -6,6 +6,7 @@ use reqwest::{
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
 use crate::{
+    common::utils::rest::request_id_header_value,
     model::request::project::tex_compile_project_req::TexCompileProjectReq,
 };
 use crate::service::global::proj::proj_util::get_proj_compile_req;
@@ -57,7 +58,7 @@ pub fn construct_headers() -> HeaderMap {
     headers.insert("x-access-token", HeaderValue::from_str(&token).unwrap());
     headers.insert("user-id", HeaderValue::from_static("1"));
     headers.insert("app-id", HeaderValue::from_static("1"));
-    headers.insert("x-request-id", HeaderValue::from_static("reqwest"));
+    headers.insert("x-request-id", request_id_header_value());
     headers.insert("device-id", HeaderValue::from_static("reqwest"));
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers
