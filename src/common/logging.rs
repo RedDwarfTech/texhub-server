@@ -24,13 +24,14 @@ impl Log for RequestIdLogger {
 
         if let Some(request_id) = request_context::try_get_request_id() {
             let message = format!("[x-request-id={}] {}", request_id, record.args());
+            let args = format_args!("{}", message);
             let enriched = Record::builder()
                 .level(record.level())
                 .target(record.target())
                 .file(record.file())
                 .line(record.line())
                 .module_path(record.module_path())
-                .args(format_args!("{}", message))
+                .args(args)
                 .build();
             self.inner.log(&enriched);
         } else {
