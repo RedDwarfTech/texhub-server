@@ -23,7 +23,7 @@ futures-util = { version = "0.3.32", default-features = false, features = [
     "std",
 ] }
 futures-channel = "0.3.32"
-log4rs = "1.4.0"
+log4rs = { version = "1.4.0", features = ["yaml_format"] }
 log = "0.4.30"
 diesel = { version = "2.3.9", features = [
     "postgres",

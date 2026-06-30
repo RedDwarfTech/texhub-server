@@ -23,17 +23,14 @@ impl Log for RequestIdLogger {
         }
 
         if let Some(request_id) = request_context::try_get_request_id() {
+            let message = format!("[x-request-id={}] {}", request_id, record.args());
             let enriched = Record::builder()
                 .level(record.level())
                 .target(record.target())
                 .file(record.file())
                 .line(record.line())
                 .module_path(record.module_path())
-                .args(format_args!(
-                    "[x-request-id={}] {}",
-                    request_id,
-                    record.args()
-                ))
+                .args(format_args!("{}", message))
                 .build();
             self.inner.log(&enriched);
         } else {
@@ -47,7 +44,7 @@ impl Log for RequestIdLogger {
 }
 
 pub fn init_logging() -> Result<log4rs::Handle, log::SetLoggerError> {
-    let config = log4rs::load_config_file("log4rs.yaml", Default::default())
+    let config = log4rs::config::load_config_file("log4rs.yaml", Default::default())
         .expect("failed to load log4rs.yaml");
     let inner = log4rs::Logger::new(config);
     log::set_max_level(inner.max_log_level());
