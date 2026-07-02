@@ -9,7 +9,7 @@ use crate::{
         project::{proj::project_service::get_proj_latest_pdf, project_queue_service::get_queue_by_id},
     },
 };
-use log::{error, info};
+use log::{error, info, debug};
 use redis::{
     streams::{StreamReadOptions, StreamReadReply},
     Commands, RedisResult,
