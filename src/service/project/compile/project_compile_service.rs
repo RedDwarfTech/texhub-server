@@ -131,14 +131,14 @@ pub async fn get_redis_comp_log_stream(
             }
             let stream_reply: StreamReadReply = result.unwrap();
             if stream_reply.keys.is_empty() {
-                info!(
+                debug!(
                     "get_redis_comp_log_stream: xread returned no keys for key={}",
                     stream_key_block
                 );
                 continue;
             }
             for sk in stream_reply.clone().keys {
-                info!(
+                debug!(
                     "get_redis_comp_log_stream: got {} ids for key={}",
                     sk.ids.len(),
                     sk.key
