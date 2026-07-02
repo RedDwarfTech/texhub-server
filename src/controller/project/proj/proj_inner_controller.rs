@@ -1,3 +1,4 @@
+use crate::handle_multipart_error;
 use crate::{model::{diesel::custom::project::upload::proj_pdf_upload_file::ProjPdfUploadFile, request::project::query::download_proj::DownloadProj}, service::project::proj::project_service::{handle_compress_proj_async, save_full_proj_output}};
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, MultipartFormConfig};
@@ -46,15 +47,16 @@ async fn upload_full_project_output(
     save_full_proj_output(form).await
 }
 
- pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/inner-tex/project")
-        .route("/download", web::put().to(download_project))
-        .route("/upload-output", web::post().to(upload_project_output))
-        .route("/upload-full-output", web::post().to(upload_full_project_output))
-    );
-    // configure multipart limits for this inner upload endpoint
+pub fn config(cfg: &mut web::ServiceConfig) {
     let inner_upload_config = MultipartFormConfig::default()
         .total_limit(104857600) // 100 MB
-        .memory_limit(209715200);
-    cfg.service(web::scope("/inner-tex/ul/proj").app_data(inner_upload_config));
+        .memory_limit(4 * 1024 * 1024) // 4 MB, spill large fields to disk
+        .error_handler(handle_multipart_error);
+    cfg.service(
+        web::scope("/inner-tex/project")
+            .route("/download", web::put().to(download_project))
+            .route("/upload-output", web::post().to(upload_project_output))
+            .route("/upload-full-output", web::post().to(upload_full_project_output))
+            .app_data(inner_upload_config),
+    );
 }

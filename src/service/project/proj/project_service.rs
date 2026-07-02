@@ -741,14 +741,50 @@ pub async fn save_proj_output(proj_upload: ProjPdfUploadFile) -> HttpResponse {
     return box_actix_rest_response("ok");
 }
 
+#[derive(Debug)]
+enum FullProjOutputBlockError {
+    PersistFailed,
+    CreateDirFailed,
+    ExtractFailed,
+}
+
+fn save_full_proj_output_blocking(
+    proj_id: String,
+    tmp_file: actix_multipart::form::tempfile::TempFile,
+    f_name: Option<String>,
+) -> Result<(), FullProjOutputBlockError> {
+    let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap_or(&"".to_string()));
+    if let Err(e) = tmp_file.file.persist(temp_path.as_str()) {
+        error!(
+            "Failed to save upload file to disk,{}, file path: {}",
+            e, temp_path
+        );
+        return Err(FullProjOutputBlockError::PersistFailed);
+    }
+    let proj_base = get_proj_base_dir(&proj_id);
+    let out_dir = join_paths(&[proj_base, "app-compile-output".to_owned()]);
+    if let Err(e) = create_directory_if_not_exists(&out_dir) {
+        error!("create app-compile-output dir failed,{}", e);
+        let _ = fs::remove_file(&temp_path);
+        return Err(FullProjOutputBlockError::CreateDirFailed);
+    }
+    if let Err(e) = exact_upload_zip(&temp_path, &out_dir) {
+        error!("exact compile output zip failed, {}", e);
+        let _ = fs::remove_file(&temp_path);
+        return Err(FullProjOutputBlockError::ExtractFailed);
+    }
+    let _ = fs::remove_file(&temp_path);
+    Ok(())
+}
+
 // the client will upload a zip file, we need to unzip it and save the files to the project compile output directory
 pub async fn save_full_proj_output(proj_upload: ProjFullUploadFile) -> HttpResponse {
-    let proj_id = proj_upload.project_id.clone();
+    let proj_id = proj_upload.project_id.0.clone();
     let tmp_file = proj_upload.file;
     if tmp_file.size > 100 * 1024 * 1024 {
         return box_err_actix_rest_response(TexhubError::ExceedMaxUnzipSize);
     }
-    let f_name = tmp_file.file_name;
+    let f_name = tmp_file.file_name.clone();
     if let Some(ext) = Path::new(&f_name.clone().unwrap_or_default()).extension() {
         if ext != "zip" {
             return box_err_actix_rest_response(TexhubError::UnexpectFileType);
@@ -756,33 +792,36 @@ pub async fn save_full_proj_output(proj_upload: ProjFullUploadFile) -> HttpRespo
     } else {
         return box_err_actix_rest_response(TexhubError::UnexpectFileType);
     }
-    // persist tempfile to /tmp to avoid cross-device link issues
-    let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap_or(&"".to_string()));
-    if let Err(e) = tmp_file.file.persist(temp_path.as_str()) {
-        error!(
-            "Failed to save upload file to disk,{}, file path: {}",
-            e, temp_path
-        );
-        return box_error_actix_rest_response(
+
+    let start = Instant::now();
+    let block_result =
+        task::spawn_blocking(move || save_full_proj_output_blocking(proj_id, tmp_file, f_name))
+            .await;
+
+    match block_result {
+        Ok(Ok(())) => {
+            info!(
+                "save_full_proj_output done, elapsed={:?}",
+                start.elapsed()
+            );
+            box_actix_rest_response("ok")
+        }
+        Ok(Err(FullProjOutputBlockError::PersistFailed)) => box_error_actix_rest_response(
             "",
             "001002P001".to_owned(),
             "exceed limit".to_owned(),
-        );
+        ),
+        Ok(Err(FullProjOutputBlockError::CreateDirFailed)) => {
+            actix_web::error::ErrorInternalServerError("create output dir failed").into()
+        }
+        Ok(Err(FullProjOutputBlockError::ExtractFailed)) => {
+            actix_web::error::ErrorInternalServerError("exact file failed").into()
+        }
+        Err(e) => {
+            error!("save_full_proj_output spawn_blocking panicked: {:?}", e);
+            actix_web::error::ErrorInternalServerError("save full output failed").into()
+        }
     }
-    let proj_base = get_proj_base_dir(&proj_id);
-    let out_dir = join_paths(&[proj_base, "app-compile-output".to_owned()]);
-    if let Err(e) = create_directory_if_not_exists(&out_dir) {
-        error!("create app-compile-output dir failed,{}", e);
-        let _ = fs::remove_file(&temp_path);
-        return actix_web::error::ErrorInternalServerError("create output dir failed").into();
-    }
-    let exact_result = exact_upload_zip(&temp_path, &out_dir);
-    let _ = fs::remove_file(&temp_path);
-    if let Err(e) = exact_result {
-        error!("exact compile output zip failed, {}", e);
-        return actix_web::error::ErrorInternalServerError("exact file failed").into();
-    }
-    return box_actix_rest_response("ok");
 }
 
 pub async fn save_full_proj(

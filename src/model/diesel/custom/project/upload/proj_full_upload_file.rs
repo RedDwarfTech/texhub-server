@@ -2,7 +2,7 @@ use actix_multipart::form::{MultipartForm, tempfile::TempFile, text::Text};
 
 #[derive(Debug, MultipartForm)]
 pub struct ProjFullUploadFile {
-    #[multipart(rename = "file")]
+    #[multipart(rename = "file", limit = "100MB")]
     pub file: TempFile,
-    pub project_id: Text<String>
+    pub project_id: Text<String>,
 }
