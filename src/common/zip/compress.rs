@@ -1,4 +1,6 @@
-use crate::service::global::proj::proj_util::{get_proj_base_dir, get_proj_download_base_dir};
+use crate::service::global::proj::proj_util::{
+    get_compile_output_dir_name, get_proj_base_dir, get_proj_download_base_dir,
+};
 use log::{info, warn};
 use rust_wheel::common::util::rd_file_util::{create_folder_not_exists, join_paths};
 use std::collections::HashMap;
@@ -100,11 +102,17 @@ pub fn gen_zip(proj_id: &String) -> String {
 fn build_zip(folder_path: &Path, archive_file_path: &str) {
     let file = File::create(archive_file_path).unwrap();
     let mut zip = ZipWriter::new(file);
-    visit_folder(folder_path, &mut zip, "").unwrap();
+    let exclude_dir = get_compile_output_dir_name();
+    visit_folder(folder_path, &mut zip, "", &exclude_dir).unwrap();
     zip.finish().unwrap();
 }
 
-fn visit_folder(path: &Path, zip: &mut ZipWriter<File>, parent: &str) -> std::io::Result<()> {
+fn visit_folder(
+    path: &Path,
+    zip: &mut ZipWriter<File>,
+    parent: &str,
+    exclude_dir: &str,
+) -> std::io::Result<()> {
     for entry in path.read_dir()? {
         let entry = entry?;
         let file_path = entry.path();
@@ -114,8 +122,11 @@ fn visit_folder(path: &Path, zip: &mut ZipWriter<File>, parent: &str) -> std::io
             .to_string_lossy()
             .into_owned();
         if file_path.is_dir() {
+            if file_name == exclude_dir {
+                continue;
+            }
             let zip_path = join_paths(&[parent, &path.file_name().unwrap().to_string_lossy()]);
-            visit_folder(&file_path, zip, &zip_path)?;
+            visit_folder(&file_path, zip, &zip_path, exclude_dir)?;
         } else {
             let zip_path = join_paths(&[
                 parent,

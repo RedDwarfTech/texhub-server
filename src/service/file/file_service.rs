@@ -19,7 +19,7 @@ use crate::model::request::project::query::get_proj_history_page::GetProjPageHis
 use crate::model::request::project::query::get_proj_history_scroll::GetProjHistoryScroll;
 use crate::model::response::file::folder_tree_resp::FolderTreeResp;
 use crate::model::response::project::latest_compile::LatestCompile;
-use crate::service::global::proj::proj_util::get_proj_base_dir;
+use crate::service::global::proj::proj_util::{get_compile_output_dir_name, get_proj_base_dir};
 use crate::service::project::proj::project_service::{del_project_cache, del_project_file};
 use actix_files::NamedFile;
 use actix_web::error::ErrorBadRequest;
@@ -946,7 +946,7 @@ pub fn get_partial_pdf(lastest_pdf: &LatestCompile, range: Option<String>) -> Ht
         get_filename_without_ext(&lastest_pdf.file_name),
         ".pdf"
     );
-    let pdf_file_path = join_paths(&[proj_base_dir, "app-compile-output".to_owned(), pdf_name]);
+    let pdf_file_path = join_paths(&[proj_base_dir, get_compile_output_dir_name(), pdf_name]);
     if range.is_none() {
         let open_err = format!("Failed to open file, {}", &pdf_file_path);
         if !Path::new(&pdf_file_path).exists() {
@@ -1010,7 +1010,7 @@ pub fn get_full_pdf(lastest_pdf: &LatestCompile, req: HttpRequest) -> HttpRespon
         get_filename_without_ext(&lastest_pdf.file_name),
         ".pdf"
     );
-    let pdf_file_path = join_paths(&[proj_base_dir, "app-compile-output".to_owned(), pdf_name]);
+    let pdf_file_path = join_paths(&[proj_base_dir, get_compile_output_dir_name(), pdf_name]);
     match NamedFile::open(&pdf_file_path.clone()) {
         Ok(file) => {
             let content_type: Mime = "application/pdf".parse().unwrap();

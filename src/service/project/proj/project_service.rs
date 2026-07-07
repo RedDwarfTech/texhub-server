@@ -62,7 +62,8 @@ use crate::service::file::file_service::{
 };
 use crate::service::global::proj::proj_util::get_purge_proj_base_dir;
 use crate::service::global::proj::proj_util::{
-    get_proj_base_dir, get_proj_base_dir_instant, get_proj_compile_req, get_proj_log_name,
+    get_compile_output_dir_name, get_proj_base_dir, get_proj_base_dir_instant,
+    get_proj_compile_req, get_proj_log_name,
 };
 use crate::service::infra::user_service::get_user_info;
 use crate::service::project::eden::external_app::clone_github_repo;
@@ -728,9 +729,9 @@ pub async fn save_proj_output(proj_upload: ProjPdfUploadFile) -> HttpResponse {
             continue;
         }
         let proj_base = get_proj_base_dir(&proj_id);
-        let out_dir = join_paths(&[proj_base, "app-compile-output".to_owned()]);
+        let out_dir = join_paths(&[proj_base, get_compile_output_dir_name()]);
         if let Err(e) = create_directory_if_not_exists(&out_dir) {
-            error!("create app-compile-output dir failed,{}", e);
+            error!("create compile output dir failed,{}", e);
         }
         let dest = join_paths(&[out_dir, f_name.unwrap_or_default()]);
         if let Err(e) = fs::copy(&temp_path, &dest) {
@@ -762,9 +763,9 @@ fn save_full_proj_output_blocking(
         return Err(FullProjOutputBlockError::PersistFailed);
     }
     let proj_base = get_proj_base_dir(&proj_id);
-    let out_dir = join_paths(&[proj_base, "app-compile-output".to_owned()]);
+    let out_dir = join_paths(&[proj_base, get_compile_output_dir_name()]);
     if let Err(e) = create_directory_if_not_exists(&out_dir) {
-        error!("create app-compile-output dir failed,{}", e);
+        error!("create compile output dir failed,{}", e);
         let _ = fs::remove_file(&temp_path);
         return Err(FullProjOutputBlockError::CreateDirFailed);
     }

@@ -18,6 +18,10 @@ pub fn get_proj_compile_req(proj_id: &String, file_name: &String) -> Value {
     return json_data;
 }
 
+pub fn get_compile_output_dir_name() -> String {
+    get_app_config("texhub.compile_output_dir")
+}
+
 pub fn get_proj_base_dir(proj_id: &String) -> String{
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let proj_info = get_cached_proj_info(&proj_id).unwrap();
@@ -66,8 +70,8 @@ pub async fn get_proj_log_name(proj_id: &String) -> String{
      * the project output was the render engine compile output
      * the render engine was designed stateless
      * so the compute and store are seperate by default
-     * the app-compile-output store the project output content
+     * the compile output dir stores the project output content
      */
-    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned(), "app-compile-output".to_owned(), log_name]);
+    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned(), get_compile_output_dir_name(), log_name]);
     return proj_dir;
 }

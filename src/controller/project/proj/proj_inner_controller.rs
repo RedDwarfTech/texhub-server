@@ -12,7 +12,6 @@ pub async fn download_project(
     req: HttpRequest,
     form: web::Json<DownloadProj>,
 ) -> actix_web::Result<impl actix_web::Responder> {
-    info!("start download project");
     let path = handle_compress_proj_async(form.into_inner())
         .await
         .map_err(|e| {

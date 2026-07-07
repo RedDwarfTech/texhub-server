@@ -1,6 +1,7 @@
 [texhub]
 port = 8000
 compile_base_dir = "/opt/data/project"
+compile_output_dir = "app-compile-output"
 download_base_dir = "/opt/data/download/project"
 tpl_files_base_dir = "/opt/data/tpl-files"
 x_access_token = "demo"
