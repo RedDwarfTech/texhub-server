@@ -1,6 +1,7 @@
-use std::future::Future;
+use std::{future::Future, sync::OnceLock};
 
 use log::warn;
+use rust_wheel::config::app::app_conf_reader::get_app_config;
 use tokio::task_local;
 
 task_local! {
@@ -65,14 +66,43 @@ fn try_get_request_log_context() -> Option<RequestLogContext> {
     REQUEST_LOG_CONTEXT.try_with(|ctx| ctx.clone()).ok()
 }
 
-fn generate_request_id(reason: &str, context: Option<&RequestLogContext>) -> String {
+fn request_id_warn_ignore_paths() -> &'static [String] {
+    static IGNORE_PATHS: OnceLock<Vec<String>> = OnceLock::new();
+    IGNORE_PATHS.get_or_init(|| {
+        let configured = get_app_config("texhub.request_id_warn_ignore_paths");
+        if configured.is_empty() {
+            vec!["/texhub/actuator/liveness".to_string()]
+        } else {
+            configured
+                .split(',')
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map(str::to_string)
+                .collect()
+        }
+    })
+}
+
+fn should_ignore_request_id_warning(context: Option<&RequestLogContext>) -> bool {
+    let Some(uri) = context.and_then(|ctx| ctx.uri.as_deref()) else {
+        return false;
+    };
+    let path = uri.split('?').next().unwrap_or(uri);
+    request_id_warn_ignore_paths()
+        .iter()
+        .any(|ignored| path == ignored.as_str())
+}
+
+fn generate_request_id(reason: &str, context: Option<&RequestLogContext>, suppress_warn: bool) -> String {
     let id = uuid::Uuid::new_v4().to_string();
-    warn!(
-        "x-request-id auto-generated ({}): {} [{}]",
-        reason,
-        id,
-        format_log_context(context)
-    );
+    if !suppress_warn {
+        warn!(
+            "x-request-id auto-generated ({}): {} [{}]",
+            reason,
+            id,
+            format_log_context(context)
+        );
+    }
     id
 }
 
@@ -82,6 +112,7 @@ pub fn extract_request_id(header_value: Option<&str>, context: RequestLogContext
         _ => generate_request_id(
             "missing x-request-id header in incoming request",
             Some(&context),
+            should_ignore_request_id_warning(Some(&context)),
         ),
     }
 }
@@ -94,6 +125,6 @@ pub fn outbound_request_id(hint_uri: Option<&str>) -> String {
             method: Some("OUTBOUND".to_string()),
             uri: Some(uri.to_string()),
         });
-        generate_request_id("no request context for outbound call", context.as_ref())
+        generate_request_id("no request context for outbound call", context.as_ref(), false)
     })
 }
