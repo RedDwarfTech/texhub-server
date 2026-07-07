@@ -6,7 +6,7 @@ use reqwest::{
 use rust_wheel::config::app::app_conf_reader::get_app_config;
 
 use crate::{
-    common::utils::rest::request_id_header_value,
+    common::request_context,
     model::request::project::tex_compile_project_req::TexCompileProjectReq,
 };
 use crate::service::global::proj::proj_util::get_proj_compile_req;
@@ -17,8 +17,8 @@ pub async fn render_request(params: &TexCompileProjectReq) -> Option<serde_json:
     let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
     let req_value = get_proj_compile_req(&params.project_id, &params.file_name);
     let response = client
-        .post(url)
-        .headers(construct_headers())
+        .post(&url)
+        .headers(construct_headers(&url))
         .json(&req_value)
         .send()
         .await;
@@ -52,13 +52,17 @@ pub async fn render_request(params: &TexCompileProjectReq) -> Option<serde_json:
     }
 }
 
-pub fn construct_headers() -> HeaderMap {
+pub fn construct_headers(url: &str) -> HeaderMap {
     let mut headers = HeaderMap::new();
     let token: String = get_app_config("texhub.x_access_token").to_owned();
     headers.insert("x-access-token", HeaderValue::from_str(&token).unwrap());
     headers.insert("user-id", HeaderValue::from_static("1"));
     headers.insert("app-id", HeaderValue::from_static("1"));
-    headers.insert("x-request-id", request_id_header_value());
+    headers.insert(
+        "x-request-id",
+        HeaderValue::from_str(&request_context::outbound_request_id(Some(url)))
+            .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+    );
     headers.insert("device-id", HeaderValue::from_static("reqwest"));
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers

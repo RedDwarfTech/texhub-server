@@ -9,7 +9,7 @@ use actix_web::{
 };
 use futures::future::LocalBoxFuture;
 
-use crate::common::request_context::{extract_request_id, with_request_id};
+use crate::common::request_context::{extract_request_id, with_request_scope, RequestLogContext};
 
 pub struct RequestIdMiddleware;
 
@@ -50,14 +50,19 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = Rc::clone(&self.service);
+        let log_context = RequestLogContext::new(req.method().as_str(), req.uri().to_string());
         let request_id = extract_request_id(
             req.headers()
                 .get("x-request-id")
                 .and_then(|h| h.to_str().ok()),
+            log_context.clone(),
         );
 
         Box::pin(async move {
-            with_request_id(request_id, async move { service.call(req).await }).await
+            with_request_scope(request_id, log_context, async move {
+                service.call(req).await
+            })
+            .await
         })
     }
 }

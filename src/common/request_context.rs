@@ -5,6 +5,23 @@ use tokio::task_local;
 
 task_local! {
     static REQUEST_ID: String;
+    static REQUEST_LOG_CONTEXT: RequestLogContext;
+}
+
+/// 用于告警日志的请求上下文信息。
+#[derive(Clone, Debug, Default)]
+pub struct RequestLogContext {
+    pub method: Option<String>,
+    pub uri: Option<String>,
+}
+
+impl RequestLogContext {
+    pub fn new(method: impl Into<String>, uri: impl Into<String>) -> Self {
+        Self {
+            method: Some(method.into()),
+            uri: Some(uri.into()),
+        }
+    }
 }
 
 pub fn try_get_request_id() -> Option<String> {
@@ -18,20 +35,65 @@ where
     REQUEST_ID.scope(request_id, f).await
 }
 
-fn generate_request_id(reason: &str) -> String {
+pub async fn with_request_scope<F, T>(
+    request_id: String,
+    log_context: RequestLogContext,
+    f: F,
+) -> T
+where
+    F: Future<Output = T>,
+{
+    REQUEST_LOG_CONTEXT
+        .scope(log_context, async { REQUEST_ID.scope(request_id, f).await })
+        .await
+}
+
+fn format_log_context(context: Option<&RequestLogContext>) -> String {
+    match context {
+        Some(ctx) => {
+            let method = ctx.method.as_deref().unwrap_or("-");
+            let uri = ctx.uri.as_deref().unwrap_or("-");
+            format!("method={method}, uri={uri}")
+        }
+        None => try_get_request_log_context()
+            .map(|ctx| format_log_context(Some(&ctx)))
+            .unwrap_or_else(|| "method=-, uri=-".to_string()),
+    }
+}
+
+fn try_get_request_log_context() -> Option<RequestLogContext> {
+    REQUEST_LOG_CONTEXT.try_with(|ctx| ctx.clone()).ok()
+}
+
+fn generate_request_id(reason: &str, context: Option<&RequestLogContext>) -> String {
     let id = uuid::Uuid::new_v4().to_string();
-    warn!("x-request-id auto-generated ({}): {}", reason, id);
+    warn!(
+        "x-request-id auto-generated ({}): {} [{}]",
+        reason,
+        id,
+        format_log_context(context)
+    );
     id
 }
 
-pub fn extract_request_id(header_value: Option<&str>) -> String {
+pub fn extract_request_id(header_value: Option<&str>, context: RequestLogContext) -> String {
     match header_value {
         Some(id) if !id.is_empty() => id.to_string(),
-        _ => generate_request_id("missing x-request-id header in incoming request"),
+        _ => generate_request_id(
+            "missing x-request-id header in incoming request",
+            Some(&context),
+        ),
     }
 }
 
 /// 出站调用使用的 request-id：优先取当前请求上下文，否则生成新 ID 并告警。
-pub fn outbound_request_id() -> String {
-    try_get_request_id().unwrap_or_else(|| generate_request_id("no request context for outbound call"))
+/// `hint_uri` 可在无上下文时补充出站目标 URL，便于定位调用来源。
+pub fn outbound_request_id(hint_uri: Option<&str>) -> String {
+    try_get_request_id().unwrap_or_else(|| {
+        let context = hint_uri.map(|uri| RequestLogContext {
+            method: Some("OUTBOUND".to_string()),
+            uri: Some(uri.to_string()),
+        });
+        generate_request_id("no request context for outbound call", context.as_ref())
+    })
 }

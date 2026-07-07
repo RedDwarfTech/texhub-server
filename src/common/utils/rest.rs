@@ -18,7 +18,7 @@ pub fn http_client() -> &'static reqwest::Client {
 }
 
 pub fn request_id_header_value() -> HeaderValue {
-    HeaderValue::from_str(&request_context::outbound_request_id())
+    HeaderValue::from_str(&request_context::outbound_request_id(None))
         .unwrap_or_else(|_| HeaderValue::from_static("unknown"))
 }
 
@@ -28,13 +28,31 @@ pub trait OutboundRequestExt {
 
 impl OutboundRequestExt for reqwest::RequestBuilder {
     fn with_request_id(self) -> Self {
-        self.header("x-request-id", request_id_header_value())
+        let hint_uri = self
+            .try_clone()
+            .ok()
+            .and_then(|builder| builder.build().ok())
+            .map(|request| request.url().to_string());
+        self.header(
+            "x-request-id",
+            HeaderValue::from_str(&request_context::outbound_request_id(hint_uri.as_deref()))
+                .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+        )
     }
 }
 
 impl OutboundRequestExt for reqwest::blocking::RequestBuilder {
     fn with_request_id(self) -> Self {
-        self.header("x-request-id", request_id_header_value())
+        let hint_uri = self
+            .try_clone()
+            .ok()
+            .and_then(|builder| builder.build().ok())
+            .map(|request| request.url().to_string());
+        self.header(
+            "x-request-id",
+            HeaderValue::from_str(&request_context::outbound_request_id(hint_uri.as_deref()))
+                .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+        )
     }
 }
 
