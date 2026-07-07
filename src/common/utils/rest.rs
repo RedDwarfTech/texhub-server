@@ -30,7 +30,6 @@ impl OutboundRequestExt for reqwest::RequestBuilder {
     fn with_request_id(self) -> Self {
         let hint_uri = self
             .try_clone()
-            .ok()
             .and_then(|builder| builder.build().ok())
             .map(|request| request.url().to_string());
         self.header(
@@ -45,7 +44,6 @@ impl OutboundRequestExt for reqwest::blocking::RequestBuilder {
     fn with_request_id(self) -> Self {
         let hint_uri = self
             .try_clone()
-            .ok()
             .and_then(|builder| builder.build().ok())
             .map(|request| request.url().to_string());
         self.header(

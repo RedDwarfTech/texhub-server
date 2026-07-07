@@ -1074,7 +1074,7 @@ pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
 
     let response = http_client()
         .get(&full_url)
-        .headers(construct_headers())
+        .headers(construct_headers(&full_url))
         .send()
         .await;
 
@@ -1136,7 +1136,7 @@ pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
 
     let response = http_client()
         .get(&full_url)
-        .headers(construct_headers())
+        .headers(construct_headers(&full_url))
         .send()
         .await;
 
@@ -1556,8 +1556,8 @@ pub async fn send_render_req(
     };
 
     let resp = client
-        .get(full_url)
-        .headers(construct_headers())
+        .get(&full_url)
+        .headers(construct_headers(&full_url))
         .send()
         .await?
         .bytes_stream()

@@ -25,8 +25,8 @@ pub async fn initial_file_request(
         file_content: file_content.to_string(),
     };
     let response = client
-        .post(url)
-        .headers(construct_headers())
+        .post(&url)
+        .headers(construct_headers(&url))
         .json(&initial_req)
         .send()
         .await;
