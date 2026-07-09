@@ -1,4 +1,3 @@
-use crate::common::utils::rest::http_client;
 use crate::common::zip::compress::gen_zip;
 use crate::common::zip::decompress::exact_upload_zip;
 use crate::diesel::RunQueryDsl;
@@ -104,7 +103,6 @@ use rust_wheel::config::cache::redis_util::{
     del_redis_key, get_str_default, push_to_stream, set_value,
 };
 use rust_wheel::model::error::infra_error::InfraError;
-use rust_wheel::model::response::api_response::ApiResponse;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::model::user::rd_inner_user_info::RdInnerUserInfo;
 use rust_wheel::texhub::proj::compile_result::CompileResult;
@@ -1049,123 +1047,12 @@ fn create_proj_file_impl(
     return result;
 }
 
-pub async fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
-    let url_path = "/tex/project/pos/pdf";
-    let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
-    let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
-
-    let full_url = format!(
-        "{}?{}",
-        url,
-        vec![
-            format!("project_id={}", params.project_id),
-            format!("path={}", params.path),
-            format!("file={}", params.file),
-            format!("main_file={}", params.main_file),
-            format!("line={}", params.line.to_string()),
-            format!("column={}", params.column.to_string()),
-            format!(
-                "created_time={}",
-                proj.unwrap().main.created_time.to_string()
-            ),
-        ]
-        .join("&")
-    );
-
-    let response = http_client()
-        .get(&full_url)
-        .headers(construct_headers(&full_url))
-        .send()
-        .await;
-
-    match response {
-        Ok(r) => {
-            if !r.status().is_success() {
-                error!(
-                    "get pdf pos failed, status: {}, msg: {}",
-                    r.status(),
-                    r.text().await.unwrap_or_default()
-                );
-                return Vec::new();
-            }
-            let rtxt = r.text().await;
-            info!(
-                "pdf pos response content: {}",
-                rtxt.as_ref().unwrap_or(&"".to_string())
-            );
-            let resp: Result<ApiResponse<Vec<PdfPosResp>>, serde_json::Error> =
-                serde_json::from_str(rtxt.as_ref().unwrap_or(&"".to_string()));
-            match resp {
-                Ok(position_list) => {
-                    return position_list.result;
-                }
-                Err(e) => {
-                    error!("parse pdf pos response failed: {}", e);
-                    return Vec::new();
-                }
-            }
-        }
-        Err(e) => {
-            error!("request pdf pos error: {}", e);
-            return Vec::new();
-        }
-    }
+pub fn get_pdf_pos(params: &GetPdfPosParams) -> Vec<PdfPosResp> {
+    crate::service::project::proj::synctex_service::get_pdf_pos(params)
 }
 
-pub async fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
-    let url_path = "/tex/project/pos/src";
-    let url = format!("{}{}", get_app_config("texhub.render_api_url"), url_path);
-    let proj: Option<TexProjectCache> = get_cached_proj_info(&params.project_id);
-
-    let full_url = format!(
-        "{}?{}",
-        url,
-        vec![
-            format!("project_id={}", params.project_id),
-            format!("main_file={}", params.main_file),
-            format!("page={}", params.page.to_string()),
-            format!("h={}", params.h.to_string()),
-            format!("v={}", params.v.to_string()),
-            format!(
-                "created_time={}",
-                proj.unwrap().main.created_time.to_string()
-            ),
-        ]
-        .join("&")
-    );
-
-    let response = http_client()
-        .get(&full_url)
-        .headers(construct_headers(&full_url))
-        .send()
-        .await;
-
-    match response {
-        Ok(r) => {
-            if !r.status().is_success() {
-                error!(
-                    "get src pos failed, status: {}, msg: {}",
-                    r.status(),
-                    r.text().await.unwrap_or_default()
-                );
-                return Vec::new();
-            }
-            let resp: Result<ApiResponse<Vec<SrcPosResp>>, reqwest::Error> = r.json().await;
-            match resp {
-                Ok(position_list) => {
-                    return position_list.result;
-                }
-                Err(e) => {
-                    error!("parse src pos response failed: {}", e);
-                    return Vec::new();
-                }
-            }
-        }
-        Err(e) => {
-            error!("request src pos error: {}", e);
-            return Vec::new();
-        }
-    }
+pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
+    crate::service::project::proj::synctex_service::get_src_pos(params)
 }
 
 pub async fn join_project(
