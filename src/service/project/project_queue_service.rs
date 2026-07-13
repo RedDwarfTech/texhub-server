@@ -2,12 +2,21 @@ use crate::diesel::RunQueryDsl;
 use crate::model::dict::tex_file_compile_status::TeXFileCompileStatus;
 use crate::model::diesel::tex::custom_tex_models::TexCompQueue;
 use crate::{
-    common::database::get_connection, model::request::project::queue::queue_req::QueueReq,
+    common::database::get_connection,
+    model::request::project::queue::queue_req::QueueReq,
+    model::request::project::queue::queue_start_time_req::QueueStartTimeReq,
 };
+use actix_web::HttpResponse;
 use chrono::{Duration, Utc};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, QueryResult};
 use log::error;
-use rust_wheel::model::user::login_user_info::LoginUserInfo;
+use rust_wheel::{
+    common::{
+        util::time_util::get_current_millisecond,
+        wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
+    },
+    model::user::login_user_info::LoginUserInfo,
+};
 
 pub fn get_queue_by_id(queue_id: &i64) -> Option<TexCompQueue> {
     use crate::model::diesel::tex::tex_schema::tex_comp_queue as comp_queue_table;
@@ -119,4 +128,35 @@ pub fn update_expired_proj_queue() {
             Err(e) => error!("update_expired_proj_queue: failed to update rows: {}", e),
         }
     }
+}
+
+pub fn update_queue_start_time(params: &QueueStartTimeReq) -> HttpResponse {
+    use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
+    use crate::service::project::proj::project_service::cache_queue;
+
+    let predicate = id.eq(params.id);
+    let start_time_value = if params.start_time > 0 {
+        params.start_time
+    } else {
+        get_current_millisecond()
+    };
+    let update_result = diesel::update(tex_comp_queue.filter(predicate))
+        .set((
+            start_time.eq(start_time_value),
+            updated_time.eq(get_current_millisecond()),
+        ))
+        .get_result::<TexCompQueue>(&mut get_connection());
+    if let Err(e) = update_result {
+        let err_msg = format!(
+            "update compile queue start time failed, error info:{}, params:{:?}",
+            e, params
+        );
+        error!("{}", err_msg);
+        return box_error_actix_rest_response("", "UPDATE_QUEUE_START_TIME_FAILED".to_owned(), err_msg);
+    }
+    let queue = update_result.unwrap();
+    if let Some(resp) = cache_queue(&queue) {
+        return resp;
+    }
+    box_actix_rest_response(queue)
 }

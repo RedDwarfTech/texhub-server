@@ -19,6 +19,7 @@ pub struct TexCompQueue {
     pub version_no: String,
     pub comp_result: i32,
     pub complete_time: i64,
+    pub start_time: i64,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
