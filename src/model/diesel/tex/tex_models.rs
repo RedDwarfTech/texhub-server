@@ -7,7 +7,7 @@ use serde::Serialize;
 use serde::Deserialize;
 use crate::model::diesel::tex::tex_schema::*;
 
-#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[derive(Insertable, Queryable, QueryableByName, Debug, Serialize, Deserialize, Default, Clone)]
 #[diesel(table_name = "tex_comp_queue")]
 pub struct TexCompQueue {
     pub id: i64,
@@ -20,6 +20,9 @@ pub struct TexCompQueue {
     pub comp_result: i32,
     pub complete_time: i64,
     pub start_time: i64,
+    #[serde(default)]
+    #[diesel(skip_insertion)]
+    pub compile_duration_ms: Option<i64>,
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]

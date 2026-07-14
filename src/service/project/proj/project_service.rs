@@ -49,6 +49,7 @@ use crate::model::request::project::tex_compile_queue_log::TexCompileQueueLog;
 use crate::model::request::project::tex_compile_queue_req::TexCompileQueueReq;
 use crate::model::request::project::tex_compile_queue_status::TexCompileQueueStatus;
 use crate::model::request::project::tex_join_project_req::TexJoinProjectReq;
+use crate::model::response::project::compile_queue_add_resp::CompileQueueAddResp;
 use crate::model::response::project::latest_compile::LatestCompile;
 use crate::model::response::project::pdf_pos_resp::PdfPosResp;
 use crate::model::response::project::src_pos_resp::SrcPosResp;
@@ -72,6 +73,7 @@ use crate::service::project::eden::proj::create_project_dyn_params;
 use crate::service::project::eden::proj::do_create_proj_dependencies;
 use crate::service::project::proj::spec::tex_project_service::TexProjectService;
 use crate::service::project::project_editor_service::get_default_proj_ids;
+use crate::service::project::project_queue_service::get_estimated_compile_time;
 use crate::service::project::project_queue_service::get_latest_proj_queue;
 use crate::service::project::project_queue_service::get_proj_working_queue_list;
 use crate::service::project::spec::proj_spec::ProjSpec;
@@ -1316,10 +1318,15 @@ pub async fn add_compile_to_queue(
             "queue add failed".to_string(),
         );
     }
-    if let Some(resp) = cache_queue(queue_result.as_ref().unwrap()) {
+    let queue = queue_result.unwrap();
+    if let Some(resp) = cache_queue(&queue) {
         return resp;
     }
-    return box_actix_rest_response(queue_result.unwrap());
+    let estimated_compile_time = get_estimated_compile_time(&params.project_id);
+    return box_actix_rest_response(CompileQueueAddResp::from_queue(
+        queue,
+        estimated_compile_time,
+    ));
 }
 
 pub fn cache_queue(queue_result: &TexCompQueue) -> Option<HttpResponse> {
