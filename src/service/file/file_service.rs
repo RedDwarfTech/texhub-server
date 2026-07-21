@@ -549,6 +549,12 @@ pub fn rename_file_impl(
 ) -> Result<Option<TexFile>, Error> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
+    let mut edit_req = edit_req.clone();
+    edit_req.name = edit_req.name.trim().to_string();
+    if edit_req.name.is_empty() {
+        error!("rename file name is empty after trim, {:?}", &edit_req);
+        return Err(NotFound);
+    }
     let predicate = tex_file_table::file_id
         .eq(edit_req.file_id.clone())
         .and(tex_file_table::user_id.eq(login_user_info.userId));
@@ -563,24 +569,50 @@ pub fn rename_file_impl(
         error!("could not found file, {:?}", &edit_req);
         return Err(NotFound);
     }
-    let update_result = diesel::update(tex_file.filter(predicate))
-        .set((name.eq(edit_req.name.clone()),))
-        .get_result::<TexFile>(connection)
-        .expect(&update_msg);
-    let proj_dir = get_proj_base_dir(&update_result.project_id);
-    if update_result.file_type == ThFileType::Folder as i32 {
-        let rename_result = handle_folder_rename(proj_dir, &legacy_file.unwrap(), &update_result);
+    let legacy_file = legacy_file.unwrap();
+    let proj_dir = get_proj_base_dir(&legacy_file.project_id);
+
+    let update_result = if legacy_file.file_type == ThFileType::Folder as i32 {
+        let old_path = legacy_file.file_path.clone();
+        let new_path = rebuild_folder_file_path(&old_path, &edit_req.name);
+        let update_result = diesel::update(tex_file.filter(predicate))
+            .set((
+                name.eq(edit_req.name.clone()),
+                file_path.eq(new_path.clone()),
+            ))
+            .get_result::<TexFile>(connection)
+            .expect(&update_msg);
+        if let Err(err) =
+            update_descendant_folder_paths(connection, &legacy_file.project_id, &old_path, &new_path, &legacy_file.file_id)
+        {
+            error!(
+                "update descendant file_path failed, err:{}, old_path:{}, new_path:{}",
+                err, old_path, new_path
+            );
+            return Err(err);
+        }
+        let rename_result = handle_folder_rename(&proj_dir, &old_path, &new_path);
         if let Err(err) = rename_result {
-            error!("folder file err,{}", err);
+            error!(
+                "folder rename on disk failed, err:{}, old_path:{}, new_path:{}",
+                err, old_path, new_path
+            );
             return Err(NotFound);
         }
+        update_result
     } else {
-        let rename_result = handle_file_rename(proj_dir, &update_result, edit_req);
+        let update_result = diesel::update(tex_file.filter(predicate))
+            .set((name.eq(edit_req.name.clone()),))
+            .get_result::<TexFile>(connection)
+            .expect(&update_msg);
+        let rename_result = handle_file_rename(proj_dir, &update_result, &edit_req);
         if let Err(err) = rename_result {
             error!("rename file on disk facing err,{}", err);
             return Err(NotFound);
         }
-    }
+        update_result
+    };
+
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
     let file_cached_key = format!("{}:{}", file_cached_key_prev, &edit_req.file_id.clone());
     let del_cache_result = del_redis_key(&file_cached_key);
@@ -590,15 +622,84 @@ pub fn rename_file_impl(
     return Ok(Some(update_result));
 }
 
-fn handle_folder_rename(
-    proj_dir: String,
-    legacy_file: &TexFile,
-    new_file: &TexFile,
-) -> Result<(), std::io::Error> {
-    let legacy_path = join_paths(&[proj_dir.clone(), legacy_file.file_path.to_string()]);
+/// 文件夹的 file_path 末段即目录名；重命名时用新名称重建路径。
+fn rebuild_folder_file_path(legacy_file_path: &str, new_name: &str) -> String {
+    let trimmed = legacy_file_path.trim_end_matches('/');
+    match trimmed.rfind('/') {
+        Some(0) | None => format!("/{}", new_name),
+        Some(pos) => join_paths(&[trimmed[..pos].to_string(), new_name.to_string()]),
+    }
+}
 
-    let new_path = join_paths(&[proj_dir, new_file.file_path.to_string()]);
-    return fs::rename(legacy_path.clone(), new_path.clone());
+/// 同步更新该文件夹下所有子文件/子目录的 file_path 前缀。
+fn update_descendant_folder_paths(
+    connection: &mut PgConnection,
+    project_id_val: &str,
+    old_path: &str,
+    new_path: &str,
+    exclude_file_id: &str,
+) -> Result<(), Error> {
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    use tex_file_table::dsl::*;
+
+    if old_path == new_path {
+        return Ok(());
+    }
+
+    let files: Vec<TexFile> = tex_file_table::table
+        .filter(tex_file_table::project_id.eq(project_id_val))
+        .load::<TexFile>(connection)?;
+
+    let old_path_norm = old_path.trim_end_matches('/');
+    let new_path_norm = new_path.trim_end_matches('/');
+    let old_prefix = format!("{}/", old_path_norm);
+
+    for f in files {
+        if f.file_id == exclude_file_id {
+            continue;
+        }
+        let updated_path = if f.file_path.trim_end_matches('/') == old_path_norm {
+            new_path_norm.to_string()
+        } else if f.file_path.starts_with(&old_prefix) {
+            format!(
+                "{}{}",
+                new_path_norm,
+                &f.file_path[old_path_norm.len()..]
+            )
+        } else {
+            continue;
+        };
+        diesel::update(tex_file_table::table.filter(tex_file_table::file_id.eq(&f.file_id)))
+            .set(file_path.eq(updated_path))
+            .execute(connection)?;
+    }
+    Ok(())
+}
+
+fn handle_folder_rename(
+    proj_dir: &str,
+    old_relative_path: &str,
+    new_relative_path: &str,
+) -> Result<(), std::io::Error> {
+    if old_relative_path == new_relative_path {
+        return Ok(());
+    }
+    let legacy_path = join_paths(&[proj_dir.to_string(), old_relative_path.to_string()]);
+    let new_path = join_paths(&[proj_dir.to_string(), new_relative_path.to_string()]);
+    if legacy_path == new_path {
+        return Ok(());
+    }
+    if !Path::new(&legacy_path).exists() {
+        error!(
+            "folder rename skipped: legacy path not found, legacy:{}, new:{}",
+            legacy_path, new_path
+        );
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("legacy folder path not found: {}", legacy_path),
+        ));
+    }
+    fs::rename(&legacy_path, &new_path)
 }
 
 fn handle_file_rename(
