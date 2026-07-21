@@ -50,6 +50,7 @@ use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
 
+use super::file_name_validator::validate_file_name;
 use super::spec::file_spec::FileSpec;
 
 pub struct TexFileService {}
@@ -391,13 +392,15 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let mut add_req = add_req.clone();
-    add_req.name = add_req.name.trim().to_string();
-    if add_req.name.is_empty() {
-        return box_error_actix_rest_response(
-            "",
-            "INVALID_FILE_NAME".to_owned(),
-            "file/folder name is empty".to_owned(),
-        );
+    match validate_file_name(&add_req.name) {
+        Ok(name) => add_req.name = name,
+        Err(err) => {
+            return box_error_actix_rest_response(
+                "",
+                err.code.to_owned(),
+                err.message.to_owned(),
+            );
+        }
     }
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(
@@ -520,8 +523,53 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
 pub async fn rename_trans(
     edit_req: &TexFileRenameReq,
     login_user_info: &LoginUserInfo,
-) -> Option<TexFile> {
-    let edit_req_copy = edit_req.clone();
+) -> Result<TexFile, (String, String)> {
+    let mut edit_req_copy = edit_req.clone();
+    match validate_file_name(&edit_req_copy.name) {
+        Ok(name) => edit_req_copy.name = name,
+        Err(err) => return Err((err.code.to_owned(), err.message.to_owned())),
+    }
+
+    let fs = TexFileService {};
+    let legacy_file = match fs.get_file_by_id(&edit_req_copy.file_id) {
+        Some(f) => f,
+        None => {
+            error!("could not found file, {:?}", &edit_req_copy);
+            return Err((
+                "RENAME_FILE_FAILED".to_owned(),
+                "rename file failed".to_owned(),
+            ));
+        }
+    };
+
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    let dup_count = tex_file_table::table
+        .filter(
+            tex_file_table::parent
+                .eq(legacy_file.parent.clone())
+                .and(tex_file_table::name.eq(edit_req_copy.name.clone()))
+                .and(tex_file_table::file_type.eq(legacy_file.file_type))
+                .and(tex_file_table::file_id.ne(edit_req_copy.file_id.clone())),
+        )
+        .count()
+        .get_result::<i64>(&mut get_connection());
+    match dup_count {
+        Ok(count) if count > 0 => {
+            return Err((
+                "RESOURCE_ALREADY_EXISTS".to_owned(),
+                "file/folder already exists".to_owned(),
+            ));
+        }
+        Err(e) => {
+            error!("check rename duplicate failed, {}", e);
+            return Err((
+                "RENAME_FILE_FAILED".to_owned(),
+                "rename file failed".to_owned(),
+            ));
+        }
+        _ => {}
+    }
+
     let mut rename_connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> =
         rename_connection.transaction(|connection| {
@@ -532,14 +580,21 @@ pub async fn rename_trans(
             "rename file failed,{}, edit req: {:?}, login user: {:?}",
             e, edit_req_copy, login_user_info
         );
-        return None;
+        return Err((
+            "RENAME_FILE_FAILED".to_owned(),
+            "rename file failed".to_owned(),
+        ));
     }
-    let renamed_file = trans_result.unwrap();
-    if renamed_file.is_some() {
-        let proj_id = renamed_file.clone().unwrap().project_id;
-        del_project_cache(&proj_id).await;
+    match trans_result.unwrap() {
+        Some(renamed_file) => {
+            del_project_cache(&renamed_file.project_id).await;
+            Ok(renamed_file)
+        }
+        None => Err((
+            "RENAME_FILE_FAILED".to_owned(),
+            "rename file failed".to_owned(),
+        )),
     }
-    return renamed_file;
 }
 
 pub fn rename_file_impl(
@@ -550,10 +605,15 @@ pub fn rename_file_impl(
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
     let mut edit_req = edit_req.clone();
-    edit_req.name = edit_req.name.trim().to_string();
-    if edit_req.name.is_empty() {
-        error!("rename file name is empty after trim, {:?}", &edit_req);
-        return Err(NotFound);
+    match validate_file_name(&edit_req.name) {
+        Ok(name) => edit_req.name = name,
+        Err(err) => {
+            error!(
+                "rename file name invalid: code={}, msg={}, req={:?}",
+                err.code, err.message, &edit_req
+            );
+            return Err(NotFound);
+        }
     }
     let predicate = tex_file_table::file_id
         .eq(edit_req.file_id.clone())

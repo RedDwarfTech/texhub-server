@@ -220,11 +220,15 @@ pub async fn rename_file(
     form: actix_web_validator::Json<TexFileRenameReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let db_file = rename_trans(&form.0, &login_user_info).await;
-    if db_file.is_none() {
-        return box_err_actix_rest_response(TexhubError::RenameFileFailed);
+    match rename_trans(&form.0, &login_user_info).await {
+        Ok(db_file) => box_actix_rest_response(db_file),
+        Err((code, msg)) => {
+            if code == "RENAME_FILE_FAILED" {
+                return box_err_actix_rest_response(TexhubError::RenameFileFailed);
+            }
+            box_error_actix_rest_response("", code, msg)
+        }
     }
-    box_actix_rest_response(db_file)
 }
 
 pub async fn move_file(
