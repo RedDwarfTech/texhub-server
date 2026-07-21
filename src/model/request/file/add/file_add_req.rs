@@ -1,6 +1,6 @@
 use validator::Validate;
 
-#[derive(serde::Deserialize, Validate)]
+#[derive(serde::Deserialize, Clone, Validate)]
 pub struct TexFileAddReq {
     pub name: String,
     #[validate(length(min = 1))]

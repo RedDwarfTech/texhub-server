@@ -390,6 +390,15 @@ fn append_file_name(data: Vec<HistoryItem>) -> Vec<HistoryItem> {
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let mut add_req = add_req.clone();
+    add_req.name = add_req.name.trim().to_string();
+    if add_req.name.is_empty() {
+        return box_error_actix_rest_response(
+            "",
+            "INVALID_FILE_NAME".to_owned(),
+            "file/folder name is empty".to_owned(),
+        );
+    }
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(
         cv_work_table::parent
@@ -405,8 +414,8 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
             "file/folder already exists".to_owned(),
         );
     }
-    let gen_file_path = get_file_path(add_req);
-    let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info, &gen_file_path);
+    let gen_file_path = get_file_path(&add_req);
+    let new_file = TexFileAdd::gen_tex_file(&add_req, login_user_info, &gen_file_path);
     let err_msg = format!(
         "failed to add new tex file or folder,{}",
         serde_json::to_string(&new_file).unwrap()
