@@ -8,7 +8,7 @@ use crate::{
 };
 use actix_web::HttpResponse;
 use chrono::{Duration, Utc};
-use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, QueryResult};
+use diesel::{BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods, QueryDsl, QueryResult};
 use log::error;
 use rust_wheel::{
     common::{
@@ -16,6 +16,7 @@ use rust_wheel::{
         wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
     },
     model::user::login_user_info::LoginUserInfo,
+    texhub::proj::compile_result::CompileResult,
 };
 
 pub fn get_queue_by_id(queue_id: &i64) -> Option<TexCompQueue> {
@@ -126,6 +127,30 @@ pub fn update_expired_proj_queue() {
         {
             Ok(_count) => {}
             Err(e) => error!("update_expired_proj_queue: failed to update rows: {}", e),
+        }
+    }
+}
+
+/// 取项目近 3 次成功编译耗时的最大值（毫秒），无有效数据时返回 0。
+pub fn get_estimated_compile_time(project_id: &str) -> i64 {
+    use crate::model::diesel::tex::tex_schema::tex_comp_queue as comp_queue_table;
+    let records: QueryResult<Vec<Option<i64>>> = comp_queue_table::table
+        .select(comp_queue_table::compile_duration_ms)
+        .filter(comp_queue_table::project_id.eq(project_id))
+        .filter(comp_queue_table::comp_result.eq(CompileResult::Success as i32))
+        .filter(comp_queue_table::comp_status.eq(TeXFileCompileStatus::Compiled as i32))
+        .filter(comp_queue_table::compile_duration_ms.is_not_null())
+        .order_by(comp_queue_table::complete_time.desc())
+        .limit(3)
+        .load::<Option<i64>>(&mut get_connection());
+    match records {
+        Ok(list) => list.into_iter().flatten().filter(|cost| *cost > 0).max().unwrap_or(0),
+        Err(e) => {
+            error!(
+                "get estimated compile time failed, project_id: {}, error: {}",
+                project_id, e
+            );
+            0
         }
     }
 }

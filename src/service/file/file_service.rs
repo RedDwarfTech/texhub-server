@@ -50,6 +50,7 @@ use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
 use tokio::task;
 
+use super::file_name_validator::validate_file_name;
 use super::spec::file_spec::FileSpec;
 
 pub struct TexFileService {}
@@ -390,6 +391,17 @@ fn append_file_name(data: Vec<HistoryItem>) -> Vec<HistoryItem> {
 pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInfo) -> HttpResponse {
     use crate::model::diesel::tex::tex_schema::tex_file as cv_work_table;
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
+    let mut add_req = add_req.clone();
+    match validate_file_name(&add_req.name) {
+        Ok(validated_name) => add_req.name = validated_name,
+        Err(err) => {
+            return box_error_actix_rest_response(
+                "",
+                err.code.to_owned(),
+                err.message.to_owned(),
+            );
+        }
+    }
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(
         cv_work_table::parent
@@ -405,8 +417,8 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
             "file/folder already exists".to_owned(),
         );
     }
-    let gen_file_path = get_file_path(add_req);
-    let new_file = TexFileAdd::gen_tex_file(add_req, login_user_info, &gen_file_path);
+    let gen_file_path = get_file_path(&add_req);
+    let new_file = TexFileAdd::gen_tex_file(&add_req, login_user_info, &gen_file_path);
     let err_msg = format!(
         "failed to add new tex file or folder,{}",
         serde_json::to_string(&new_file).unwrap()
@@ -511,8 +523,53 @@ pub fn file_init_complete(edit_req: &FileCodeParams) -> TexFile {
 pub async fn rename_trans(
     edit_req: &TexFileRenameReq,
     login_user_info: &LoginUserInfo,
-) -> Option<TexFile> {
-    let edit_req_copy = edit_req.clone();
+) -> Result<TexFile, (String, String)> {
+    let mut edit_req_copy = edit_req.clone();
+    match validate_file_name(&edit_req_copy.name) {
+        Ok(name) => edit_req_copy.name = name,
+        Err(err) => return Err((err.code.to_owned(), err.message.to_owned())),
+    }
+
+    let fs = TexFileService {};
+    let legacy_file = match fs.get_file_by_id(&edit_req_copy.file_id) {
+        Some(f) => f,
+        None => {
+            error!("could not found file, {:?}", &edit_req_copy);
+            return Err((
+                "RENAME_FILE_FAILED".to_owned(),
+                "rename file failed".to_owned(),
+            ));
+        }
+    };
+
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    let dup_count = tex_file_table::table
+        .filter(
+            tex_file_table::parent
+                .eq(legacy_file.parent.clone())
+                .and(tex_file_table::name.eq(edit_req_copy.name.clone()))
+                .and(tex_file_table::file_type.eq(legacy_file.file_type))
+                .and(tex_file_table::file_id.ne(edit_req_copy.file_id.clone())),
+        )
+        .count()
+        .get_result::<i64>(&mut get_connection());
+    match dup_count {
+        Ok(count) if count > 0 => {
+            return Err((
+                "RESOURCE_ALREADY_EXISTS".to_owned(),
+                "file/folder already exists".to_owned(),
+            ));
+        }
+        Err(e) => {
+            error!("check rename duplicate failed, {}", e);
+            return Err((
+                "RENAME_FILE_FAILED".to_owned(),
+                "rename file failed".to_owned(),
+            ));
+        }
+        _ => {}
+    }
+
     let mut rename_connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> =
         rename_connection.transaction(|connection| {
@@ -523,14 +580,21 @@ pub async fn rename_trans(
             "rename file failed,{}, edit req: {:?}, login user: {:?}",
             e, edit_req_copy, login_user_info
         );
-        return None;
+        return Err((
+            "RENAME_FILE_FAILED".to_owned(),
+            "rename file failed".to_owned(),
+        ));
     }
-    let renamed_file = trans_result.unwrap();
-    if renamed_file.is_some() {
-        let proj_id = renamed_file.clone().unwrap().project_id;
-        del_project_cache(&proj_id).await;
+    match trans_result.unwrap() {
+        Some(renamed_file) => {
+            del_project_cache(&renamed_file.project_id).await;
+            Ok(renamed_file)
+        }
+        None => Err((
+            "RENAME_FILE_FAILED".to_owned(),
+            "rename file failed".to_owned(),
+        )),
     }
-    return renamed_file;
 }
 
 pub fn rename_file_impl(
@@ -540,6 +604,17 @@ pub fn rename_file_impl(
 ) -> Result<Option<TexFile>, Error> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
+    let mut edit_req = edit_req.clone();
+    match validate_file_name(&edit_req.name) {
+        Ok(validated_name) => edit_req.name = validated_name,
+        Err(err) => {
+            error!(
+                "rename file name invalid: code={}, msg={}, req={:?}",
+                err.code, err.message, &edit_req
+            );
+            return Err(NotFound);
+        }
+    }
     let predicate = tex_file_table::file_id
         .eq(edit_req.file_id.clone())
         .and(tex_file_table::user_id.eq(login_user_info.userId));
@@ -559,8 +634,7 @@ pub fn rename_file_impl(
 
     if legacy_file.file_type == ThFileType::Folder as i32 {
         let old_folder_path = legacy_file.file_path.clone();
-        let new_folder_path =
-            compute_renamed_folder_path(&legacy_file, &edit_req.name, connection);
+        let new_folder_path = rebuild_folder_file_path(&old_folder_path, &edit_req.name);
         let update_result = diesel::update(tex_file.filter(predicate))
             .set((
                 name.eq(edit_req.name.clone()),
@@ -575,7 +649,7 @@ pub fn rename_file_impl(
             connection,
         )?;
         let rename_result =
-            handle_folder_rename(proj_dir, &old_folder_path, &new_folder_path);
+            handle_folder_rename(&proj_dir, &old_folder_path, &new_folder_path);
         if let Err(err) = rename_result {
             error!("folder rename on disk failed,{}", err);
             return Err(NotFound);
@@ -588,7 +662,7 @@ pub fn rename_file_impl(
         .set((name.eq(edit_req.name.clone()),))
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
-    let rename_result = handle_file_rename(proj_dir, &update_result, edit_req);
+    let rename_result = handle_file_rename(proj_dir, &update_result, &edit_req);
     if let Err(err) = rename_result {
         error!("rename file on disk facing err,{}", err);
         return Err(NotFound);
@@ -597,23 +671,12 @@ pub fn rename_file_impl(
     Ok(Some(update_result))
 }
 
-fn compute_renamed_folder_path(
-    legacy_folder: &TexFile,
-    new_name: &str,
-    connection: &mut PgConnection,
-) -> String {
-    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
-    use tex_file_table::dsl::*;
-
-    if legacy_folder.parent == legacy_folder.project_id {
-        return format!("/{}", new_name);
-    }
-    match tex_file
-        .filter(tex_file_table::file_id.eq(&legacy_folder.parent))
-        .first::<TexFile>(connection)
-    {
-        Ok(parent_file) => join_paths(&[parent_file.file_path, new_name.to_string()]),
-        Err(_) => format!("/{}", new_name),
+/// 文件夹的 file_path 末段即目录名；重命名时用新名称重建路径。
+fn rebuild_folder_file_path(legacy_file_path: &str, new_name: &str) -> String {
+    let trimmed = legacy_file_path.trim_end_matches('/');
+    match trimmed.rfind('/') {
+        Some(0) | None => format!("/{}", new_name),
+        Some(pos) => join_paths(&[trimmed[..pos].to_string(), new_name.to_string()]),
     }
 }
 
@@ -696,13 +759,29 @@ fn del_file_info_caches(file_ids: &[String]) {
 }
 
 fn handle_folder_rename(
-    proj_dir: String,
-    old_folder_path: &str,
-    new_folder_path: &str,
+    proj_dir: &str,
+    old_relative_path: &str,
+    new_relative_path: &str,
 ) -> Result<(), std::io::Error> {
-    let legacy_path = join_paths(&[proj_dir.clone(), old_folder_path.to_string()]);
-    let new_path = join_paths(&[proj_dir, new_folder_path.to_string()]);
-    fs::rename(legacy_path.clone(), new_path.clone())
+    if old_relative_path == new_relative_path {
+        return Ok(());
+    }
+    let legacy_path = join_paths(&[proj_dir.to_string(), old_relative_path.to_string()]);
+    let new_path = join_paths(&[proj_dir.to_string(), new_relative_path.to_string()]);
+    if legacy_path == new_path {
+        return Ok(());
+    }
+    if !Path::new(&legacy_path).exists() {
+        error!(
+            "folder rename skipped: legacy path not found, legacy:{}, new:{}",
+            legacy_path, new_path
+        );
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("legacy folder path not found: {}", legacy_path),
+        ));
+    }
+    fs::rename(&legacy_path, &new_path)
 }
 
 fn handle_file_rename(
@@ -770,7 +849,7 @@ pub fn mv_file_impl(
                 connection,
             )?;
             let move_result =
-                handle_folder_rename(proj_dir, &old_folder_path, &new_folder_path);
+                handle_folder_rename(&proj_dir, &old_folder_path, &new_folder_path);
             if let Err(err) = move_result {
                 error!(
                     "move folder on disk failed, {}, src path: {}, dist path: {}",

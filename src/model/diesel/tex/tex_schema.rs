@@ -10,6 +10,7 @@ table! {
         comp_result -> Int4,
         complete_time -> Int8,
         start_time -> Int8,
+        compile_duration_ms -> Nullable<Int8>,
     }
 }
 
