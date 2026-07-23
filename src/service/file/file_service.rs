@@ -554,42 +554,155 @@ pub fn rename_file_impl(
         error!("could not found file, {:?}", &edit_req);
         return Err(NotFound);
     }
+    let legacy_file = legacy_file.unwrap();
+    let proj_dir = get_proj_base_dir(&legacy_file.project_id);
+
+    if legacy_file.file_type == ThFileType::Folder as i32 {
+        let old_folder_path = legacy_file.file_path.clone();
+        let new_folder_path =
+            compute_renamed_folder_path(&legacy_file, &edit_req.name, connection);
+        let update_result = diesel::update(tex_file.filter(predicate))
+            .set((
+                name.eq(edit_req.name.clone()),
+                file_path.eq(new_folder_path.clone()),
+            ))
+            .get_result::<TexFile>(connection)
+            .expect(&update_msg);
+        let affected_file_ids = update_descendant_file_paths(
+            &old_folder_path,
+            &new_folder_path,
+            &edit_req.file_id,
+            connection,
+        )?;
+        let rename_result =
+            handle_folder_rename(proj_dir, &old_folder_path, &new_folder_path);
+        if let Err(err) = rename_result {
+            error!("folder rename on disk failed,{}", err);
+            return Err(NotFound);
+        }
+        del_file_info_caches(&affected_file_ids);
+        return Ok(Some(update_result));
+    }
+
     let update_result = diesel::update(tex_file.filter(predicate))
         .set((name.eq(edit_req.name.clone()),))
         .get_result::<TexFile>(connection)
         .expect(&update_msg);
-    let proj_dir = get_proj_base_dir(&update_result.project_id);
-    if update_result.file_type == ThFileType::Folder as i32 {
-        let rename_result = handle_folder_rename(proj_dir, &legacy_file.unwrap(), &update_result);
-        if let Err(err) = rename_result {
-            error!("folder file err,{}", err);
-            return Err(NotFound);
-        }
-    } else {
-        let rename_result = handle_file_rename(proj_dir, &update_result, edit_req);
-        if let Err(err) = rename_result {
-            error!("rename file on disk facing err,{}", err);
-            return Err(NotFound);
-        }
+    let rename_result = handle_file_rename(proj_dir, &update_result, edit_req);
+    if let Err(err) = rename_result {
+        error!("rename file on disk facing err,{}", err);
+        return Err(NotFound);
     }
+    del_file_info_caches(&[edit_req.file_id.clone()]);
+    Ok(Some(update_result))
+}
+
+fn compute_renamed_folder_path(
+    legacy_folder: &TexFile,
+    new_name: &str,
+    connection: &mut PgConnection,
+) -> String {
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    use tex_file_table::dsl::*;
+
+    if legacy_folder.parent == legacy_folder.project_id {
+        return format!("/{}", new_name);
+    }
+    match tex_file
+        .filter(tex_file_table::file_id.eq(&legacy_folder.parent))
+        .first::<TexFile>(connection)
+    {
+        Ok(parent_file) => join_paths(&[parent_file.file_path, new_name.to_string()]),
+        Err(_) => format!("/{}", new_name),
+    }
+}
+
+fn remap_path_prefix(old_base: &str, new_base: &str, path: &str) -> String {
+    if path == old_base {
+        return new_base.to_string();
+    }
+    if path.starts_with(&format!("{}/", old_base)) {
+        return format!("{}{}", new_base, &path[old_base.len()..]);
+    }
+    error!(
+        "file_path {} is not under renamed folder path {}, keep unchanged",
+        path, old_base
+    );
+    path.to_string()
+}
+
+fn find_descendants_by_parent(
+    parent_file_id: &str,
+    connection: &mut PgConnection,
+) -> QueryResult<Vec<TexFile>> {
+    let cte_query = format!(
+        "WITH RECURSIVE sub_files AS (
+            SELECT
+              id, name, created_time, updated_time, user_id, doc_status,
+              project_id, file_type, file_id, parent, main_flag, sort,
+              yjs_initial, file_path
+            FROM tex_file
+            WHERE parent = '{parent_file_id}'
+            UNION ALL
+            SELECT
+              origin.id, origin.name, origin.created_time, origin.updated_time,
+              origin.user_id, origin.doc_status, origin.project_id, origin.file_type,
+              origin.file_id, origin.parent, origin.main_flag, origin.sort,
+              origin.yjs_initial, origin.file_path
+            FROM sub_files
+            JOIN tex_file origin ON origin.parent = sub_files.file_id
+          )
+          SELECT
+            id, name, created_time, updated_time, user_id, doc_status,
+            project_id, file_type, file_id, parent, main_flag, sort,
+            yjs_initial, file_path
+          FROM sub_files",
+        parent_file_id = parent_file_id
+    );
+    sql_query(cte_query).load::<TexFile>(connection)
+}
+
+fn update_descendant_file_paths(
+    old_folder_path: &str,
+    new_folder_path: &str,
+    folder_file_id: &str,
+    connection: &mut PgConnection,
+) -> QueryResult<Vec<String>> {
+    use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
+    use tex_file_table::dsl::*;
+
+    let descendants = find_descendants_by_parent(folder_file_id, connection)?;
+    let mut affected_file_ids = vec![folder_file_id.to_string()];
+
+    for descendant in &descendants {
+        let new_file_path =
+            remap_path_prefix(old_folder_path, new_folder_path, &descendant.file_path);
+        diesel::update(tex_file.filter(tex_file_table::file_id.eq(&descendant.file_id)))
+            .set(tex_file_table::file_path.eq(new_file_path))
+            .execute(connection)?;
+        affected_file_ids.push(descendant.file_id.clone());
+    }
+    Ok(affected_file_ids)
+}
+
+fn del_file_info_caches(file_ids: &[String]) {
     let file_cached_key_prev: String = get_app_config("texhub.fileinfo_redis_key");
-    let file_cached_key = format!("{}:{}", file_cached_key_prev, &edit_req.file_id.clone());
-    let del_cache_result = del_redis_key(&file_cached_key);
-    if let Err(e) = del_cache_result {
-        error!("failed to delete file cache,{}", e);
+    for file_id in file_ids {
+        let file_cached_key = format!("{}:{}", file_cached_key_prev, file_id);
+        if let Err(e) = del_redis_key(&file_cached_key) {
+            error!("failed to delete file cache for {}, {}", file_id, e);
+        }
     }
-    return Ok(Some(update_result));
 }
 
 fn handle_folder_rename(
     proj_dir: String,
-    legacy_file: &TexFile,
-    new_file: &TexFile,
+    old_folder_path: &str,
+    new_folder_path: &str,
 ) -> Result<(), std::io::Error> {
-    let legacy_path = join_paths(&[proj_dir.clone(), legacy_file.file_path.to_string()]);
-
-    let new_path = join_paths(&[proj_dir, new_file.file_path.to_string()]);
-    return fs::rename(legacy_path.clone(), new_path.clone());
+    let legacy_path = join_paths(&[proj_dir.clone(), old_folder_path.to_string()]);
+    let new_path = join_paths(&[proj_dir, new_folder_path.to_string()]);
+    fs::rename(legacy_path.clone(), new_path.clone())
 }
 
 fn handle_file_rename(
@@ -617,22 +730,11 @@ fn handle_file_rename(
     rename_result
 }
 
-fn move_directory(src_path: &str, dest_path: &str) -> Result<(), std::io::Error> {
-    fs::create_dir_all(dest_path)?;
-    for entry in fs::read_dir(src_path)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let entry_path = entry.path();
-        if file_type.is_dir() {
-            let new_dest_path = format!("{}/{}", dest_path, entry.file_name().to_string_lossy());
-            move_directory(&entry_path.to_string_lossy(), &new_dest_path)?;
-        } else if file_type.is_file() {
-            let new_dest_path = format!("{}/{}", dest_path, entry.file_name().to_string_lossy());
-            fs::rename(&entry_path, &new_dest_path)?;
-        }
+fn compute_moved_folder_path(src_folder: &TexFile, dist_folder: &TexFile) -> String {
+    if dist_folder.file_id == dist_folder.project_id {
+        return format!("/{}", src_folder.name);
     }
-    fs::remove_dir_all(src_path)?;
-    Ok(())
+    join_paths(&[dist_folder.file_path.clone(), src_folder.name.clone()])
 }
 
 pub fn mv_file_impl(
@@ -646,58 +748,71 @@ pub fn mv_file_impl(
     let mut connection = get_connection();
     let trans_result: Result<Option<TexFile>, Error> = connection.transaction(|connection| {
         let proj_dir = get_proj_base_dir(&move_req.project_id);
-        if src_file.file_type == ThFileType::Folder as i32 {
-            let src_dir = join_paths(&[proj_dir.clone(), src_file.file_path.clone()]);
-            let dist_dir = join_paths(&[proj_dir.clone(), dist_file.file_path.clone()]);
-            let m_result = move_directory(&src_dir, &dist_dir);
-            if let Err(err) = m_result {
-                error!(
-                    "move dir failed, {}, src dir: {}, dist dir: {}",
-                    err, src_dir, dist_dir
-                );
-                return Ok(None);
-            }
-        } else {
-            let src_path = join_paths(&[
-                proj_dir.clone(),
-                src_file.file_path.clone(),
-                src_file.name.clone(),
-            ]);
-            // https://stackoverflow.com/questions/78251705/is-a-directory-os-error-21-when-using-rust-to-move-a-file
-            let dist_path = join_paths(&[
-                proj_dir.clone(),
-                dist_file.file_path.clone(),
-                "/".to_owned(),
-                src_file.name.clone(),
-            ]);
-            let fm = fs::rename(&src_path, &dist_path);
-            if let Err(err) = fm {
-                error!(
-                    "move file failed, {} ,src path: {}, dist path: {}",
-                    err, src_path, dist_path
-                );
-                return Ok(None);
-            }
-        }
         let predicate = tex_file_table::file_id
             .eq(move_req.file_id.clone())
             .and(tex_file_table::user_id.eq(login_user_info.userId))
             .and(tex_file_table::project_id.eq(move_req.project_id.clone()));
-        let new_relative_path = if src_file.file_type == ThFileType::Folder as i32 {
-            join_paths(&[dist_file.file_path.clone(), dist_file.name.clone()])
-        } else {
-            dist_file.file_path.clone()
-        };
+
+        if src_file.file_type == ThFileType::Folder as i32 {
+            let old_folder_path = src_file.file_path.clone();
+            let new_folder_path = compute_moved_folder_path(src_file, dist_file);
+            let update_result = diesel::update(tex_file.filter(predicate))
+                .set((
+                    parent.eq(dist_file.file_id.clone()),
+                    file_path.eq(new_folder_path.clone()),
+                ))
+                .get_result::<TexFile>(connection)
+                .expect("unable to move tex folder");
+            let affected_file_ids = update_descendant_file_paths(
+                &old_folder_path,
+                &new_folder_path,
+                &move_req.file_id,
+                connection,
+            )?;
+            let move_result =
+                handle_folder_rename(proj_dir, &old_folder_path, &new_folder_path);
+            if let Err(err) = move_result {
+                error!(
+                    "move folder on disk failed, {}, src path: {}, dist path: {}",
+                    err, old_folder_path, new_folder_path
+                );
+                return Ok(None);
+            }
+            del_file_info_caches(&affected_file_ids);
+            return Ok(Some(update_result));
+        }
+
+        let src_path = join_paths(&[
+            proj_dir.clone(),
+            src_file.file_path.clone(),
+            src_file.name.clone(),
+        ]);
+        // https://stackoverflow.com/questions/78251705/is-a-directory-os-error-21-when-using-rust-to-move-a-file
+        let dist_path = join_paths(&[
+            proj_dir.clone(),
+            dist_file.file_path.clone(),
+            "/".to_owned(),
+            src_file.name.clone(),
+        ]);
+        let fm = fs::rename(&src_path, &dist_path);
+        if let Err(err) = fm {
+            error!(
+                "move file failed, {} ,src path: {}, dist path: {}",
+                err, src_path, dist_path
+            );
+            return Ok(None);
+        }
         let update_result = diesel::update(tex_file.filter(predicate))
             .set((
                 parent.eq(dist_file.file_id.clone()),
-                file_path.eq(new_relative_path),
+                file_path.eq(dist_file.file_path.clone()),
             ))
             .get_result::<TexFile>(connection)
             .expect("unable to move tex file");
-        return Ok(Some(update_result));
+        del_file_info_caches(&[move_req.file_id.clone()]);
+        Ok(Some(update_result))
     });
-    return trans_result;
+    trans_result
 }
 
 pub fn delete_file_recursive(
