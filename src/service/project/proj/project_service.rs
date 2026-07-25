@@ -58,7 +58,7 @@ use crate::net::render_client::{construct_headers, render_request};
 use crate::net::y_websocket_client::initial_file_request;
 use crate::service::config::user_config_service::get_user_config;
 use crate::service::file::file_service::{
-    get_cached_file_by_fid, get_file_tree, get_main_file_list,
+    create_file_on_disk_impl, get_cached_file_by_fid, get_file_tree, get_main_file_list,
 };
 use crate::service::global::proj::proj_util::get_purge_proj_base_dir;
 use crate::service::global::proj::proj_util::{
@@ -450,19 +450,20 @@ fn do_create_proj_trans(
     }
     let proj = create_result.unwrap();
     do_create_proj_dependencies(proj_req, rd_user_info, connection, &proj);
-    let result = create_main_file(&proj.project_id, connection, &rd_user_info.id);
-    match result {
-        Ok(file) => {
-            let file_create_proj = proj.clone();
-            let u_copy = login_user_info.clone();
-            task::spawn(async move {
-                sync_file_to_yjs(&file_create_proj, &file.file_id, &u_copy).await;
-            });
-        }
-        Err(e) => {
-            error!("create main file failed,{}", e)
-        }
-    }
+    let file = create_main_file(&proj.project_id, connection, &rd_user_info.id)?;
+    create_file_on_disk_impl(&file).map_err(|e| {
+        error!(
+            "create main file on disk failed, project_id={}, err={}",
+            proj.project_id, e
+        );
+        diesel::result::Error::QueryBuilderError(Box::new(e))
+    })?;
+    let file_create_proj = proj.clone();
+    let u_copy = login_user_info.clone();
+    let init_file_id = file.file_id.clone();
+    task::spawn(async move {
+        sync_file_to_yjs(&file_create_proj, &init_file_id, &u_copy).await;
+    });
     return Ok(proj);
 }
 
@@ -487,7 +488,7 @@ fn do_create_tpl_proj_trans(
     }
     let proj = create_result.unwrap();
     do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
-    do_create_proj_on_disk(&tpl, &proj, &rd_user_info.id, login_user_info);
+    do_create_proj_on_disk(&tpl, &proj, &rd_user_info.id, login_user_info, connection)?;
     return Ok(Some(proj));
 }
 
@@ -520,7 +521,8 @@ fn do_copy_proj_trans(
         main_name,
         &rd_user_info.id,
         login_user_info,
-    );
+        connection,
+    )?;
     return Ok(Some(proj));
 }
 
@@ -530,18 +532,16 @@ pub fn do_create_copied_proj_on_disk(
     main_name: &String,
     uid: &i64,
     login_user_info: &LoginUserInfo,
-) {
-    let create_res = create_copied_proj_files(
+    connection: &mut PgConnection,
+) -> Result<(), diesel::result::Error> {
+    create_copied_proj_files(
         legacy_proj_id,
         &proj.project_id,
         main_name,
-        &uid,
+        uid,
         login_user_info,
-    );
-    if !create_res {
-        error!("create project files failed, project: {:?}", proj);
-        return;
-    }
+        connection,
+    )
 }
 
 pub fn do_create_proj_on_disk(
@@ -549,15 +549,20 @@ pub fn do_create_proj_on_disk(
     proj: &TexProject,
     uid: &i64,
     login_user_info: &LoginUserInfo,
-) {
-    let create_res = create_proj_files(tpl, &proj.project_id, uid, login_user_info);
-    if !create_res {
-        error!(
-            "create project files failed,tpl: {:?}, project: {:?}",
-            tpl, proj
-        );
-        return;
+    connection: &mut PgConnection,
+) -> Result<(), diesel::result::Error> {
+    create_proj_files(tpl, &proj.project_id, uid, login_user_info, connection)
+}
+
+fn cleanup_proj_workdir(proj_id: &str) {
+    let proj_dir = get_proj_base_dir_instant(&proj_id.to_string());
+    if let Err(e) = fs::remove_dir_all(&proj_dir) {
+        error!("cleanup project workdir failed, {}, path: {}", e, proj_dir);
     }
+}
+
+fn io_to_diesel_err(e: std::io::Error) -> diesel::result::Error {
+    diesel::result::Error::QueryBuilderError(Box::new(e))
 }
 
 pub fn create_copied_proj_files(
@@ -566,22 +571,30 @@ pub fn create_copied_proj_files(
     main_name: &String,
     uid: &i64,
     login_user_info: &LoginUserInfo,
-) -> bool {
+    connection: &mut PgConnection,
+) -> Result<(), diesel::result::Error> {
     let legacy_proj_dir = get_proj_base_dir(legacy_proj_id);
-    let proj_dir = get_proj_base_dir_instant(&proj_id);
-    match create_directory_if_not_exists(&proj_dir) {
-        Ok(()) => {}
-        Err(e) => error!("create copied project directory failed,{}", e),
-    }
-    let result = copy_dir_recursive(&legacy_proj_dir.as_str(), &proj_dir);
-    if let Err(e) = result {
+    let proj_dir = get_proj_base_dir_instant(proj_id);
+    create_directory_if_not_exists(&proj_dir).map_err(io_to_diesel_err)?;
+    copy_dir_recursive(&legacy_proj_dir.as_str(), &proj_dir).map_err(|e| {
         error!(
             "copy file failed,{}, legacy project dir: {}, project dir: {}",
             e, legacy_proj_dir, proj_dir
         );
-        return false;
+        io_to_diesel_err(e)
+    })?;
+    if let Err(e) = create_files_into_db(
+        connection,
+        &proj_dir,
+        proj_id,
+        uid,
+        main_name,
+        login_user_info,
+    ) {
+        cleanup_proj_workdir(proj_id);
+        return Err(e);
     }
-    return create_files_into_db(&proj_dir, proj_id, uid, main_name, login_user_info);
+    Ok(())
 }
 
 pub fn create_proj_files(
@@ -589,29 +602,31 @@ pub fn create_proj_files(
     proj_id: &String,
     uid: &i64,
     login_user_info: &LoginUserInfo,
-) -> bool {
+    connection: &mut PgConnection,
+) -> Result<(), diesel::result::Error> {
     let tpl_base_files_dir = get_app_config("texhub.tpl_files_base_dir");
     let tpl_files_dir = join_paths(&[tpl_base_files_dir, tpl.template_id.to_string()]);
-    let proj_dir = get_proj_base_dir_instant(&proj_id);
-    match create_directory_if_not_exists(&proj_dir) {
-        Ok(()) => {}
-        Err(e) => error!("create project directory before tpl copy failed,{}", e),
-    }
-    let result = copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir);
-    if let Err(e) = result {
+    let proj_dir = get_proj_base_dir_instant(proj_id);
+    create_directory_if_not_exists(&proj_dir).map_err(io_to_diesel_err)?;
+    copy_dir_recursive(&tpl_files_dir.as_str(), &proj_dir).map_err(|e| {
         error!(
             "copy file failed,{}, tpl dir: {}, project dir: {}",
             e, tpl_files_dir, proj_dir
         );
-        return false;
-    }
-    return create_files_into_db(
+        io_to_diesel_err(e)
+    })?;
+    if let Err(e) = create_files_into_db(
+        connection,
         &proj_dir,
         proj_id,
         uid,
         &tpl.main_file_name,
         login_user_info,
-    );
+    ) {
+        cleanup_proj_workdir(proj_id);
+        return Err(e);
+    }
+    Ok(())
 }
 
 pub fn support_sync(file_full_path: &String) -> bool {
@@ -677,39 +692,72 @@ pub async fn save_proj_file(
                 "exceed limit".to_owned(),
             );
         }
-        let db_file = get_cached_file_by_fid(&proj_upload.parent).unwrap();
+        let db_file = match get_cached_file_by_fid(&proj_upload.parent) {
+            Some(f) => f,
+            None => {
+                return box_error_actix_rest_response(
+                    "",
+                    "FILE_NOT_FOUND".to_owned(),
+                    "parent folder not found".to_owned(),
+                );
+            }
+        };
+        let f_name = match tmp_file.file_name.clone() {
+            Some(name) => name,
+            None => {
+                return box_error_actix_rest_response(
+                    "",
+                    "UPLOAD_FILE_FAILED".to_owned(),
+                    "file name missing".to_owned(),
+                );
+            }
+        };
         let store_file_path = get_proj_base_dir(&proj_upload.project_id);
-        let f_name = tmp_file.file_name;
         let file_path = join_paths(&[
-            store_file_path,
+            store_file_path.clone(),
             db_file.file_path.clone(),
-            f_name.as_ref().unwrap().to_string(),
+            f_name.clone(),
         ]);
-        // https://stackoverflow.com/questions/77122286/failed-to-persist-temporary-file-cross-device-link-os-error-18
-        let temp_path = format!("{}{}", "/tmp/", f_name.as_ref().unwrap().to_string());
-        let save_result = tmp_file.file.persist(temp_path.as_str());
-        if let Err(e) = save_result {
+        let temp_path = format!("{}{}", "/tmp/", f_name);
+        if let Err(e) = tmp_file.file.persist(temp_path.as_str()) {
             error!(
                 "Failed to save upload file to disk,{}, file path: {}",
                 e, file_path
             );
+            return box_error_actix_rest_response(
+                "",
+                "UPLOAD_FILE_FAILED".to_owned(),
+                format!("failed to persist upload: {}", e),
+            );
         }
-        let copy_result = fs::copy(&temp_path, &file_path.as_str());
-        if let Err(e) = copy_result {
-            error!("copy file failed, {}", e);
-        } else {
-            fs::remove_file(temp_path).expect("remove file failed");
+        let parent_path = join_paths(&[store_file_path, db_file.file_path.clone()]);
+        let mut connection = get_connection();
+        let upload_result: Result<(), diesel::result::Error> = connection.transaction(|connection| {
+            create_proj_file_impl(
+                connection,
+                &f_name,
+                login_user_info,
+                &proj_id,
+                &parent,
+                &db_file.file_path,
+            )?;
+            create_directory_if_not_exists(&parent_path).map_err(io_to_diesel_err)?;
+            fs::copy(&temp_path, &file_path).map_err(|e| {
+                error!("copy upload file failed, {}", e);
+                io_to_diesel_err(e)
+            })?;
+            Ok(())
+        });
+        if let Err(e) = upload_result {
+            error!("upload project file transaction failed, {}", e);
+            let _ = fs::remove_file(&temp_path);
+            return box_error_actix_rest_response(
+                "",
+                "UPLOAD_FILE_FAILED".to_owned(),
+                "upload file failed".to_owned(),
+            );
         }
-        let create_result = create_proj_file_impl(
-            &f_name.unwrap().to_string(),
-            login_user_info,
-            &proj_id,
-            &parent,
-            &db_file.file_path,
-        );
-        if let Err(e) = create_result {
-            error!("create project file failed,{}", e);
-        }
+        let _ = fs::remove_file(&temp_path);
         del_project_cache(&proj_id).await;
     }
     return box_actix_rest_response("ok");
@@ -1029,6 +1077,7 @@ fn add_token_to_url(url: &str, token: &str) -> String {
 }
 
 fn create_proj_file_impl(
+    connection: &mut PgConnection,
     file_name: &String,
     login_user_info: &LoginUserInfo,
     proj_id: &String,
@@ -1045,7 +1094,7 @@ fn create_proj_file_impl(
     use crate::model::diesel::tex::tex_schema::tex_file::dsl::*;
     let result = diesel::insert_into(tex_file)
         .values(&new_proj)
-        .get_result::<TexFile>(&mut get_connection());
+        .get_result::<TexFile>(connection);
     return result;
 }
 
@@ -1096,9 +1145,22 @@ pub fn del_project_logic(
 }
 
 pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
+    let legacy_proj = match get_prj_by_id(del_project_id) {
+        Some(p) => p,
+        None => {
+            error!("delete project not found, project id: {}", del_project_id);
+            return;
+        }
+    };
+    if let Err(e) = del_project_disk_file_sync(del_project_id, legacy_proj.created_time) {
+        error!(
+            "delete project disk failed, project id: {}, error: {}",
+            del_project_id, e
+        );
+        return;
+    }
     let mut connection = get_connection();
     let result = connection.transaction(|connection| {
-        let legacy_proj = get_prj_by_id(&del_project_id);
         let delete_result = del_project_impl(del_project_id, connection, login_user_info);
         match delete_result {
             Ok(rows) => {
@@ -1110,16 +1172,6 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
                 }
                 if rows == 1 {
                     del_project_file(del_project_id, &login_user_info.userId, connection);
-                    let async_proj_id = del_project_id.clone();
-                    task::spawn_blocking({
-                        move || {
-                            let rt = tokio::runtime::Runtime::new().unwrap();
-                            rt.block_on(del_project_disk_file(
-                                &async_proj_id,
-                                legacy_proj.unwrap().created_time,
-                            ));
-                        }
-                    });
                 }
                 Ok("")
             }
@@ -1137,18 +1189,23 @@ pub fn del_project(del_project_id: &String, login_user_info: &LoginUserInfo) {
     }
 }
 
-pub async fn del_project_disk_file(proj_id: &String, created_time: i64) {
+pub fn del_project_disk_file_sync(proj_id: &String, created_time: i64) -> std::io::Result<()> {
     if proj_id.is_empty() {
-        error!("delete project id is null");
-        return;
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "delete project id is null",
+        ));
     }
     let proj_dir = get_purge_proj_base_dir(proj_id, created_time);
-    let result = tokio::fs::remove_dir_all(Path::new(&proj_dir)).await;
-    match result {
-        Ok(_) => {}
-        Err(e) => {
-            error!("delete project from disk failed,{}", e)
-        }
+    if !Path::new(&proj_dir).exists() {
+        return Ok(());
+    }
+    fs::remove_dir_all(Path::new(&proj_dir))
+}
+
+pub async fn del_project_disk_file(proj_id: &String, created_time: i64) {
+    if let Err(e) = del_project_disk_file_sync(proj_id, created_time) {
+        error!("delete project from disk failed,{}", e)
     }
 }
 

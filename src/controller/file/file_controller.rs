@@ -275,14 +275,7 @@ pub async fn move_file(
         );
     }
     let db_file = move_result.unwrap();
-    if db_file.is_none() {
-        return box_error_actix_rest_response(
-            "no texfile",
-            "MOVE_FILE_FAILED".to_owned(),
-            "".to_owned(),
-        );
-    }
-    del_project_cache(&db_file.clone().unwrap().project_id).await;
+    del_project_cache(&db_file.project_id).await;
     box_actix_rest_response("ok")
 }
 

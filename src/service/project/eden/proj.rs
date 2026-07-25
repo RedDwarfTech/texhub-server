@@ -84,7 +84,7 @@ fn do_create_tpl_proj_trans(
     }
     let proj = create_result.unwrap();
     do_create_proj_dependencies(&proj_req, rd_user_info, connection, &proj);
-    do_create_proj_on_disk(tpl_params, &proj, &rd_user_info.id, login_user_info);
+    do_create_proj_on_disk(tpl_params, &proj, &rd_user_info.id, login_user_info, connection)?;
     return Ok(Some(proj));
 }
 
@@ -93,20 +93,15 @@ pub fn do_create_proj_on_disk(
     proj: &TexProject,
     uid: &i64,
     login_user_info: &LoginUserInfo,
-) {
-    let create_res = create_proj_files(
+    connection: &mut PgConnection,
+) -> Result<(), diesel::result::Error> {
+    create_proj_files(
         tpl_params,
         &proj.project_id,
-        &uid,
+        uid,
         login_user_info,
-    );
-    if !create_res {
-        error!(
-            "create project files failed,tpl: {:?}, project: {:?}",
-            tpl_params, proj
-        );
-        return;
-    }
+        connection,
+    )
 }
 
 pub fn create_proj_files(
@@ -114,27 +109,37 @@ pub fn create_proj_files(
     proj_id: &String,
     uid: &i64,
     login_user_info: &LoginUserInfo,
-) -> bool {
-    let proj_dir = get_proj_base_dir_instant(&proj_id);
-    match create_directory_if_not_exists(&proj_dir) {
-        Ok(()) => {}
-        Err(e) => error!("create project directory before tpl copy failed,{}", e),
-    }
-    let result = copy_dir_recursive(&tpl_params.tpl_files_dir.as_str(), &proj_dir);
-    if let Err(e) = result {
+    connection: &mut PgConnection,
+) -> Result<(), diesel::result::Error> {
+    let proj_dir = get_proj_base_dir_instant(proj_id);
+    create_directory_if_not_exists(&proj_dir).map_err(|e| {
+        error!("create project directory before tpl copy failed,{}", e);
+        diesel::result::Error::QueryBuilderError(Box::new(e))
+    })?;
+    copy_dir_recursive(&tpl_params.tpl_files_dir.as_str(), &proj_dir).map_err(|e| {
         error!(
             "copy file failed,{}, tpl dir: {}, project dir: {}",
             e, tpl_params.tpl_files_dir, proj_dir
         );
-        return false;
-    }
-    return create_files_into_db(
+        diesel::result::Error::QueryBuilderError(Box::new(e))
+    })?;
+    if let Err(e) = create_files_into_db(
+        connection,
         &proj_dir,
         proj_id,
         uid,
         &tpl_params.main_file_name,
         login_user_info,
-    );
+    ) {
+        if let Err(cleanup_err) = fs::remove_dir_all(&proj_dir) {
+            error!(
+                "cleanup project workdir failed after db error, {}, path: {}",
+                cleanup_err, proj_dir
+            );
+        }
+        return Err(e);
+    }
+    Ok(())
 }
 
 pub fn create_proj(
@@ -151,12 +156,13 @@ pub fn create_proj(
 }
 
 pub fn create_files_into_db(
+    connection: &mut PgConnection,
     project_path: &String,
     proj_id: &String,
     uid: &i64,
     main_name: &String,
     login_user_info: &LoginUserInfo,
-) -> bool {
+) -> Result<(), diesel::result::Error> {
     let mut files: Vec<TexFileAdd> = Vec::new();
     let tex_file_params = TexFileParams {
         proj_id: proj_id.to_owned(),
@@ -169,7 +175,7 @@ pub fn create_files_into_db(
             "read directory failed,{}, project path: {}",
             err, project_path
         );
-        return false;
+        return Err(diesel::result::Error::QueryBuilderError(Box::new(err)));
     }
     use crate::model::diesel::tex::tex_schema::tex_file as files_table;
     if files.len() == 0 {
@@ -177,15 +183,11 @@ pub fn create_files_into_db(
             "read 0 files from disk, project path: {}, main_file_name: {:?}",
             project_path, main_name
         );
-        return false;
+        return Err(diesel::result::Error::NotFound);
     }
-    let result = diesel::insert_into(files_table::dsl::tex_file)
+    diesel::insert_into(files_table::dsl::tex_file)
         .values(&files)
-        .get_result::<TexFile>(&mut get_connection());
-    if let Err(err) = result {
-        error!("write files into db facing issue,{}", err);
-        return false;
-    }
+        .execute(connection)?;
     let u_copy = login_user_info.clone();
     task::spawn_blocking({
         move || {
@@ -193,7 +195,7 @@ pub fn create_files_into_db(
             rt.block_on(init_project_into_yjs(&files, &u_copy));
         }
     });
-    return true;
+    Ok(())
 }
 
 /**

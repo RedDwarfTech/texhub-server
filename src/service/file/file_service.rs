@@ -48,7 +48,6 @@ use rust_wheel::model::response::pagination::Pagination;
 use rust_wheel::model::response::pagination_response::PaginationResponse;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 use rust_wheel::texhub::th_file_type::ThFileType;
-use tokio::task;
 
 use super::file_name_validator::validate_file_name;
 use super::spec::file_spec::FileSpec;
@@ -490,7 +489,7 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
     }
 }
 
-fn create_file_on_disk_impl(file: &TexFile) -> std::io::Result<()> {
+pub fn create_file_on_disk_impl(file: &TexFile) -> std::io::Result<()> {
     let base_compile_dir: String = get_proj_base_dir(&file.project_id);
     if file.file_type == (ThFileType::Folder as i32) {
         let folder_path = join_paths(&[base_compile_dir, file.file_path.clone()]);
@@ -842,16 +841,20 @@ fn compute_moved_folder_path(src_folder: &TexFile, dist_folder: &TexFile) -> Str
     join_paths(&[dist_folder.file_path.clone(), src_folder.name.clone()])
 }
 
+fn io_error_to_diesel(e: std::io::Error) -> Error {
+    Error::QueryBuilderError(Box::new(e))
+}
+
 pub fn mv_file_impl(
     move_req: &MoveFileReq,
     login_user_info: &LoginUserInfo,
     src_file: &TexFile,
     dist_file: &TexFile,
-) -> Result<Option<TexFile>, Error> {
+) -> Result<TexFile, Error> {
     use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
     use tex_file_table::dsl::*;
     let mut connection = get_connection();
-    let trans_result: Result<Option<TexFile>, Error> = connection.transaction(|connection| {
+    connection.transaction(|connection| {
         let proj_dir = get_proj_base_dir(&move_req.project_id);
         let predicate = tex_file_table::file_id
             .eq(move_req.file_id.clone())
@@ -874,19 +877,24 @@ pub fn mv_file_impl(
                 &move_req.file_id,
                 connection,
             )?;
-            let move_result =
-                handle_folder_rename(&proj_dir, &old_folder_path, &new_folder_path);
-            if let Err(err) = move_result {
+            handle_folder_rename(&proj_dir, &old_folder_path, &new_folder_path).map_err(|e| {
                 error!(
                     "move folder on disk failed, {}, src path: {}, dist path: {}",
-                    err, old_folder_path, new_folder_path
+                    e, old_folder_path, new_folder_path
                 );
-                return Ok(None);
-            }
+                io_error_to_diesel(e)
+            })?;
             del_file_info_caches(&affected_file_ids);
-            return Ok(Some(update_result));
+            return Ok(update_result);
         }
 
+        let update_result = diesel::update(tex_file.filter(predicate))
+            .set((
+                parent.eq(dist_file.file_id.clone()),
+                file_path.eq(dist_file.file_path.clone()),
+            ))
+            .get_result::<TexFile>(connection)
+            .expect("unable to move tex file");
         let src_path = join_paths(&[
             proj_dir.clone(),
             src_file.file_path.clone(),
@@ -899,25 +907,37 @@ pub fn mv_file_impl(
             "/".to_owned(),
             src_file.name.clone(),
         ]);
-        let fm = fs::rename(&src_path, &dist_path);
-        if let Err(err) = fm {
+        fs::rename(&src_path, &dist_path).map_err(|e| {
             error!(
                 "move file failed, {} ,src path: {}, dist path: {}",
-                err, src_path, dist_path
+                e, src_path, dist_path
             );
-            return Ok(None);
-        }
-        let update_result = diesel::update(tex_file.filter(predicate))
-            .set((
-                parent.eq(dist_file.file_id.clone()),
-                file_path.eq(dist_file.file_path.clone()),
-            ))
-            .get_result::<TexFile>(connection)
-            .expect("unable to move tex file");
+            io_error_to_diesel(e)
+        })?;
         del_file_info_caches(&[move_req.file_id.clone()]);
-        Ok(Some(update_result))
-    });
-    trans_result
+        Ok(update_result)
+    })
+}
+
+pub fn del_disk_file_sync(tex_file: &TexFile) -> std::io::Result<()> {
+    let proj_base_dir = get_proj_base_dir(&tex_file.project_id);
+    if tex_file.file_type == (ThFileType::Folder as i32) {
+        let folder_path = join_paths(&[proj_base_dir, tex_file.file_path.clone()]);
+        if !Path::new(&folder_path).exists() {
+            return Ok(());
+        }
+        fs::remove_dir_all(&folder_path)
+    } else {
+        let file_path = join_paths(&[
+            proj_base_dir,
+            tex_file.file_path.clone(),
+            tex_file.name.clone(),
+        ]);
+        if !Path::new(&file_path).exists() {
+            return Ok(());
+        }
+        fs::remove_file(&file_path)
+    }
 }
 
 pub fn delete_file_recursive(
@@ -925,45 +945,27 @@ pub fn delete_file_recursive(
     tex_file: &TexFile,
     uid: i64,
 ) -> Result<usize, Error> {
+    if let Err(e) = del_disk_file_sync(tex_file) {
+        error!(
+            "delete file on disk failed, file_id={}, err={}, file: {:?}",
+            del_req.file_id, e, tex_file
+        );
+        return Err(io_error_to_diesel(e));
+    }
     let mut connection = get_connection();
-    let trans_result = connection.transaction(|connection| {
-        let delete_result = del_single_file(&del_req.file_id, connection);
-        match delete_result {
-            Ok(proj) => {
-                del_project_file(&del_req.file_id, &uid, connection);
-                task::spawn_blocking({
-                    let del_tex_file = tex_file.clone();
-                    move || {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(del_disk_file(&del_tex_file));
-                    }
-                });
-                return Ok(proj);
-            }
-            Err(e) => diesel::result::QueryResult::Err(e),
-        }
-    });
-    return trans_result;
+    connection.transaction(|connection| {
+        let delete_result = del_single_file(&del_req.file_id, connection)?;
+        del_project_file(&del_req.file_id, &uid, connection);
+        Ok(delete_result)
+    })
 }
 
 pub async fn del_disk_file(tex_file: &TexFile) {
-    let proj_base_dir = get_proj_base_dir(&tex_file.project_id);
-    if tex_file.file_type == (ThFileType::Folder as i32) {
-        let folder_path = join_paths(&[proj_base_dir, tex_file.file_path.clone()]);
-        let del_result = fs::remove_dir_all(&folder_path);
-        if let Err(e) = del_result {
-            error!("delete folder failed, {}, path: {}", e, folder_path);
-        }
-    } else {
-        let proj_base_dir = get_proj_base_dir(&tex_file.project_id);
-        let file_path = join_paths(&[
-            proj_base_dir,
-            tex_file.file_path.clone(),
-            tex_file.name.clone(),
-        ]);
-        let del_result = fs::remove_file(&file_path);
-        if let Err(e) = del_result {
-            error!("delete file failed, e:{}, path: {}", e, file_path)
+    if let Err(e) = del_disk_file_sync(tex_file) {
+        if tex_file.file_type == (ThFileType::Folder as i32) {
+            error!("delete folder failed, {}", e);
+        } else {
+            error!("delete file failed, e:{}", e);
         }
     }
 }
