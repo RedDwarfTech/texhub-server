@@ -37,7 +37,7 @@ use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::convert_to_tree_generic::convert_to_tree;
 use rust_wheel::common::util::model_convert::{map_entity, map_pagination_res};
 use rust_wheel::common::util::rd_file_util::{
-    create_folder_not_exists, get_filename_without_ext, join_paths,
+    create_directory_if_not_exists, get_filename_without_ext, join_paths,
 };
 use rust_wheel::common::wrapper::actix_http_resp::{
     box_actix_rest_response, box_error_actix_rest_response,
@@ -419,15 +419,39 @@ pub async fn create_file(add_req: &TexFileAddReq, login_user_info: &LoginUserInf
     }
     let gen_file_path = get_file_path(&add_req);
     let new_file = TexFileAdd::gen_tex_file(&add_req, login_user_info, &gen_file_path);
-    let err_msg = format!(
-        "failed to add new tex file or folder,{}",
-        serde_json::to_string(&new_file).unwrap()
-    );
-    let result = diesel::insert_into(tex_file)
-        .values(&new_file)
-        .get_result::<TexFile>(&mut get_connection())
-        .expect(&err_msg);
-    create_file_on_disk(&result).await;
+    let mut connection = get_connection();
+    let trans_result = connection.transaction(|connection| {
+        let result = diesel::insert_into(tex_file)
+            .values(&new_file)
+            .get_result::<TexFile>(connection)?;
+        create_file_on_disk_impl(&result).map_err(|e| {
+            error!(
+                "create file on disk failed, project_id={}, name={}, file_path={}: {}",
+                result.project_id, result.name, result.file_path, e
+            );
+            diesel::result::Error::QueryBuilderError(Box::new(e))
+        })?;
+        Ok(result)
+    });
+    let result = match trans_result {
+        Ok(file) => file,
+        Err(e) => {
+            let message = if let Error::QueryBuilderError(ref inner) = e {
+                if let Some(io_err) = inner.downcast_ref::<std::io::Error>() {
+                    format!("failed to create file on disk: {}", io_err)
+                } else {
+                    format!("failed to create file: {}", inner)
+                }
+            } else {
+                error!(
+                    "create file transaction failed, project_id={}, name={}: {}",
+                    add_req.project_id, add_req.name, e
+                );
+                format!("failed to create file: {}", e)
+            };
+            return box_error_actix_rest_response("", "001002D002".to_owned(), message);
+        }
+    };
     del_project_cache(&add_req.project_id).await;
     push_to_fulltext_search(&result, &"hello world".to_string()).await;
     let resp = box_actix_rest_response(result);
@@ -466,20 +490,22 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
     }
 }
 
-pub async fn create_file_on_disk(file: &TexFile) {
+fn create_file_on_disk_impl(file: &TexFile) -> std::io::Result<()> {
     let base_compile_dir: String = get_proj_base_dir(&file.project_id);
     if file.file_type == (ThFileType::Folder as i32) {
-        let split_path = &[base_compile_dir, file.file_path.clone()];
-        let file_full_path = join_paths(split_path);
-        create_folder_not_exists(&file_full_path);
+        let folder_path = join_paths(&[base_compile_dir, file.file_path.clone()]);
+        create_directory_if_not_exists(&folder_path)?;
     } else {
-        let split_path = &[base_compile_dir, file.file_path.clone(), file.name.clone()];
-        let file_full_path = join_paths(split_path);
-        let create_result = create_disk_file(&file_full_path);
-        if let Err(e) = create_result {
-            error!("create file on disk failed, {}", e);
-        }
+        let parent_path = join_paths(&[base_compile_dir.clone(), file.file_path.clone()]);
+        create_directory_if_not_exists(&parent_path)?;
+        let file_full_path = join_paths(&[
+            base_compile_dir,
+            file.file_path.clone(),
+            file.name.clone(),
+        ]);
+        create_disk_file(&file_full_path)?;
     }
+    Ok(())
 }
 
 fn create_disk_file(file_path: &str) -> std::io::Result<()> {
