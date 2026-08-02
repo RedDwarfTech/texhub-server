@@ -55,10 +55,13 @@ use crate::model::response::project::pdf_pos_resp::PdfPosResp;
 use crate::model::response::project::src_pos_resp::SrcPosResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
-use crate::net::y_websocket_client::initial_file_request;
+use crate::net::y_websocket_client::{
+    flush_project_before_compile, initial_file_request,
+};
 use crate::service::config::user_config_service::get_user_config;
 use crate::service::file::file_service::{
     create_file_on_disk_impl, get_cached_file_by_fid, get_file_tree, get_main_file_list,
+    get_proj_file_list,
 };
 use crate::service::global::proj::proj_util::get_purge_proj_base_dir;
 use crate::service::global::proj::proj_util::{
@@ -1306,7 +1309,6 @@ pub async fn add_compile_to_queue(
     params: &TexCompileQueueReq,
     login_user_info: &LoginUserInfo,
 ) -> HttpResponse {
-    let mut connection = get_connection();
     let queue_req = QueueReq {
         comp_status: vec![
             TeXFileCompileStatus::Waiting as i32,
@@ -1318,6 +1320,21 @@ pub async fn add_compile_to_queue(
     if !queue_list.is_empty() {
         return box_err_actix_rest_response(TexhubError::CompilingPocessing);
     }
+    // 编译前强制 flush，保证磁盘上是点击编译时的最新内容
+    let file_list = get_proj_file_list(&params.project_id);
+    let file_ids: Vec<String> = file_list.iter().map(|f| f.file_id.clone()).collect();
+    if let Err(e) = flush_project_before_compile(&params.project_id, &file_ids).await {
+        error!(
+            "flush project before compile failed, project_id: {}, err: {}",
+            params.project_id, e
+        );
+        return box_error_actix_rest_response(
+            "",
+            "FLUSH_PROJECT_FAILED".to_string(),
+            "flush project content failed".to_string(),
+        );
+    }
+    let mut connection = get_connection();
     let new_compile = CompileQueueAdd::from_req(&params.project_id, &login_user_info.userId);
     use crate::model::diesel::tex::tex_schema::tex_comp_queue::dsl::*;
     let queue_result = diesel::insert_into(tex_comp_queue)
