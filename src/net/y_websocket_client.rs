@@ -75,12 +75,12 @@ pub async fn flush_project_before_compile(
     }
 }
 
-/// 查看历史版本前通知 texhub-broadcast 强制刷新各文件的最新历史快照。
-/// 绕过 60s 节流，保证历史面板能展示最新的历史版本。
+/// 查看历史版本前通知 texhub-broadcast 强制刷新项目的待写历史快照。
+/// 具体哪些文件需要 flush 由 texhub-broadcast 侧自行决定（内存节流池 + Redis 待写标记），
+/// 不依赖 texhub-server 传递文件列表。
 /// 返回 Ok 表示调用成功（部分文件失败不阻塞，仅记日志）。
 pub async fn flush_project_history_before_view(
     project_id: &String,
-    file_ids: &Vec<String>,
 ) -> Result<(), String> {
     let client = Client::new();
     let url = format!(
@@ -90,7 +90,6 @@ pub async fn flush_project_history_before_view(
     );
     let body = serde_json::json!({
         "project_id": project_id,
-        "file_ids": file_ids,
     });
     let response = client
         .post(&url)

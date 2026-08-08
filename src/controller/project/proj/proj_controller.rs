@@ -25,8 +25,8 @@ use crate::model::response::project::proj_resp::ProjResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::model::response::project::tex_project_cache_resp::TexProjectCacheResp;
 use crate::service::file::file_service::{
-    get_cached_file_by_fid, get_proj_file_list, get_proj_history_page_impl,
-    get_proj_history_page_impl_v1, push_to_fulltext_search,
+    get_cached_file_by_fid, get_proj_history_page_impl, get_proj_history_page_impl_v1,
+    push_to_fulltext_search,
 };
 use crate::service::project::compile::project_compile_service::get_redis_comp_log_stream;
 use crate::service::project::proj::project_service::{
@@ -388,11 +388,10 @@ pub async fn get_proj_his_page(params: web::Query<GetProjPageHistory>) -> impl R
 }
 
 pub async fn get_proj_his_page_v1(params: web::Query<GetProjHistoryScroll>) -> impl Responder {
-    // 查看历史版本前先强制刷新各文件最新历史快照，保证能展示最新的历史版本。
+    // 查看历史版本前先强制刷新项目待写的历史快照，保证能展示最新的历史版本。
+    // 具体哪些文件需要 flush 由 texhub-broadcast 侧决定。
     if params.flush == Some(true) {
-        let file_list = get_proj_file_list(&params.project_id);
-        let file_ids: Vec<String> = file_list.iter().map(|f| f.id.to_string()).collect();
-        if let Err(e) = flush_project_history_before_view(&params.project_id, &file_ids).await {
+        if let Err(e) = flush_project_history_before_view(&params.project_id).await {
             error!(
                 "flush project history failed, project_id: {}, err: {}",
                 params.project_id, e
