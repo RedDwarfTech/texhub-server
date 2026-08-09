@@ -60,7 +60,8 @@ spec:
     - kind: Rule
       match: >-
         Host(`tex.poemhub.top`) && (PathPrefix(`/infra/user/login`) ||
-        PathPrefix(`/infra/auth/access-token/refresh`))
+        PathPrefix(`/infra/auth/access-token/refresh`) ||
+        PathPrefix(`/infra/user/reg`))
       priority: 8
       services:
         - name: infra-server-service
