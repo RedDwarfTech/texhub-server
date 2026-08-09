@@ -20,7 +20,7 @@ use crate::{
             },
             project::share::collar_query_params::CollarQueryParams,
         },
-        response::file::ws_file_detail::WsFileDetail,
+        response::file::{tex_file_info_resp::TexFileInfoResp, ws_file_detail::WsFileDetail},
     },
     service::{
         file::{
@@ -59,8 +59,15 @@ use rust_wheel::{
 };
 
 pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
-    let docs = get_cached_file_by_fid(&params.file_id).unwrap();
-    box_actix_rest_response(docs)
+    let file = match get_cached_file_by_fid(&params.file_id) {
+        Some(file) => file,
+        None => return box_err_actix_rest_response(InfraError::DataNotFound),
+    };
+    let nickname = match get_user_info(&file.user_id).await {
+        Some(user) => user.nickname,
+        None => String::new(),
+    };
+    box_actix_rest_response(TexFileInfoResp::from_file(&file, nickname))
 }
 
 /**
