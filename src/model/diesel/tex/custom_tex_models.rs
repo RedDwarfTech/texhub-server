@@ -16,7 +16,7 @@ pub struct TexCompQueue {
     pub user_id: i64,
     pub comp_status: i32,
     pub project_id: String,
-    pub version_no: String,
+    pub version_no: i64,
     pub comp_result: i32,
     pub complete_time: i64,
     pub start_time: i64,

@@ -6,7 +6,7 @@ table! {
         user_id -> Int8,
         comp_status -> Int4,
         project_id -> Varchar,
-        version_no -> Varchar,
+        version_no -> Int8,
         comp_result -> Int4,
         complete_time -> Int8,
         start_time -> Int8,

@@ -1365,6 +1365,7 @@ pub async fn add_compile_to_queue(
     let out_path = join_paths(&[proj_base_dir, params.project_id.clone()]);
     let rt = get_current_millisecond().to_string();
     let qid = queue_result.as_ref().unwrap().id.to_string();
+    let version_no_str = queue_result.as_ref().unwrap().version_no.to_string();
     let proj_created_time = proj_cache.clone().unwrap().main.created_time;
     let created_time_str = proj_created_time.to_string();
     let user_id_str = login_user_info.userId.to_string();
@@ -1376,7 +1377,7 @@ pub async fn add_compile_to_queue(
         ("qid", qid.as_str()),
         (
             "version_no",
-            queue_result.as_ref().unwrap().version_no.as_str(),
+            version_no_str.as_str(),
         ),
         ("log_file_name", log_file_name.as_str()),
         ("proj_created_time", created_time_str.as_str()),
@@ -1448,7 +1449,7 @@ pub async fn get_proj_latest_pdf(proj_id: &String, uid: &i64) -> Result<LatestCo
     let ver_no = if newest_queue.is_some() {
         newest_queue.unwrap().version_no
     } else {
-        get_current_millisecond().to_string()
+        get_current_millisecond()
     };
     let pdf_name = format!(
         "{}{}{}",

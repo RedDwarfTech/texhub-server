@@ -419,7 +419,7 @@ CREATE TABLE public.tex_comp_queue (
     user_id bigint NOT NULL,
     comp_status integer DEFAULT 0 NOT NULL,
     project_id character varying NOT NULL,
-    version_no character varying NOT NULL,
+    version_no bigint NOT NULL,
     comp_result integer DEFAULT '-1'::integer NOT NULL,
     complete_time bigint DEFAULT 0 NOT NULL
 );
