@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::common::database::get_connection;
 use crate::common::interop::synctex::{
     synctex_display_query, synctex_edit_query, synctex_node_box_visible_depth,
     synctex_node_box_visible_h, synctex_node_box_visible_height, synctex_node_box_visible_v,
@@ -11,6 +12,11 @@ use crate::common::interop::synctex::{
     synctex_scanner_free, synctex_scanner_get_name, synctex_scanner_new_with_output_file,
     synctex_scanner_next_result,
 };
+use crate::diesel::ExpressionMethods;
+use crate::diesel::QueryDsl;
+use crate::diesel::RunQueryDsl;
+use crate::model::diesel::tex::custom_tex_models::TexFile;
+use crate::model::diesel::tex::tex_schema::tex_file as tex_file_table;
 use crate::model::request::project::query::{
     get_pdf_pos_params::GetPdfPosParams, get_src_pos_params::GetSrcPosParams,
 };
@@ -110,7 +116,12 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
                 let c_str = CStr::from_ptr(file);
                 let file_name: String = c_str.to_string_lossy().into_owned();
                 let src_relative_path = get_file_relative_path(file_name, proj_dir.clone());
-                let single_pos = SrcPosResp::from((src_relative_path, line, column));
+                // SyncTeX 可能只返回文件名（如 "skills.tex"）而文件位于子目录，
+                // 补全为项目文件树中的完整相对路径（如 "engineering/intro/base/skills.tex"），
+                // 供前端文件树定位；查库失败时回退为原始路径。
+                let resolved_path =
+                    resolve_src_file_path(&src_relative_path, &params.project_id);
+                let single_pos = SrcPosResp::from((resolved_path, line, column));
                 position_list.push(single_pos);
             }
         }
@@ -147,4 +158,47 @@ fn get_file_relative_path(file_full_path: String, proj_dir: String) -> String {
 
 fn clean_synctex_name(name: String) -> String {
     name.trim_start_matches("./").replace("./", "")
+}
+
+/// 将 SyncTeX 返回的文件名解析为项目文件树中的完整相对路径。
+///
+/// SyncTeX 只记录编译时的 Input 路径，可能只返回文件名（如 "skills.tex"），
+/// 而文件实际位于子目录（tex_file.file_path 是父目录路径，不含文件名）。
+/// 此时按 project_id + name 查询 tex_file 表补全路径，
+/// 如 "engineering/intro/base/skills.tex"，供前端文件树定位；
+/// 已是完整相对路径或查库失败时原样返回。
+fn resolve_src_file_path(file_name: &str, project_id: &str) -> String {
+    // 已含目录分隔符（完整相对路径）时无需查库
+    if file_name.contains('/') || file_name.contains('\\') {
+        return file_name.to_string();
+    }
+    let mut query = tex_file_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query
+        .filter(tex_file_table::project_id.eq(project_id))
+        .filter(tex_file_table::name.eq(file_name))
+        .filter(tex_file_table::file_type.eq(1)); // 1 = 文件（0 = 文件夹）
+    let cvs: Result<Vec<TexFile>, diesel::result::Error> =
+        query.load::<TexFile>(&mut get_connection());
+    match cvs {
+        Ok(files) => {
+            if let Some(f) = files.first() {
+                let dir = f.file_path.trim_matches('/');
+                if dir.is_empty() {
+                    // 根目录文件（file_path = "/"）直接返回文件名
+                    f.name.clone()
+                } else {
+                    format!("{}/{}", dir, f.name)
+                }
+            } else {
+                file_name.to_string()
+            }
+        }
+        Err(err) => {
+            error!(
+                "resolve src file path failed, query by name {} error: {}",
+                file_name, err
+            );
+            file_name.to_string()
+        }
+    }
 }
