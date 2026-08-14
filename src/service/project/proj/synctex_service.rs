@@ -126,11 +126,25 @@ fn get_file_relative_path(file_full_path: String, proj_dir: String) -> String {
         Ok(relative) => {
             let mut relative_path = PathBuf::from(relative);
             let path_string = relative_path.as_mut_os_str().to_string_lossy().to_string();
-            path_string.replace("./", "")
+            clean_synctex_name(path_string)
         }
         Err(err) => {
-            error!("Failed to get relative path: {}", err);
-            "".to_owned()
+            // synctex 中 Input: 记录的是编译时传入的相对路径（相对编译目录/项目根），
+            // 例如 "main.tex" 或 "./chapters/intro.tex"，此时无法 strip 项目根，
+            // 直接作为项目内相对路径清洗后返回。
+            if !abs_path.is_absolute() {
+                return clean_synctex_name(file_full_path);
+            }
+            // 绝对路径但不在项目根下的兜底：取文件名。
+            error!("Failed to get relative path, fallback to file name: {}", err);
+            abs_path
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .unwrap_or_default()
         }
     }
+}
+
+fn clean_synctex_name(name: String) -> String {
+    name.trim_start_matches("./").replace("./", "")
 }
