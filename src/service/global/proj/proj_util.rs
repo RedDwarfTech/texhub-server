@@ -31,6 +31,27 @@ pub fn get_proj_base_dir(proj_id: &String) -> String{
     return proj_dir;
 }
 
+/// Compute the per-project working directory used by the compile side (tex-render).
+///
+/// The architecture separates compute from storage: LaTeX compilation runs in an
+/// independent pod (tex-render) whose working base is `texhub.compile_workspace_base_dir`
+/// (e.g. `/tmp/texhub-compile`), while the persistent project files live under
+/// `texhub.compile_base_dir` (e.g. `/opt/data/project`) in this (texhub-server) pod.
+///
+/// The stable year/month sub-path is identical on both sides because it is derived from
+/// the project `created_time`, so we only need to swap the root to reconstruct the
+/// compile-side directory. The `.synctex` file records absolute source paths rooted at
+/// this compile-side directory, so it is required to resolve those paths into
+/// project-relative paths when decoding SyncTeX (see `synctex_service.rs`).
+pub fn get_proj_compile_workspace_dir(proj_id: &String) -> String{
+    let base_compile_dir: String = get_app_config("texhub.compile_workspace_base_dir");
+    let proj_info = get_cached_proj_info(&proj_id).unwrap();
+    let ct = proj_info.main.created_time;
+    let proj_base_dir = get_proj_path(&base_compile_dir, ct);
+    let proj_dir = join_paths(&[proj_base_dir, proj_id.to_owned()]);
+    return proj_dir;
+}
+
 pub fn get_purge_proj_base_dir(proj_id: &String, created_time: i64) -> String{
     let base_compile_dir: String = get_app_config("texhub.compile_base_dir");
     let proj_base_dir = get_proj_path(&base_compile_dir, created_time);
