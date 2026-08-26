@@ -7,6 +7,16 @@ use rust_wheel::{
 };
 use std::time::Duration;
 
+/// 截断过长的响应体/请求体，避免日志爆炸（保留首尾各 512 字节）。
+fn truncate(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        s
+    } else {
+        let tail_start = s.len() - 512;
+        &s[..512]
+    }
+}
+
 /// 编译前通知 texhub-broadcast 将项目所有文件的最新内容强制写盘。
 /// 返回 Err 表示 flush 失败，调用方应阻止编译入队，避免使用陈旧内容。
 pub async fn flush_project_before_compile(
@@ -23,6 +33,7 @@ pub async fn flush_project_before_compile(
         "project_id": project_id,
         "file_ids": file_ids,
     });
+    let body_str = body.to_string();
     let response = client
         .post(&url)
         .headers(construct_headers(&url))
@@ -32,22 +43,44 @@ pub async fn flush_project_before_compile(
         .await;
     match response {
         Ok(r) => {
-            if !r.status().is_success() {
-                let msg = format!("flush project failed, status: {}", r.status());
+            let status = r.status();
+            if !status.is_success() {
+                let resp_body = r.text().await.unwrap_or_default();
+                let msg = format!(
+                    "flush project failed, status: {}, url: {}, project_id: {}, file_count: {}, response: {}",
+                    status, url, project_id, file_ids.len(), truncate(&resp_body, 1024)
+                );
                 error!("{}", msg);
                 return Err(msg);
             }
-            let resp: serde_json::Value = match r.json().await {
+            let resp_text = match r.text().await {
+                Ok(t) => t,
+                Err(e) => {
+                    let msg = format!(
+                        "flush project read response body failed, url: {}, project_id: {}, err: {}",
+                        url, project_id, e
+                    );
+                    error!("{}", msg);
+                    return Err(msg);
+                }
+            };
+            let resp: serde_json::Value = match serde_json::from_str(&resp_text) {
                 Ok(v) => v,
                 Err(e) => {
-                    let msg = format!("parse flush project response failed: {}", e);
+                    let msg = format!(
+                        "flush project parse response failed, url: {}, project_id: {}, err: {}, response: {}",
+                        url, project_id, e, truncate(&resp_text, 1024)
+                    );
                     error!("{}", msg);
                     return Err(msg);
                 }
             };
             let code = resp.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
             if code != 200 {
-                let msg = format!("flush project response code: {}", code);
+                let msg = format!(
+                    "flush project response code: {}, url: {}, project_id: {}, response: {}",
+                    code, url, project_id, truncate(&resp_text, 1024)
+                );
                 error!("{}", msg);
                 return Err(msg);
             }
@@ -59,8 +92,8 @@ pub async fn flush_project_before_compile(
                 .unwrap_or(0);
             if failed_files > 0 {
                 let msg = format!(
-                    "flush project partially failed, project_id: {}, failed file count: {}",
-                    project_id, failed_files
+                    "flush project partially failed, project_id: {}, failed file count: {}, response: {}",
+                    project_id, failed_files, truncate(&resp_text, 1024)
                 );
                 error!("{}", msg);
                 return Err(msg);
@@ -69,8 +102,8 @@ pub async fn flush_project_before_compile(
         }
         Err(e) => {
             let msg = format!(
-                "flush project request error, url: {}, project_id: {}, file_count: {}, timeout: 15s, err: {}",
-                url, project_id, file_ids.len(), e
+                "flush project request error, url: {}, project_id: {}, file_count: {}, timeout: 15s, request_body: {}, err: {}",
+                url, project_id, file_ids.len(), truncate(&body_str, 1024), e
             );
             error!("{}", msg);
             Err(msg)
@@ -94,6 +127,7 @@ pub async fn flush_project_history_before_view(
     let body = serde_json::json!({
         "project_id": project_id,
     });
+    let body_str = body.to_string();
     let response = client
         .post(&url)
         .headers(construct_headers(&url))
@@ -103,22 +137,44 @@ pub async fn flush_project_history_before_view(
         .await;
     match response {
         Ok(r) => {
-            if !r.status().is_success() {
-                let msg = format!("flush project history failed, status: {}", r.status());
+            let status = r.status();
+            if !status.is_success() {
+                let resp_body = r.text().await.unwrap_or_default();
+                let msg = format!(
+                    "flush project history failed, status: {}, url: {}, project_id: {}, response: {}",
+                    status, url, project_id, truncate(&resp_body, 1024)
+                );
                 error!("{}", msg);
                 return Err(msg);
             }
-            let resp: serde_json::Value = match r.json().await {
+            let resp_text = match r.text().await {
+                Ok(t) => t,
+                Err(e) => {
+                    let msg = format!(
+                        "flush project history read response body failed, url: {}, project_id: {}, err: {}",
+                        url, project_id, e
+                    );
+                    error!("{}", msg);
+                    return Err(msg);
+                }
+            };
+            let resp: serde_json::Value = match serde_json::from_str(&resp_text) {
                 Ok(v) => v,
                 Err(e) => {
-                    let msg = format!("parse flush project history response failed: {}", e);
+                    let msg = format!(
+                        "flush project history parse response failed, url: {}, project_id: {}, err: {}, response: {}",
+                        url, project_id, e, truncate(&resp_text, 1024)
+                    );
                     error!("{}", msg);
                     return Err(msg);
                 }
             };
             let code = resp.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
             if code != 200 {
-                let msg = format!("flush project history response code: {}", code);
+                let msg = format!(
+                    "flush project history response code: {}, url: {}, project_id: {}, response: {}",
+                    code, url, project_id, truncate(&resp_text, 1024)
+                );
                 error!("{}", msg);
                 return Err(msg);
             }
@@ -126,8 +182,8 @@ pub async fn flush_project_history_before_view(
         }
         Err(e) => {
             let msg = format!(
-                "flush project history request error, url: {}, project_id: {}, timeout: 15s, err: {}",
-                url, project_id, e
+                "flush project history request error, url: {}, project_id: {}, timeout: 15s, request_body: {}, err: {}",
+                url, project_id, truncate(&body_str, 1024), e
             );
             error!("{}", msg);
             Err(msg)
