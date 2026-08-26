@@ -1325,8 +1325,8 @@ pub async fn add_compile_to_queue(
     let file_ids: Vec<String> = file_list.iter().map(|f| f.file_id.clone()).collect();
     if let Err(e) = flush_project_before_compile(&params.project_id, &file_ids).await {
         error!(
-            "flush project before compile failed, project_id: {}, err: {}",
-            params.project_id, e
+            "flush project before compile failed, project_id: {}, file_count: {}, err: {}",
+            params.project_id, file_ids.len(), e
         );
         return box_error_actix_rest_response(
             "",

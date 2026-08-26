@@ -68,7 +68,10 @@ pub async fn flush_project_before_compile(
             Ok(())
         }
         Err(e) => {
-            let msg = format!("flush project request error: {}", e);
+            let msg = format!(
+                "flush project request error, url: {}, project_id: {}, file_count: {}, timeout: 15s, err: {}",
+                url, project_id, file_ids.len(), e
+            );
             error!("{}", msg);
             Err(msg)
         }
@@ -122,7 +125,10 @@ pub async fn flush_project_history_before_view(
             Ok(())
         }
         Err(e) => {
-            let msg = format!("flush project history request error: {}", e);
+            let msg = format!(
+                "flush project history request error, url: {}, project_id: {}, timeout: 15s, err: {}",
+                url, project_id, e
+            );
             error!("{}", msg);
             Err(msg)
         }
