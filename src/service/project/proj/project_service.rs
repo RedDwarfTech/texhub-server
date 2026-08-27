@@ -61,7 +61,6 @@ use crate::net::y_websocket_client::{
 use crate::service::config::user_config_service::get_user_config;
 use crate::service::file::file_service::{
     create_file_on_disk_impl, get_cached_file_by_fid, get_file_tree, get_main_file_list,
-    get_proj_file_list,
 };
 use crate::service::global::proj::proj_util::get_purge_proj_base_dir;
 use crate::service::global::proj::proj_util::{
@@ -1321,12 +1320,10 @@ pub async fn add_compile_to_queue(
         return box_err_actix_rest_response(TexhubError::CompilingPocessing);
     }
     // 编译前强制 flush，保证磁盘上是点击编译时的最新内容
-    let file_list = get_proj_file_list(&params.project_id);
-    let file_ids: Vec<String> = file_list.iter().map(|f| f.file_id.clone()).collect();
-    if let Err(e) = flush_project_before_compile(&params.project_id, &file_ids).await {
+    if let Err(e) = flush_project_before_compile(&params.project_id).await {
         error!(
-            "flush project before compile failed, project_id: {}, file_count: {}, err: {}",
-            params.project_id, file_ids.len(), e
+            "flush project before compile failed, project_id: {}, err: {}",
+            params.project_id, e
         );
         return box_error_actix_rest_response(
             "",

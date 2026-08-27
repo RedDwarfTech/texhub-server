@@ -25,11 +25,12 @@ fn format_headers(headers: &reqwest::header::HeaderMap) -> String {
     parts.join(", ")
 }
 
-/// 编译前通知 texhub-broadcast 将项目所有文件的最新内容强制写盘。
+/// 编译前通知 texhub-broadcast 将项目内有未落盘/未落库修改的文件强制写盘。
+/// 具体哪些文件需要 flush 由 texhub-broadcast 侧自行决定（内存挂起池 + Redis 待写标记）。
+/// 一般情况下仅 flush 最近几秒编辑过的 1-N 个文件。
 /// 返回 Err 表示 flush 失败，调用方应阻止编译入队，避免使用陈旧内容。
 pub async fn flush_project_before_compile(
     project_id: &String,
-    file_ids: &Vec<String>,
 ) -> Result<(), String> {
     let client = Client::new();
     let url = format!(
@@ -39,7 +40,6 @@ pub async fn flush_project_before_compile(
     );
     let body = serde_json::json!({
         "project_id": project_id,
-        "file_ids": file_ids,
     });
     let body_str = body.to_string();
     let response = client
@@ -56,8 +56,8 @@ pub async fn flush_project_before_compile(
             if !status.is_success() {
                 let resp_body = r.text().await.unwrap_or_default();
                 let msg = format!(
-                    "flush project failed, status: {}, url: {}, project_id: {}, file_count: {}, headers: {}, response: {}",
-                    status, url, project_id, file_ids.len(), headers_str, truncate(&resp_body, 1024)
+                    "flush project failed, status: {}, url: {}, project_id: {}, headers: {}, response: {}",
+                    status, url, project_id, headers_str, truncate(&resp_body, 1024)
                 );
                 error!("{}", msg);
                 return Err(msg);
@@ -108,15 +108,15 @@ pub async fn flush_project_before_compile(
                 return Err(msg);
             }
             info!(
-                "flush project success, project_id: {}, file_count: {}, headers: {}, response: {}",
-                project_id, file_ids.len(), headers_str, truncate(&resp_text, 1024)
+                "flush project success, project_id: {}, headers: {}, response: {}",
+                project_id, headers_str, truncate(&resp_text, 1024)
             );
             Ok(())
         }
         Err(e) => {
             let msg = format!(
-                "flush project request error, url: {}, project_id: {}, file_count: {}, timeout: 15s, request_body: {}, err: {}",
-                url, project_id, file_ids.len(), truncate(&body_str, 1024), e
+                "flush project request error, url: {}, project_id: {}, timeout: 15s, request_body: {}, err: {}",
+                url, project_id, truncate(&body_str, 1024), e
             );
             error!("{}", msg);
             Err(msg)
