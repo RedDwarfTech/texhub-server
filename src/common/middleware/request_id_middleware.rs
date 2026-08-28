@@ -51,10 +51,14 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = Rc::clone(&self.service);
         let log_context = RequestLogContext::new(req.method().as_str(), req.uri().to_string());
+        let header_id = req
+            .headers()
+            .get("x-request-id")
+            .and_then(|h| h.to_str().ok())
+            .filter(|id| !id.is_empty());
+        let query_id = query_request_id(req.query_string());
         let request_id = extract_request_id(
-            req.headers()
-                .get("x-request-id")
-                .and_then(|h| h.to_str().ok()),
+            header_id.or(query_id.as_deref()),
             log_context.clone(),
         );
 
@@ -65,4 +69,14 @@ where
             .await
         })
     }
+}
+
+/// EventSource cannot send custom headers, so clients may pass x-request-id as a query param.
+fn query_request_id(query: &str) -> Option<String> {
+    query.split('&').find_map(|pair| {
+        let mut parts = pair.splitn(2, '=');
+        let key = parts.next()?;
+        let value = parts.next().unwrap_or("").trim();
+        (key == "x-request-id" && !value.is_empty()).then(|| value.to_string())
+    })
 }
