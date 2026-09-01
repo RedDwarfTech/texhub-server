@@ -297,10 +297,6 @@ pub async fn get_latest_pdf(
  *  https://stackoverflow.com/questions/77015804/why-the-event-source-polyfill-did-not-fetch-the-sse-api-data
  *
  */
-pub async fn get_temp_auth_code() -> impl Responder {
-    return box_actix_rest_response("123456");
-}
-
 pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse {
     let (tx, rx): (
         UnboundedSender<SSEMessage<String>>,
@@ -577,7 +573,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/edit", web::patch().to(edit_project))
             .route("/join", web::post().to(join_proj))
             .route("/log/stream", web::get().to(sse_handler))
-            .route("/temp/code", web::get().to(get_temp_auth_code))
             .route("/compile", web::put().to(compile_proj))
             .route("/queue/status", web::get().to(get_queue_status))
             .route(

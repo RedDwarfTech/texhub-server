@@ -4316,9 +4316,9 @@ dependencies = [
 
 [[package]]
 name = "rust_wheel"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3934ea523e7db714b77ecfd6710ed810b41d782b44fe9a9fea1eefd50042449b"
+checksum = "8c05cc981de5a38d5897b236b6d42d965052e0317159b76803679604e484cb8b"
 dependencies = [
  "actix-web",
  "base64 0.22.1",
