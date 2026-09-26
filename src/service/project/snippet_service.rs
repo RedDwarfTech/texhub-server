@@ -5,9 +5,13 @@ use crate::model::request::snippet::add::add_snippet_req::AddSnippetReq;
 use crate::model::request::snippet::edit::snippet_req::SnippetReq;
 use crate::{
     common::database::get_connection,
+    common::utils::like_escape::{build_contains_pattern, LIKE_ESCAPE_CHAR},
     model::request::project::query::snippet_query_params::SnippetQueryParams,
 };
-use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, TextExpressionMethods};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, QueryDsl,
+    expression_methods::{EscapeExpressionMethods, PgTextExpressionMethods},
+};
 use log::error;
 use rust_wheel::model::user::login_user_info::LoginUserInfo;
 
@@ -18,8 +22,8 @@ pub async fn get_snippets(
     use crate::model::diesel::tex::tex_schema::tex_snippet as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
-    if params.title.is_some() {
-        query = query.filter(cv_work_table::title.like(format!("%{}%", params.title.as_ref().unwrap())));
+    if let Some(title_filter) = build_contains_pattern(params.title.as_ref()) {
+        query = query.filter(cv_work_table::title.ilike(title_filter).escape(LIKE_ESCAPE_CHAR));
     }
     let cvs = query.load::<TexSnippet>(&mut get_connection());
     match cvs {

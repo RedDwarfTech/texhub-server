@@ -8,7 +8,9 @@ pub struct ProjQueryParams {
     #[serde(default = "default_trash")]
     pub trash: i32,
     #[serde(default = "default_proj_status")]
-    pub proj_status: i32
+    pub proj_status: i32,
+    /// Fuzzy, case-insensitive match against the project name.
+    pub keyword: Option<String>
 }
 
 fn default_archive_status() -> i32 {

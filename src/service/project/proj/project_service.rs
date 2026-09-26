@@ -1,3 +1,4 @@
+use crate::common::utils::like_escape::{build_contains_pattern, LIKE_ESCAPE_CHAR};
 use crate::common::zip::compress::gen_zip;
 use crate::common::zip::decompress::exact_upload_zip;
 use crate::diesel::RunQueryDsl;
@@ -84,6 +85,7 @@ use actix_web::HttpResponse;
 use actix_web::Responder;
 use diesel::result::Error;
 use diesel::{
+    expression_methods::{EscapeExpressionMethods, PgTextExpressionMethods},
     sql_query, BoolExpressionMethods, Connection, ExpressionMethods, PgConnection, QueryDsl,
 };
 use futures_util::{StreamExt, TryStreamExt};
@@ -120,6 +122,16 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
+
+/**
+ * Build the `ILIKE` pattern used to fuzzy match a project name.
+ *
+ * Returns `None` when no meaningful keyword was given, so the callers can skip
+ * the filter entirely and keep the unfiltered (and much cheaper) query.
+ */
+fn build_proj_name_filter(keyword: Option<&String>) -> Option<String> {
+    return build_contains_pattern(keyword);
+}
 
 impl<'a> ProjSpec<'a> for TexProjectService<'a> {
     fn new(context: Option<&'a AppContext>) -> Self {
@@ -192,6 +204,13 @@ impl<'a> ProjSpec<'a> for TexProjectService<'a> {
                 tex_project_table::proj_source_type.eq(query_params.proj_source_type.unwrap()),
             );
         }
+        if let Some(name_filter) = build_proj_name_filter(query_params.keyword.as_ref()) {
+            proj_query = proj_query.filter(
+                tex_project_table::proj_name
+                    .ilike(name_filter)
+                    .escape(LIKE_ESCAPE_CHAR),
+            );
+        }
         let projects: Vec<TexProject> = proj_query
             .load::<TexProject>(&mut get_connection())
             .expect("get project editor failed");
@@ -253,6 +272,13 @@ pub fn get_folder_project_impl(
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_work_table::user_id.eq(login_user_info.userId));
     query = query.filter(cv_work_table::project_id.eq_any(curr_tab_proj_ids));
+    if let Some(name_filter) = build_proj_name_filter(query_params.keyword.as_ref()) {
+        query = query.filter(
+            cv_work_table::proj_name
+                .ilike(name_filter)
+                .escape(LIKE_ESCAPE_CHAR),
+        );
+    }
     let cvs = query.load::<TexProject>(&mut get_connection());
     match cvs {
         Ok(result) => {

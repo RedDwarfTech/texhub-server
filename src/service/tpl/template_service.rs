@@ -1,11 +1,15 @@
 use crate::common::database::get_connection;
+use crate::common::utils::like_escape::{build_contains_pattern, LIKE_ESCAPE_CHAR};
 use crate::diesel::RunQueryDsl;
 use crate::model::dict::proj_source_type::ProjSourceType;
 use crate::model::diesel::custom::project::tex_project_add::TexProjectAdd;
 use crate::model::diesel::tex::custom_tex_models::{TexProject, TexTemplate};
 use crate::model::request::tpl::query::tpl_query_params::TplQueryParams;
 use crate::model::response::tpl::tex_tpl_resp::TexTplResp;
-use diesel::{ExpressionMethods, QueryDsl, QueryResult, TextExpressionMethods};
+use diesel::{
+    ExpressionMethods, QueryDsl, QueryResult,
+    expression_methods::{EscapeExpressionMethods, PgTextExpressionMethods},
+};
 use log::error;
 use rust_wheel::common::query::pagination::Paginate;
 use rust_wheel::common::util::model_convert::{
@@ -19,9 +23,8 @@ pub fn get_tpl_list(params: &TplQueryParams) -> Vec<TexTemplate> {
     use crate::model::diesel::tex::tex_schema::tex_template as cv_tpl_table;
     let mut query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_tpl_table::online_status.eq(1));
-    if params.name.as_ref().is_some() {
-        query =
-            query.filter(cv_tpl_table::name.like(format!("%{}%", params.name.as_ref().unwrap())));
+    if let Some(name_filter) = build_contains_pattern(params.name.as_ref()) {
+        query = query.filter(cv_tpl_table::name.ilike(name_filter).escape(LIKE_ESCAPE_CHAR));
     }
     if params.tpl_type.as_ref().is_some() {
         query = query.filter(cv_tpl_table::template_type.eq(params.tpl_type.as_ref().unwrap()));
@@ -42,9 +45,8 @@ pub fn get_tpl_page_impl(params: &TplQueryParams) -> PaginationResponse<Vec<TexT
     use crate::model::diesel::tex::tex_schema::tex_template as cv_tpl_table;
     let mut query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_tpl_table::online_status.eq(1));
-    if params.name.as_ref().is_some() {
-        query =
-            query.filter(cv_tpl_table::name.like(format!("%{}%", params.name.as_ref().unwrap())));
+    if let Some(name_filter) = build_contains_pattern(params.name.as_ref()) {
+        query = query.filter(cv_tpl_table::name.ilike(name_filter).escape(LIKE_ESCAPE_CHAR));
     }
     if params.tpl_type.as_ref().is_some() {
         let tpl_type_tmp = params.tpl_type.clone().unwrap();
@@ -67,9 +69,8 @@ pub fn get_tpl_partial_page_impl(params: &TplQueryParams) -> PaginationResponse<
     use crate::model::diesel::tex::tex_schema::tex_template as cv_tpl_table;
     let mut query = cv_tpl_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(cv_tpl_table::online_status.eq(1));
-    if params.name.as_ref().is_some() {
-        query =
-            query.filter(cv_tpl_table::name.like(format!("%{}%", params.name.as_ref().unwrap())));
+    if let Some(name_filter) = build_contains_pattern(params.name.as_ref()) {
+        query = query.filter(cv_tpl_table::name.ilike(name_filter).escape(LIKE_ESCAPE_CHAR));
     }
     if params.tpl_type.as_ref().is_some() {
         let tpl_type_tmp = params.tpl_type.clone().unwrap();
