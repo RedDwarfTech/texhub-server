@@ -507,6 +507,16 @@ pub async fn push_to_fulltext_search(tex_file: &TexFile, content: &String) {
 
 pub fn create_file_on_disk_impl(file: &TexFile) -> std::io::Result<()> {
     let base_compile_dir: String = get_proj_base_dir(&file.project_id);
+    return create_file_on_disk_in_dir(&base_compile_dir, file);
+}
+
+/// Create the file/folder on disk under an already resolved project base directory.
+///
+/// Prefer this over [`create_file_on_disk_impl`] when the project row is still inside an
+/// uncommitted transaction, because `create_file_on_disk_impl` resolves the base directory
+/// from the project cache/database and therefore cannot see the not yet committed project.
+pub fn create_file_on_disk_in_dir(base_compile_dir: &str, file: &TexFile) -> std::io::Result<()> {
+    let base_compile_dir: String = base_compile_dir.to_owned();
     if file.file_type == (ThFileType::Folder as i32) {
         let folder_path = join_paths(&[base_compile_dir, file.file_path.clone()]);
         create_directory_if_not_exists(&folder_path)?;

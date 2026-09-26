@@ -60,7 +60,7 @@ use crate::net::y_websocket_client::{
 };
 use crate::service::config::user_config_service::get_user_config;
 use crate::service::file::file_service::{
-    create_file_on_disk_impl, get_cached_file_by_fid, get_file_tree, get_main_file_list,
+    create_file_on_disk_in_dir, get_cached_file_by_fid, get_file_tree, get_main_file_list,
 };
 use crate::service::global::proj::proj_util::get_purge_proj_base_dir;
 use crate::service::global::proj::proj_util::{
@@ -393,9 +393,19 @@ pub async fn create_empty_project(
     let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
     let trans_result = connection.transaction(|connection| {
-        do_create_proj_trans(proj_req, &user_info, connection, login_user_info)
+        do_create_proj_trans(proj_req, &user_info, connection)
     });
-    return trans_result;
+    /*
+     * the yjs bootstrap reads the project back, so it can only run once the
+     * creating transaction is committed
+     */
+    let (proj, main_file_id) = trans_result?;
+    let proj_for_yjs = proj.clone();
+    let u_copy = login_user_info.clone();
+    task::spawn(async move {
+        sync_file_to_yjs(&proj_for_yjs, &main_file_id, &u_copy).await;
+    });
+    return Ok(proj);
 }
 
 pub async fn create_tpl_project(
@@ -443,8 +453,7 @@ fn do_create_proj_trans(
     proj_req: &TexProjectReq,
     rd_user_info: &RdInnerUserInfo,
     connection: &mut PgConnection,
-    login_user_info: &LoginUserInfo,
-) -> Result<TexProject, Error> {
+) -> Result<(TexProject, String), Error> {
     let create_result = create_proj(proj_req, connection, &rd_user_info);
     if let Err(ce) = create_result {
         error!("Failed to create proj: {}", ce);
@@ -453,20 +462,19 @@ fn do_create_proj_trans(
     let proj = create_result.unwrap();
     do_create_proj_dependencies(proj_req, rd_user_info, connection, &proj);
     let file = create_main_file(&proj.project_id, connection, &rd_user_info.id)?;
-    create_file_on_disk_impl(&file).map_err(|e| {
+    /*
+     * the project row is not committed yet, so the cached lookup used by
+     * create_file_on_disk_impl cannot find it, resolve the work dir instantly
+     */
+    let proj_dir = get_proj_base_dir_instant(&proj.project_id);
+    create_file_on_disk_in_dir(&proj_dir, &file).map_err(|e| {
         error!(
             "create main file on disk failed, project_id={}, err={}",
             proj.project_id, e
         );
         diesel::result::Error::QueryBuilderError(Box::new(e))
     })?;
-    let file_create_proj = proj.clone();
-    let u_copy = login_user_info.clone();
-    let init_file_id = file.file_id.clone();
-    task::spawn(async move {
-        sync_file_to_yjs(&file_create_proj, &init_file_id, &u_copy).await;
-    });
-    return Ok(proj);
+    return Ok((proj, file.file_id));
 }
 
 fn do_create_tpl_proj_trans(
