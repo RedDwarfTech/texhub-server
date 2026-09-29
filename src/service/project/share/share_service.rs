@@ -4,6 +4,7 @@ use crate::model::dict::role_type::RoleType;
 use crate::model::diesel::tex::custom_tex_models::TexProjEditor;
 use crate::model::request::project::share::collar_query_params::CollarQueryParams;
 use crate::model::request::project::share::share_del::ShareDel;
+use crate::model::response::project::share::collar_permission_resp::CollarPermissionResp;
 use crate::{
     diesel::RunQueryDsl, model::request::project::query::share_query_params::ShareQueryParams,
 };
@@ -46,8 +47,49 @@ pub async fn get_collar_relation(params: &CollarQueryParams) -> Option<Vec<TexPr
     }
 }
 
-pub fn del_share_bind_impl(params: &ShareDel, login_user_info: &LoginUserInfo) -> Result<usize, diesel::result::Error> {
-    use crate::model::diesel::tex::tex_schema::tex_proj_editor as editor_table;
+/// 查询某个用户对某个项目的协作权限，供 texhub-broadcast 在 WS 建连时做
+/// membership 校验。
+///
+/// 与 `get_collar_relation` 的区别在于**失败语义**：这里 DB 出错时返回
+/// `Err`（调用方必须 fail-closed 拒绝连接），而不是像前者那样吞掉错误返回
+/// 空列表 —— 空列表在鉴权语境下等于"没有权限"，但把"查不到"当成"查到了
+/// 没有人"会让数据库抖动直接变成越权。
+pub async fn get_collar_permission(
+    params: &CollarQueryParams,
+) -> Result<CollarPermissionResp, String> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as cv_work_table;
+    let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
+    query = query.filter(cv_work_table::project_id.eq(params.project_id.clone()));
+    query = query.filter(cv_work_table::user_id.eq(params.user_id));
+    query = query.filter(cv_work_table::collar_status.eq(CollarStatus::Normal as i32));
+    let cvs = query
+        .load::<TexProjEditor>(&mut get_connection())
+        .map_err(|err| {
+            let msg = format!("get collar permission failed, {}", err);
+            error!("{}", msg);
+            msg
+        })?;
+
+    // 一行都没有 => 非成员（或已被移出协作）。多条时取 Owner 优先。
+    let role_id = cvs
+        .iter()
+        .map(|item| item.role_id)
+        .filter(|role| *role == RoleType::Owner as i32 || *role == RoleType::Collarboartor as i32)
+        .min()
+        .unwrap_or(0);
+    let is_member = role_id != 0;
+
+    Ok(CollarPermissionResp {
+        project_id: params.project_id.clone(),
+        user_id: params.user_id,
+        role_id,
+        is_member,
+        // Owner 与 Collaborator 目前都可写；只读角色尚未建模，见 can_read_only 后续拆分
+        can_write: is_member,
+    })
+}
+
+pub fn del_share_bind_impl(params: &ShareDel, login_user_info: &LoginUserInfo) -> Result<usize, diesel::result::Error> {    use crate::model::diesel::tex::tex_schema::tex_proj_editor as editor_table;
     // check login user, only the project owner could delete the bind relationship
     let mut query = editor_table::table.into_boxed::<diesel::pg::Pg>();
     query = query.filter(editor_table::project_id.eq(params.project_id.clone()));
