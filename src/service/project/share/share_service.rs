@@ -50,17 +50,22 @@ pub async fn get_collar_relation(params: &CollarQueryParams) -> Option<Vec<TexPr
 /// 查询某个用户对某个项目的协作权限，供 texhub-broadcast 在 WS 建连时做
 /// membership 校验。
 ///
+/// 身份以显式入参传入而非请求结构体：调用方只能决定「查哪个项目」，
+/// 「查谁」必须来自 AuthMiddleware 校验过的 JWT。把它做成结构体字段曾经
+/// 出过一次事故（字段必填但调用方不传，接口固定 400）。
+///
 /// 与 `get_collar_relation` 的区别在于**失败语义**：这里 DB 出错时返回
 /// `Err`（调用方必须 fail-closed 拒绝连接），而不是像前者那样吞掉错误返回
 /// 空列表 —— 空列表在鉴权语境下等于"没有权限"，但把"查不到"当成"查到了
 /// 没有人"会让数据库抖动直接变成越权。
 pub async fn get_collar_permission(
-    params: &CollarQueryParams,
+    project_id: &str,
+    user_id: i64,
 ) -> Result<CollarPermissionResp, String> {
     use crate::model::diesel::tex::tex_schema::tex_proj_editor as cv_work_table;
     let mut query = cv_work_table::table.into_boxed::<diesel::pg::Pg>();
-    query = query.filter(cv_work_table::project_id.eq(params.project_id.clone()));
-    query = query.filter(cv_work_table::user_id.eq(params.user_id));
+    query = query.filter(cv_work_table::project_id.eq(project_id.to_owned()));
+    query = query.filter(cv_work_table::user_id.eq(user_id));
     query = query.filter(cv_work_table::collar_status.eq(CollarStatus::Normal as i32));
     let cvs = query
         .load::<TexProjEditor>(&mut get_connection())
@@ -80,8 +85,8 @@ pub async fn get_collar_permission(
     let is_member = role_id != 0;
 
     Ok(CollarPermissionResp {
-        project_id: params.project_id.clone(),
-        user_id: params.user_id,
+        project_id: project_id.to_owned(),
+        user_id,
         role_id,
         is_member,
         // Owner 与 Collaborator 目前都可写；只读角色尚未建模，见 can_read_only 后续拆分

@@ -21,7 +21,7 @@ use rust_wheel::{
     model::user::login_user_info::LoginUserInfo,
 };
 
-use crate::model::request::project::share::collar_query_params::CollarQueryParams;
+use crate::model::request::project::share::collar_permission_params::CollarPermissionParams;
 
 pub async fn proj_share_list(form: web::Query<ShareQueryParams>) -> impl Responder {
     let collar_users = get_collar_users(&form.0).await;
@@ -35,15 +35,11 @@ pub async fn proj_share_list(form: web::Query<ShareQueryParams>) -> impl Respond
 /// 刻意不接受调用方传入 user_id：否则 broadcast 侧只要被攻破，就能以任意
 /// 用户身份查询任意项目的权限，鉴权边界形同虚设。
 pub async fn get_collar_permission_of(
-    form: web::Query<CollarQueryParams>,
+    form: web::Query<CollarPermissionParams>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    // 忽略 form.0.user_id，以 token 解析出的身份为准
-    let params = CollarQueryParams {
-        project_id: form.0.project_id.clone(),
-        user_id: login_user_info.userId,
-    };
-    match get_collar_permission(&params).await {
+    // 请求体里根本没有 user_id 这个字段可读，身份只能来自 token
+    match get_collar_permission(&form.0.project_id, login_user_info.userId).await {
         Ok(perm) => box_actix_rest_response(perm),
         Err(e) => {
             error!("get collar permission failed, {:?}", e);

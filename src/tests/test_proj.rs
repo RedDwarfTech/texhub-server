@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::controller::project::proj_controller::sse_handler;
+    use crate::controller::project::proj::proj_controller::sse_handler;
     use actix_web::{test, web, App};
 
     #[actix_rt::test]
