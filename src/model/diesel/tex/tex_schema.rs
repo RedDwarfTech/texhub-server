@@ -93,6 +93,23 @@ table! {
 }
 
 table! {
+    tex_proj_invite (id) {
+        id -> Int8,
+        created_time -> Int8,
+        updated_time -> Int8,
+        project_id -> Varchar,
+        token_hash -> Varchar,
+        token_cipher -> Binary,
+        role_id -> Int4,
+        expire_at -> Int8,
+        max_uses -> Int4,
+        used_count -> Int4,
+        created_by -> Int8,
+        active -> Int2,
+    }
+}
+
+table! {
     tex_project (id) {
         id -> Int8,
         proj_name -> Varchar,
@@ -165,6 +182,7 @@ allow_tables_to_appear_in_same_query!(
     tex_proj_editor,
     tex_proj_folder,
     tex_proj_folder_map,
+    tex_proj_invite,
     tex_project,
     tex_snippet,
     tex_template,

@@ -103,6 +103,28 @@ pub struct TexFolderTree {
 }
 
 #[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
+#[diesel(table_name = tex_proj_invite)]
+pub struct TexProjInvite {
+    pub id: i64,
+    pub created_time: i64,
+    pub updated_time: i64,
+    pub project_id: String,
+    /// 邀请码的 SHA-256 十六进制，仅用于 O(1) 等值检索，不是凭证本身。
+    pub token_hash: String,
+    /// AES-256-GCM 密文（含 nonce），`project_id` 作为附加认证数据。
+    /// 用 `Vec<u8>` 而不是 String，避免密文经过 UTF-8 转换时被破坏。
+    pub token_cipher: Vec<u8>,
+    pub role_id: i32,
+    /// 过期时间时（毫秒）；0 表示永不过期。
+    pub expire_at: i64,
+    /// 最大使用次数；0 表示不限次。
+    pub max_uses: i32,
+    pub used_count: i32,
+    pub created_by: i64,
+    pub active: i16
+}
+
+#[derive(Insertable,Queryable,QueryableByName,Debug,Serialize,Deserialize,Default,Clone)]
 #[diesel(table_name = tex_proj_editor)]
 pub struct TexProjEditor {
     pub id: i64,

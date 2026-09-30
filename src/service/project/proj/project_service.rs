@@ -56,9 +56,7 @@ use crate::model::response::project::pdf_pos_resp::PdfPosResp;
 use crate::model::response::project::src_pos_resp::SrcPosResp;
 use crate::model::response::project::tex_proj_resp::TexProjResp;
 use crate::net::render_client::{construct_headers, render_request};
-use crate::net::y_websocket_client::{
-    flush_project_before_compile, initial_file_request,
-};
+use crate::net::y_websocket_client::{flush_project_before_compile, initial_file_request};
 use crate::service::config::user_config_service::get_user_config;
 use crate::service::file::file_service::{
     create_file_on_disk_in_dir, get_cached_file_by_fid, get_file_tree, get_main_file_list,
@@ -79,6 +77,9 @@ use crate::service::project::project_editor_service::get_default_proj_ids;
 use crate::service::project::project_queue_service::get_estimated_compile_time;
 use crate::service::project::project_queue_service::get_latest_proj_queue;
 use crate::service::project::project_queue_service::get_proj_working_queue_list;
+use crate::service::project::share::invite_service::{
+    project_exists, redeem_invite_quota, validate_invite,
+};
 use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{common::database::get_connection, model::diesel::tex::custom_tex_models::TexFile};
 use actix_web::HttpResponse;
@@ -418,9 +419,8 @@ pub async fn create_empty_project(
 ) -> Result<TexProject, Error> {
     let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
     let mut connection = get_connection();
-    let trans_result = connection.transaction(|connection| {
-        do_create_proj_trans(proj_req, &user_info, connection)
-    });
+    let trans_result =
+        connection.transaction(|connection| do_create_proj_trans(proj_req, &user_info, connection));
     /*
      * the yjs bootstrap reads the project back, so it can only run once the
      * creating transaction is committed
@@ -768,22 +768,23 @@ pub async fn save_proj_file(
         }
         let parent_path = join_paths(&[store_file_path, db_file.file_path.clone()]);
         let mut connection = get_connection();
-        let upload_result: Result<(), diesel::result::Error> = connection.transaction(|connection| {
-            create_proj_file_impl(
-                connection,
-                &f_name,
-                login_user_info,
-                &proj_id,
-                &parent,
-                &db_file.file_path,
-            )?;
-            create_directory_if_not_exists(&parent_path).map_err(io_to_diesel_err)?;
-            fs::copy(&temp_path, &file_path).map_err(|e| {
-                error!("copy upload file failed, {}", e);
-                io_to_diesel_err(e)
-            })?;
-            Ok(())
-        });
+        let upload_result: Result<(), diesel::result::Error> =
+            connection.transaction(|connection| {
+                create_proj_file_impl(
+                    connection,
+                    &f_name,
+                    login_user_info,
+                    &proj_id,
+                    &parent,
+                    &db_file.file_path,
+                )?;
+                create_directory_if_not_exists(&parent_path).map_err(io_to_diesel_err)?;
+                fs::copy(&temp_path, &file_path).map_err(|e| {
+                    error!("copy upload file failed, {}", e);
+                    io_to_diesel_err(e)
+                })?;
+                Ok(())
+            });
         if let Err(e) = upload_result {
             error!("upload project file transaction failed, {}", e);
             let _ = fs::remove_file(&temp_path);
@@ -885,17 +886,12 @@ pub async fn save_full_proj_output(proj_upload: ProjFullUploadFile) -> HttpRespo
 
     match block_result {
         Ok(Ok(())) => {
-            info!(
-                "save_full_proj_output done, elapsed={:?}",
-                start.elapsed()
-            );
+            info!("save_full_proj_output done, elapsed={:?}", start.elapsed());
             box_actix_rest_response("ok")
         }
-        Ok(Err(FullProjOutputBlockError::PersistFailed)) => box_error_actix_rest_response(
-            "",
-            "001002P001".to_owned(),
-            "exceed limit".to_owned(),
-        ),
+        Ok(Err(FullProjOutputBlockError::PersistFailed)) => {
+            box_error_actix_rest_response("", "001002P001".to_owned(), "exceed limit".to_owned())
+        }
         Ok(Err(FullProjOutputBlockError::CreateDirFailed)) => {
             actix_web::error::ErrorInternalServerError("create output dir failed").into()
         }
@@ -1142,22 +1138,82 @@ pub fn get_src_pos(params: &GetSrcPosParams) -> Vec<SrcPosResp> {
     crate::service::project::proj::synctex_service::get_src_pos(params)
 }
 
+/// 通过邀请链接加入项目。
+///
+/// 目标项目**完全由 token 决定**，不接受调用方指定 —— 旧实现直接拿请求里的
+/// `project_id` 往 `tex_proj_editor` 插一行，任何登录用户只要知道（甚至猜到）
+/// 任意项目 ID 就能把自己变成该项目的 Collaborator，属于典型的横向越权。
+///
+/// 判定顺序（顺序本身就是安全要求，不能随意调换）：
+///
+/// 1. 校验凭证存在 / 未撤销 / 未过期 / 额度未耗尽 —— 此步**不**占用额度。
+/// 2. 幂等短路：已经是成员就直接返回，不消耗额度。否则一个 `max_uses=1`
+///    的邀请码会被"已经是成员的人多点一次接受"白白消耗掉，把真正的
+///    新协作者挡在门外。
+/// 3. 确认目标项目仍然存在（凭证可能指向已删除的项目）。
+/// 4. 原子占用一次额度 —— 必须用带条件的 UPDATE 抢，不能"先查后写"，
+///    否则并发的多个请求会把同一个限次邀请码用掉多次。
+/// 5. 写入协作关系。
+///
+/// 已知机舍：第 4 步占用额度后、第 5 步写入若失败，额度会白扣一次。
+/// 这是刻意选择的 —— 宁可少一次入伙机会，也不能放过超发（超发会让
+/// `max_uses` 形同虚设）。Owner 重新签发即可恢复。
 pub async fn join_project(
     req: &TexJoinProjectReq,
     login_user_info: &LoginUserInfo,
-) -> Result<TexProjEditor, Error> {
-    let user_info: RdInnerUserInfo = get_user_info(&login_user_info.userId).await.unwrap();
-    let new_proj_editor = TexProjEditorAdd::from_req(
-        &req.project_id,
-        &login_user_info.userId,
-        2,
-        &user_info.nickname,
-    );
-    use crate::model::diesel::tex::tex_schema::tex_proj_editor::dsl::*;
-    let result = diesel::insert_into(tex_proj_editor)
+) -> Result<TexProjEditor, TexhubError> {
+    // 第 1 步：只校验，不扣额度。
+    let invite = validate_invite(&req.token)?;
+    let user_id = login_user_info.userId;
+
+    // 第 2 步：已经是成员就短路返回，不消耗额度。
+    if let Some(existing) = get_collar_relation_of(&invite.project_id, user_id) {
+        return Ok(existing);
+    }
+
+    // 第 3 步：目标项目必须还在。
+    if !project_exists(&invite.project_id)? {
+        error!(
+            "join_project: invite points to missing project {}",
+            invite.project_id
+        );
+        return Err(TexhubError::InviteInvalid);
+    }
+
+    // 第 4 步：原子占用额度（并发安全）。
+    redeem_invite_quota(&req.token)?;
+
+    // 第 5 步：写入协作关系。
+    // 昵称拿不到不该 panic：infra 抖动不应该让整个加入流程崩掉，
+    // 退化成用 user_id 当展示名即可（协作列表里仍能区分人）。
+    let nickname = match get_user_info(&user_id).await {
+        Some(info) => info.nickname,
+        None => {
+            error!("join_project: fetch nickname failed for user {}", user_id);
+            user_id.to_string()
+        }
+    };
+    let new_proj_editor =
+        TexProjEditorAdd::from_req(&invite.project_id, &user_id, invite.role_id, &nickname);
+    diesel::insert_into(crate::model::diesel::tex::tex_schema::tex_proj_editor::table)
         .values(&new_proj_editor)
-        .get_result::<TexProjEditor>(&mut get_connection());
-    return result;
+        .get_result::<TexProjEditor>(&mut get_connection())
+        .map_err(|err| {
+            error!("join_project: insert collar row failed, err={}", err);
+            TexhubError::InviteCheckFailed
+        })
+}
+
+/// 查用户在项目上的现有协作关系（含已退出的行），用于 join 幂等。
+fn get_collar_relation_of(project_id: &str, user_id: i64) -> Option<TexProjEditor> {
+    use crate::model::diesel::tex::tex_schema::tex_proj_editor as editor_table;
+    editor_table::table
+        .into_boxed::<diesel::pg::Pg>()
+        .filter(editor_table::project_id.eq(project_id.to_owned()))
+        .filter(editor_table::user_id.eq(user_id))
+        .limit(1)
+        .first::<TexProjEditor>(&mut get_connection())
+        .ok()
 }
 
 pub async fn del_project_cache(del_project_id: &String) {
@@ -1353,7 +1409,7 @@ pub async fn add_compile_to_queue(
     if !queue_list.is_empty() {
         return box_err_actix_rest_response(TexhubError::CompilingPocessing);
     }
-    // 编译前强制 flush，保证磁盘上是点击编译时的最新内容
+    // 编译为强制 flush，保证磁盘上是点击编译时的最新内容
     if let Err(e) = flush_project_before_compile(&params.project_id).await {
         error!(
             "flush project before compile failed, project_id: {}, err: {}",
@@ -1406,10 +1462,7 @@ pub async fn add_compile_to_queue(
         ("project_id", params.project_id.as_str()),
         ("req_time", rt.as_str()),
         ("qid", qid.as_str()),
-        (
-            "version_no",
-            version_no_str.as_str(),
-        ),
+        ("version_no", version_no_str.as_str()),
         ("log_file_name", log_file_name.as_str()),
         ("proj_created_time", created_time_str.as_str()),
         ("user_id", &user_id_str.as_str()),
@@ -1751,11 +1804,15 @@ pub async fn handle_compress_proj_async(req: DownloadProj) -> Result<String, tas
     match &result {
         Ok(path) => info!(
             "handle_compress_proj_async done: project_id={}, archive={}, elapsed={:?}",
-            project_id, path, start.elapsed()
+            project_id,
+            path,
+            start.elapsed()
         ),
         Err(e) => error!(
             "handle_compress_proj_async failed: project_id={}, elapsed={:?}, err={:?}",
-            project_id, start.elapsed(), e
+            project_id,
+            start.elapsed(),
+            e
         ),
     }
     result

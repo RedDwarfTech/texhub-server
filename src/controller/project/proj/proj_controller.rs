@@ -246,12 +246,22 @@ pub async fn join_proj(
     form: web::Json<TexJoinProjectReq>,
     login_user_info: LoginUserInfo,
 ) -> impl Responder {
-    let result = join_project(&form.0, &login_user_info).await;
-    let res = ApiResponse {
-        result: result.unwrap(),
-        ..Default::default()
-    };
-    HttpResponse::Ok().json(res)
+    // 走统一错误出口。旧实现是 `result.unwrap()`：凭证无效、已撤销、项目已删
+    // 这些**预期内**的分支会直接把 worker panic 掉，等于用一个邀请链接就能
+    // 打崩接口。这里必须按业务错误返回，由 TexhubError 转成 resultCode。
+    match join_project(&form.0, &login_user_info).await {
+        Ok(editor) => {
+            let res = ApiResponse {
+                result: editor,
+                ..Default::default()
+            };
+            HttpResponse::Ok().json(res)
+        }
+        Err(e) => {
+            error!("join_proj failed, {:?}", e);
+            box_err_actix_rest_response(e)
+        }
+    }
 }
 
 pub async fn compile_proj(form: web::Json<TexCompileProjectReq>) -> impl Responder {

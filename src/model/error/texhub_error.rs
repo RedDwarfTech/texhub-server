@@ -40,6 +40,18 @@ pub enum TexhubError {
     /// 鉴权查询本身出错（DB 抖动等）。fail-closed：宁可拒绝也不放行。
     #[error("项目权限校验失败")]
     ProjAccessCheckFailed,
+    /// 邀请凭证不存在、已被撤销、已过期或次数耗尽。
+    ///
+    /// 四种情况刻意归并成同一个错误：区分开来等于告诉攻击者「这个码曾经
+    /// 有效过」，对爆破没有帮助。
+    #[error("邀请链接无效或已失效")]
+    InviteInvalid,
+    /// 只有项目 Owner 能签发 / 撤销邀请。
+    #[error("仅项目所有者可管理邀请")]
+    InviteNotOwner,
+    /// 邀请凭证的签发 / 校验过程中发生内部错误（密钥缺失、解密失败等）。
+    #[error("邀请服务异常")]
+    InviteCheckFailed,
 }
 
 impl ErrorResponse for TexhubError {
@@ -61,6 +73,9 @@ impl ErrorResponse for TexhubError {
             TexhubError::ProjAccessDenied => "0040010014",
             TexhubError::ProjAccessUnresolvable => "0040010015",
             TexhubError::ProjAccessCheckFailed => "0040010016",
+            TexhubError::InviteInvalid => "0040010017",
+            TexhubError::InviteNotOwner => "0040010018",
+            TexhubError::InviteCheckFailed => "0040010019",
         }
     }
 
@@ -82,6 +97,9 @@ impl ErrorResponse for TexhubError {
             TexhubError::ProjAccessDenied => "无权访问该项目",
             TexhubError::ProjAccessUnresolvable => "无法解析项目归属",
             TexhubError::ProjAccessCheckFailed => "项目权限校验失败",
+            TexhubError::InviteInvalid => "邀请链接无效或已失效",
+            TexhubError::InviteNotOwner => "仅项目所有者可管理邀请",
+            TexhubError::InviteCheckFailed => "邀请服务异常",
         }
     }
 
@@ -103,6 +121,9 @@ impl ErrorResponse for TexhubError {
             TexhubError::ProjAccessDenied => "PROJ_ACCESS_DENIED",
             TexhubError::ProjAccessUnresolvable => "PROJ_ACCESS_UNRESOLVABLE",
             TexhubError::ProjAccessCheckFailed => "PROJ_ACCESS_CHECK_FAILED",
+            TexhubError::InviteInvalid => "INVITE_INVALID",
+            TexhubError::InviteNotOwner => "INVITE_NOT_OWNER",
+            TexhubError::InviteCheckFailed => "INVITE_CHECK_FAILED",
         }
     }
 }
