@@ -29,6 +29,17 @@ pub enum TexhubError {
     RenameFileFailed,
     #[error("正在玩命编译中")]
     CompilingPocessing,
+    /// 调用方不是该项目的 Owner / Collaborator，或根本没有该项目的访问权。
+    /// 读接口统一用这个错误收口，避免任意用户读取他人项目。
+    #[error("无权访问该项目")]
+    ProjAccessDenied,
+    /// 鉴权所需的中间数据解析不出来（file_id / folder / queue id 找不到对应
+    /// 的 project_id）。查不到归属时必须拒绝，不能当成"通过"。
+    #[error("无法解析项目归属")]
+    ProjAccessUnresolvable,
+    /// 鉴权查询本身出错（DB 抖动等）。fail-closed：宁可拒绝也不放行。
+    #[error("项目权限校验失败")]
+    ProjAccessCheckFailed,
 }
 
 impl ErrorResponse for TexhubError {
@@ -47,6 +58,9 @@ impl ErrorResponse for TexhubError {
             TexhubError::VipTooMuchProj => "0040010011",
             TexhubError::RenameFileFailed => "0040010012",
             TexhubError::CompilingPocessing => "0040010013",
+            TexhubError::ProjAccessDenied => "0040010014",
+            TexhubError::ProjAccessUnresolvable => "0040010015",
+            TexhubError::ProjAccessCheckFailed => "0040010016",
         }
     }
 
@@ -65,6 +79,9 @@ impl ErrorResponse for TexhubError {
             TexhubError::VipTooMuchProj => "超过VIP用户项目数量限制",
             TexhubError::RenameFileFailed => "重命名文件失败",
             TexhubError::CompilingPocessing => "正在玩命编译中",
+            TexhubError::ProjAccessDenied => "无权访问该项目",
+            TexhubError::ProjAccessUnresolvable => "无法解析项目归属",
+            TexhubError::ProjAccessCheckFailed => "项目权限校验失败",
         }
     }
 
@@ -83,6 +100,9 @@ impl ErrorResponse for TexhubError {
             TexhubError::VipTooMuchProj => "VIP_TOO_MUCH_PROJ",
             TexhubError::RenameFileFailed => "RENAME_FILE_FAILED",
             TexhubError::CompilingPocessing => "COMPILING_PROCESSING",
+            TexhubError::ProjAccessDenied => "PROJ_ACCESS_DENIED",
+            TexhubError::ProjAccessUnresolvable => "PROJ_ACCESS_UNRESOLVABLE",
+            TexhubError::ProjAccessCheckFailed => "PROJ_ACCESS_CHECK_FAILED",
         }
     }
 }

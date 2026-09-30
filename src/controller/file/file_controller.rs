@@ -32,7 +32,7 @@ use crate::{
                 update_version_status,
             },
             spec::file_spec::FileSpec,
-        }, infra::user_service::get_user_info, project::{proj::project_service::{del_project_cache, get_cached_proj_info, get_proj_latest_pdf}, share::share_service::get_collar_relation}
+        }, infra::user_service::get_user_info, project::{proj::project_service::{del_project_cache, get_cached_proj_info, get_proj_latest_pdf}, proj_access_guard, share::share_service::get_collar_relation}
     },
 };
 use actix_files::NamedFile;
@@ -58,7 +58,16 @@ use rust_wheel::{
     },
 };
 
-pub async fn get_file(params: web::Query<FileQueryParams>) -> impl Responder {
+pub async fn get_file(
+    params: web::Query<FileQueryParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) = proj_access_guard::ensure_file_readable(
+        &params.file_id,
+        login_user_info.userId,
+    ) {
+        return box_err_actix_rest_response(e);
+    }
     let file = match get_cached_file_by_fid(&params.file_id) {
         Some(file) => file,
         None => return box_err_actix_rest_response(InfraError::DataNotFound),
@@ -131,27 +140,67 @@ pub async fn get_y_websocket_file(params: web::Query<FileQueryParams>) -> impl R
     box_actix_rest_response(file_detail)
 }
 
-pub async fn get_files(params: web::Query<SubFileQueryParams>) -> impl Responder {
+pub async fn get_files(
+    params: web::Query<SubFileQueryParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_file_tree_readable(&params.parent, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let docs = get_file_list(&params.parent);
     box_actix_rest_response(docs)
 }
 
-pub async fn get_main_file(params: web::Query<MainFileParams>) -> impl Responder {
+pub async fn get_main_file(
+    params: web::Query<MainFileParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_project_readable(&params.project_id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let docs = get_main_file_list(&params.project_id);
     box_actix_rest_response(docs)
 }
 
-pub async fn get_file_code(params: web::Query<FileCodeParams>) -> impl Responder {
+pub async fn get_file_code(
+    params: web::Query<FileCodeParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_file_readable(&params.file_id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let file_text = get_text_file_code(&params.file_id);
     box_actix_rest_response(file_text)
 }
 
-pub async fn get_files_tree(params: web::Query<SubFileQueryParams>) -> impl Responder {
+pub async fn get_files_tree(
+    params: web::Query<SubFileQueryParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_file_tree_readable(&params.parent, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let docs = get_file_tree(&params.parent);
     box_actix_rest_response(docs)
 }
 
-pub async fn get_proj_folder_tree(params: web::Query<SubFileQueryParams>) -> impl Responder {
+pub async fn get_proj_folder_tree(
+    params: web::Query<SubFileQueryParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_file_tree_readable(&params.parent, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let docs = proj_folder_tree(&params.parent);
     box_actix_rest_response(docs)
 }
@@ -435,7 +484,18 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/pdf/partial", web::get().to(load_partial))
             .route("/pdf/full", web::get().to(load_full_pdf_file))
             .route("/pdf/preview", web::get().to(load_full_pdf_file_sig))
-            .route("/pdf/preview-url", web::get().to(gen_preview_url))
+            .route("/pdf/preview-url", web::get().to(gen_preview_url)),
+    );
+
+    // WS 建连/子文档需要按 file_id 反查所属项目。这个接口只被
+    // texhub-broadcast 调用，且编译、WAL、flush 等后台路径也会用到，
+    // 那些路径没有用户身份可用，所以不能套用户级成员校验。
+    //
+    // 放在 /inner-tex 下：IngressRoute 只放行 /tex 与 /infra，/inner-tex
+    // 外网不可达，等于把它收回内网。此前它挂在 /tex/file/y-websocket/detail
+    // 上，等于一个无需登录即可读取任意 file_id 元数据的公开接口。
+    cfg.service(
+        web::scope("/inner-tex/file")
             .route("/y-websocket/detail", web::get().to(get_y_websocket_file)),
     );
 }

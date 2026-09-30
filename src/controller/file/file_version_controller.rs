@@ -5,13 +5,18 @@ use crate::{
     },
     service::{
         file::file_version_service::{get_proj_history, get_proj_history_v1},
-        project::snippet_service::{del_snippet_impl, edit_snippet_impl},
+        project::{
+            proj_access_guard,
+            snippet_service::{del_snippet_impl, edit_snippet_impl},
+        },
     },
 };
 use actix_web::{web, Responder};
 use log::error;
 use rust_wheel::{
-    common::wrapper::actix_http_resp::{box_actix_rest_response, box_error_actix_rest_response},
+    common::wrapper::actix_http_resp::{
+        box_actix_rest_response, box_err_actix_rest_response, box_error_actix_rest_response,
+    },
     model::user::login_user_info::LoginUserInfo,
 };
 
@@ -24,8 +29,13 @@ pub async fn proj_version(
 }
 
 pub async fn proj_version_v1(
-    form: web::Query<FileVersionParamsV1>
+    form: web::Query<FileVersionParamsV1>,
+    login_user_info: LoginUserInfo,
 ) -> impl Responder {
+    if let Err(e) = proj_access_guard::ensure_file_version_readable(form.0.id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let proj_historied = get_proj_history_v1(&form.0).await;
     box_actix_rest_response(proj_historied)
 }

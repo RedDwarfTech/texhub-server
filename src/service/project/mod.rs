@@ -1,3 +1,4 @@
+pub mod proj_access_guard;
 pub mod project_queue_service;
 pub mod project_folder_service;
 pub mod project_folder_map_service;

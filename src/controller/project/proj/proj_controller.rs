@@ -38,6 +38,7 @@ use crate::service::project::proj::project_service::{
 };
 use crate::service::project::proj::spec::tex_project_service::TexProjectService;
 use crate::service::project::project_folder_map_service::move_proj_folder;
+use crate::service::project::proj_access_guard;
 use crate::service::project::share::share_service::get_collar_relation;
 use crate::service::project::spec::proj_spec::ProjSpec;
 use crate::{
@@ -148,8 +149,19 @@ pub async fn get_folder_projects(
  * convert to app model to data transport model
  * we need to convert i64 to string so that the javascript can handle it
  *  */
-pub async fn get_project(params: web::Query<GetProjParams>) -> impl Responder {
+pub async fn get_project(
+    params: web::Query<GetProjParams>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_project_readable(&params.project_id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let proj = get_cached_proj_info(&params.project_id);
+    if proj.is_none() {
+        return box_err_actix_rest_response(InfraError::DataNotFound);
+    }
     let proj_resp = TexProjectCacheResp::from(&proj.unwrap());
     return box_actix_rest_response(proj_resp);
 }
@@ -315,12 +327,26 @@ pub async fn sse_handler(form: web::Query<TexCompileProjectReq>) -> HttpResponse
     response
 }
 
-pub async fn get_proj_compile_log(form: web::Query<TexCompileQueueLog>) -> HttpResponse {
+pub async fn get_proj_compile_log(
+    form: web::Query<TexCompileQueueLog>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    if let Err(e) =
+        proj_access_guard::ensure_project_readable(&form.0.project_id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let output = get_compiled_log(&form.0).await;
     return box_actix_rest_response(output);
 }
 
-pub async fn get_queue_status(form: web::Query<QueueStatusReq>) -> HttpResponse {
+pub async fn get_queue_status(
+    form: web::Query<QueueStatusReq>,
+    login_user_info: LoginUserInfo,
+) -> HttpResponse {
+    if let Err(e) = proj_access_guard::ensure_queue_readable(form.0.id, login_user_info.userId) {
+        return box_err_actix_rest_response(e);
+    }
     let result = get_cached_queue_status(form.0.id).await;
     return box_actix_rest_response(result.unwrap_or_default());
 }
@@ -378,12 +404,28 @@ async fn update_proj_nickname(form: web::Json<TexFileIdxReq>) -> HttpResponse {
     box_actix_rest_response(pos)
 }
 
-pub async fn get_proj_his_page(params: web::Query<GetProjPageHistory>) -> impl Responder {
+pub async fn get_proj_his_page(
+    params: web::Query<GetProjPageHistory>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_project_readable(&params.project_id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let proj_history = get_proj_history_page_impl(&params.0);
     box_actix_rest_response(proj_history)
 }
 
-pub async fn get_proj_his_page_v1(params: web::Query<GetProjHistoryScroll>) -> impl Responder {
+pub async fn get_proj_his_page_v1(
+    params: web::Query<GetProjHistoryScroll>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_project_readable(&params.project_id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     // 查看历史版本前先强制刷新项目待写的历史快照，保证能展示最新的历史版本。
     // 具体哪些文件需要 flush 由 texhub-broadcast 侧决定。
     if params.flush == Some(true) {
@@ -426,7 +468,13 @@ pub async fn trash_project(
 pub async fn download_project(
     req: HttpRequest,
     form: web::Json<DownloadProj>,
+    login_user_info: LoginUserInfo,
 ) -> actix_web::Result<impl actix_web::Responder> {
+    if let Err(e) =
+        proj_access_guard::ensure_project_readable(&form.0.project_id, login_user_info.userId)
+    {
+        return Ok(box_err_actix_rest_response(e));
+    }
     let path = handle_compress_proj_async(form.into_inner())
         .await
         .map_err(|e| {
@@ -448,7 +496,15 @@ pub async fn download_project(
     }
 }
 
-pub async fn compress_project(form: web::Json<DownloadProj>) -> impl Responder {
+pub async fn compress_project(
+    form: web::Json<DownloadProj>,
+    login_user_info: LoginUserInfo,
+) -> impl Responder {
+    if let Err(e) =
+        proj_access_guard::ensure_project_readable(&form.0.project_id, login_user_info.userId)
+    {
+        return box_err_actix_rest_response(e);
+    }
     let path = handle_compress_proj(&form.0);
     box_actix_rest_response(path)
 }
